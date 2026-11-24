@@ -352,7 +352,7 @@ export default async (req, context) => {
       return json({
         characters: chars.map((c, i) => ({
           ...publicChar(c),
-          signup: sign[i] ? { dec9: sign[i].dec9, attune: sign[i].attune, later: sign[i].later, eta: sign[i].eta } : null
+          signup: sign[i] ? { dec9: sign[i].dec9, attune: sign[i].attune, later: sign[i].later, eta: sign[i].eta, discord: sign[i].discord || '' } : null
         })),
         synced_at: sync && sync.ok ? sync.at : null,
         aliases: (await s.get('meta/aliases', { type: 'json' })) || {}
