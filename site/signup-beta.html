@@ -52,7 +52,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .ch-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:4px 24px;margin-top:6px}
 .ch-item{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
 .ch-slot{color:#8F857C;font-size:13px;padding-top:2px}
-.tip{position:relative;cursor:help;border-bottom:1px dotted #6E625C}
+.tip{position:relative}
 .tip::after{content:attr(data-tip);position:absolute;left:0;bottom:calc(100% + 6px);white-space:nowrap;background:#241E1C;color:#F1ECE6;border:1px solid #362D2A;border-radius:4px;padding:4px 8px;font:500 13px Barlow,sans-serif;opacity:0;pointer-events:none;transition:opacity .12s;z-index:5}
 .tip:hover::after,.tip:focus::after{opacity:1}
 .rs-wrap{overflow:visible}
@@ -137,6 +137,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <p style="font-size: 14px; color: #8F857C">Notes only go to the officers. You can always message <strong style="color: #CFC7BE">Ghost, Goguk or Drey</strong> in Discord.</p>
 <button type="submit" id="sGo" class="rs-btn rs-btn-p" style="min-height: 52px">SAVE MY SIGNUP</button>
 <p role="alert" id="sMsg" style="font-size: 15px; min-height: 22px"></p>
+<button type="button" id="wBtn" hidden class="link-btn" style="align-self: flex-start; font-size: 14px; color: #AEA49A">Remove this character’s signup</button>
 </form>
 
 <!-- ROSTER -->
@@ -193,9 +194,10 @@ function drawSign(){
  $('etaBox').hidden=!(sign.dec9==='No'&&sign.later&&sign.later!=='Not planning to raid'&&!(c&&c.level>=60));
 }
 $('signForm').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(!b)return;sign[b.dataset.k]=b.dataset.val;if(b.dataset.k==='dec9'){if(b.dataset.val!=='No'){sign.later='';sign.eta=''}if(!['Yes','Probably'].includes(b.dataset.val))sign.attune=''}$('sMsg').textContent='';drawSign()});
+let hasSign=false;
 async function loadSign(){
- sign={dec9:'',attune:'',later:'',eta:''};$('sNotes').value='';$('sMsg').textContent='';
- try{const d=await G.api('mine',{key:as});if(d.signup){sign={dec9:d.signup.dec9||'',attune:d.signup.attune||'',later:d.signup.later||'',eta:d.signup.eta||''};if(d.signup.discord)$('sDiscord').value=d.signup.discord;$('sNotes').value=d.signup.notes||''}}catch(_){}
+ sign={dec9:'',attune:'',later:'',eta:''};$('sNotes').value='';$('sMsg').textContent='';hasSign=false;$('wBtn').hidden=true;
+ try{const d=await G.api('mine',{key:as});if(d.signup){hasSign=true;$('wBtn').hidden=false;sign={dec9:d.signup.dec9||'',attune:d.signup.attune||'',later:d.signup.later||'',eta:d.signup.eta||''};if(d.signup.discord)$('sDiscord').value=d.signup.discord;$('sNotes').value=d.signup.notes||''}}catch(_){}
  drawSign();
 }
 $('signForm').addEventListener('submit',async e=>{
@@ -207,11 +209,18 @@ $('signForm').addEventListener('submit',async e=>{
   const discord=G.me().discord||$('sDiscord').value.trim();
   await G.api('signup',{key:c.key,...sign,discord,notes:$('sNotes').value});
   fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({'form-name':'raid-signup',signup_id:'char:'+c.key,discord,character:c.name,level:String(c.level),'class':c.cls,main_role:c.main_role,also_play:(c.also_play||[]).join(', '),dec9:sign.dec9,raid_after:sign.later,ready_by:c.level>=60?'Already 60':sign.eta,attunement:sign.attune,notes:$('sNotes').value}).toString()}).catch(()=>{});
-  await G.loadRoster();drawRoster();$('sMsg').style.color='#A3BC6E';$('sMsg').textContent='Saved. See you in there!';
+  await G.loadRoster();drawRoster();hasSign=true;$('wBtn').hidden=false;$('sMsg').style.color='#A3BC6E';$('sMsg').textContent='Saved. See you in there!';
  }catch(x){$('sMsg').textContent=x.message}
  finally{$('sGo').disabled=false;$('sGo').textContent='SAVE MY SIGNUP'}
 });
 
+$('wBtn').addEventListener('click',async()=>{
+ const b=$('wBtn');
+ if(!b.dataset.sure){b.dataset.sure='1';b.textContent='Tap again to remove '+cur().name+'’s signup';setTimeout(()=>{delete b.dataset.sure;b.textContent='Remove this character’s signup'},4000);return}
+ delete b.dataset.sure;b.textContent='Remove this character’s signup';
+ try{await G.api('withdraw',{key:as});await G.loadRoster();drawRoster();await loadSign();$('sMsg').style.color='#AEA49A';$('sMsg').textContent='Signup removed.'}
+ catch(x){$('sMsg').style.color='#D96A5F';$('sMsg').textContent=x.message}
+});
 const bar=(label,parts,max,note)=>`<div><div style="display:flex;justify-content:space-between;gap:10px;font-size:15px;margin-bottom:5px"><b style="font-weight:600">${esc(label)}</b><span style="color:#AEA49A;white-space:nowrap">${esc(note)}</span></div><div style="height:10px;background:#241E1C;border-radius:999px;overflow:hidden;display:flex">${parts.map(([v,c])=>`<i style="display:block;height:100%;width:${max?v/max*100:0}%;background:${c}"></i>`).join('')}</div></div>`;
 function drawRoster(){
  const all=G.roster(), by=a=>all.filter(r=>r.signup&&r.signup.dec9===a);

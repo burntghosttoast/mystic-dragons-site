@@ -483,6 +483,12 @@ export default async (req, context) => {
       return json({ ok: true });
     }
 
+    if (route === 'withdraw') {
+      await s.delete(`signup/dec9/${c.key}`);
+      await log(s, 'withdraw', c.name, device);
+      return json({ ok: true });
+    }
+
     if (route === 'mine') return json({ ok: true, signup: (await s.get(`signup/dec9/${c.key}`, { type: 'json' })) || null });
 
     return json({ error: 'Not found' }, 404);
