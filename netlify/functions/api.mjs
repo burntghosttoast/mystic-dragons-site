@@ -383,6 +383,24 @@ export default async (req, context) => {
       return json({ ok: true, discord });
     }
 
+    if (route === 'discord') {
+      // Change the Discord name tied to this browser (and its saved signups).
+      const discord = clean(body.discord, 40);
+      if (!discord) return json({ error: 'Add your Discord name' }, 400);
+      const verified = await s.get(`verified/${device}`, { type: 'json' });
+      const all = await allChars(s);
+      const owned = all.filter(c => (c.claims || []).includes(device));
+      if (!verified && !owned.length) return json({ error: 'Claim a character first.' }, 403);
+      if (verified) await s.setJSON(`verified/${device}`, { ...verified, discord });
+      else await s.setJSON(`discord/${device}`, { discord, at: new Date().toISOString() });
+      for (const c of owned) {
+        const sg = await s.get(`signup/dec9/${c.key}`, { type: 'json' });
+        if (sg) await s.setJSON(`signup/dec9/${c.key}`, { ...sg, discord });
+      }
+      await log(s, 'discord', discord, device, { from: verified?.discord || '' });
+      return json({ ok: true, discord });
+    }
+
     if (route === 'claim') {
       const verified = await s.get(`verified/${device}`, { type: 'json' });
       if (!verified) return json({ error: 'Enter your Discord name and the guild password first.', needsVerify: true }, 403);
@@ -458,7 +476,8 @@ export default async (req, context) => {
       // Discord name comes from the one-time guild check; older browsers can still send it.
       const verified = await s.get(`verified/${device}`, { type: 'json' });
       const prevSign = await s.get(`signup/dec9/${c.key}`, { type: 'json' });
-      doc.discord = clean(verified?.discord || body.discord || prevSign?.discord, 40);
+      const named = verified ? null : await s.get(`discord/${device}`, { type: 'json' });
+      doc.discord = clean(verified?.discord || named?.discord || body.discord || prevSign?.discord, 40);
       await s.setJSON(`signup/dec9/${c.key}`, doc);
       await log(s, 'signup', c.name, device, { dec9 });
       return json({ ok: true });

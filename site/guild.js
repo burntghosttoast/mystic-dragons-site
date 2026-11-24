@@ -44,6 +44,7 @@ window.Guild = (() => {
   function dropClaim(key) { me.keys = me.keys.filter(k => k !== key); if (me.main === key) me.main = me.keys[0] || ''; save(); }
   function setMain(key) { me.main = key; save(); }
   function setVerified(discord) { me.verified = !!discord; if (discord) me.discord = discord; save(); }
+  function setDiscord(discord) { me.discord = discord; save(); }
 
   const dot = cls => `<i class="rs-dot" style="background:${COLOR[cls] || '#999'}"></i>`;
   const chipStyle = on => 'min-height:44px;padding:0 18px;border-radius:4px;cursor:pointer;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:15px;letter-spacing:.12em;border:1px solid ' + (on ? ACC : '#362D2A') + ';background:' + (on ? ACC : '#121011') + ';color:' + (on ? '#121011' : '#CFC7BE');
@@ -69,5 +70,5 @@ window.Guild = (() => {
   const summary = c => `Level ${c.level}${c.race ? ' ' + c.race : ''} ${c.cls}${c.main_role ? ' · ' + c.main_role : ''}${(c.also_play || []).length ? ' · also ' + c.also_play.join(', ') : ''}`;
   const syncLine = () => syncedAt ? 'Levels and classes synced from the game ' + new Date(syncedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '.' : '';
 
-  return { CLASSES, COLOR, ORDER, ACC, $, esc, low, api, me: () => me, loadRoster, roster: () => roster, byKey, mine, mainChar, addClaim, dropClaim, setMain, setVerified, dot, chipStyle, editor, picksFrom, picksOut, summary, syncLine };
+  return { CLASSES, COLOR, ORDER, ACC, $, esc, low, api, me: () => me, loadRoster, roster: () => roster, byKey, mine, mainChar, addClaim, dropClaim, setMain, setVerified, setDiscord, dot, chipStyle, editor, picksFrom, picksOut, summary, syncLine };
 })();

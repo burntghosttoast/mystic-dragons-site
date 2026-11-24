@@ -140,6 +140,12 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 </div>
 </div>
 
+<form id="discordCard" class="md-card" novalidate style="flex-direction: row; flex-wrap: wrap; align-items: end; gap: 10px 14px">
+<label style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 260px"><span class="md-lab">YOUR DISCORD NAME</span><input class="md-in" type="text" id="dName" maxlength="40" autocomplete="username" placeholder="So officers know who you are"></label>
+<button type="submit" id="dSave" class="rs-btn">SAVE</button>
+<p id="dMsg" role="status" style="flex-basis: 100%; font-size: 14px; color: #AEA49A; min-height: 20px">Used on all your raid signups.</p>
+</form>
+
 <p id="infoMsg" style="color: #AEA49A"></p>
 <div id="info" class="ch-grid"></div>
 </div>
@@ -226,8 +232,15 @@ function render(){
  if(!m.some(c=>c.key===sel))sel=G.me().main||m[0].key;
  drawTabs();drawHead();drawInfo();
 }
+$('discordCard').addEventListener('submit',async e=>{
+ e.preventDefault();const v=$('dName').value.trim();
+ if(!v){$('dMsg').textContent='Add your Discord name.';return}
+ $('dSave').disabled=true;
+ try{await G.api('discord',{discord:v});G.setDiscord(v);$('dMsg').textContent='Saved. Your signups use this name now.'}
+ catch(x){$('dMsg').textContent=x.message}finally{$('dSave').disabled=false}
+});
 (async()=>{
- try{await G.loadRoster();$('loading').hidden=true;render()}
+ try{await G.loadRoster();$('loading').hidden=true;$('dName').value=G.me().discord||'';render()}
  catch(e){$('loading').textContent='Couldn’t load your characters. Try refreshing in a bit.'}
 })();
 }
