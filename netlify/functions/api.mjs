@@ -191,10 +191,38 @@ async function syncGuild(s, force) {
   } catch (_) { return meta; }
 }
 
+// Item icons are static game data: look each one up once and keep it.
+// Forever's own namespace first, then Classic and Retail (item ids are shared).
+async function addIcons(s, token, info) {
+  const ids = [...new Set((info.equipment || []).map(it => it.id).filter(Boolean))];
+  const icons = await Promise.all(ids.map(async id => {
+    let url = await s.get(`icon/${id}`);
+    if (url && url.startsWith('none:') && Date.now() - Number(url.slice(5)) < 86400000) return [id, ''];
+    if (!url || url.startsWith('none:')) {
+      for (const ns of ['static-forever-us', 'static-classic1x-us', 'static-us']) {
+        const r = await bget(token, `/data/wow/media/item/${id}`, ns);
+        url = (r.body?.assets || []).find(a => a.key === 'icon')?.value || '';
+        if (url) break;
+      }
+      await s.set(`icon/${id}`, url || 'none:' + Date.now());
+    }
+    return [id, /^https:\/\//.test(url || '') ? url : ''];
+  }));
+  const map = Object.fromEntries(icons);
+  (info.equipment || []).forEach(it => { it.icon = map[it.id] || ''; });
+  info.icons_v = 2;
+}
+
 // Everything Blizzard has on one character, cached for half an hour.
 async function characterInfo(s, c) {
   const cached = await s.get(`info/${c.key}`, { type: 'json' });
-  if (cached && Date.now() - cached.at < INFO_TTL_MS) return cached;
+  if (cached && Date.now() - cached.at < INFO_TTL_MS) {
+    if (cached.available && cached.icons_v !== 2) {
+      const token = await blizzToken(s);
+      if (token) { await addIcons(s, token, cached); await s.setJSON(`info/${c.key}`, cached); }
+    }
+    return cached;
+  }
   const token = await blizzToken(s);
   if (!token || !c.bslug) return { at: Date.now(), available: false };
   const base = `/profile/wow/character/${encodeURIComponent(c.bslug)}`;
@@ -252,19 +280,7 @@ async function characterInfo(s, c) {
       stats: [...(cat.statistics || []), ...(cat.sub_categories || []).flatMap(sc => sc.statistics || [])].map(st => ({ name: st.name, value: st.quantity }))
     })).filter(cat => cat.stats.length)
   };
-  // Item icons (static game data, cached for good).
-  const ids = [...new Set(info.equipment.map(it => it.id).filter(Boolean))];
-  const icons = await Promise.all(ids.map(async id => {
-    let url = await s.get(`icon/${id}`);
-    if (url == null) {
-      const r = await bget(token, `/data/wow/media/item/${id}`, 'static-forever-us');
-      url = (r.body?.assets || []).find(a => a.key === 'icon')?.value || '';
-      if (r.status === 200 || r.status === 404) await s.set(`icon/${id}`, url);
-    }
-    return [id, /^https:\/\//.test(url) ? url : ''];
-  }));
-  const iconMap = Object.fromEntries(icons);
-  info.equipment.forEach(it => { it.icon = iconMap[it.id] || ''; });
+  await addIcons(s, token, info);
   await s.setJSON(`info/${c.key}`, info);
   return info;
 }
