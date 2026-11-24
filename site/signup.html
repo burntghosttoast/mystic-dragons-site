@@ -158,8 +158,11 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
 <span class="md-lab" style="color: #A3BC6E">YOU’RE SIGNED UP</span>
 <p style="font-size: 17px; color: #CFC7BE"><strong id="mineName" style="color: #F1ECE6"></strong> <span id="mineInfo"></span></p>
+<p id="lvlMsg" role="status" style="font-size: 14px; color: #AEA49A; min-height: 20px"></p>
 </div>
-<div style="display: flex; flex-wrap: wrap; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+<label style="display: flex; align-items: center; gap: 8px"><span class="md-lab">LEVEL</span><input class="md-in" type="number" id="lvlQuick" min="1" max="60" inputmode="numeric" style="width: 84px"></label>
+<button type="button" id="lvlBtn" class="rs-btn">UPDATE LEVEL</button>
 <button type="button" id="editBtn" class="rs-btn rs-btn-p">EDIT MY ANSWERS</button>
 <button type="button" id="newBtn" class="rs-btn">SIGN UP ANOTHER CHARACTER</button>
 </div>
@@ -296,10 +299,30 @@ function show(){
  $('mine').hidden=!(roster&&mine);$('notMine').hidden=!(roster&&!mine);
  if(mine){$('mineName').textContent=mine.character;
   const main=Object.keys(mine.picks||{}).find(x=>mine.picks[x]==='main')||'';
+  if(document.activeElement!==$('lvlQuick'))$('lvlQuick').value=mine.level||'';
   $('mineInfo').textContent=`· Level ${mine.level} ${mine.cls} · ${main} · December 9: ${mine.dec9}`;}
  $('peek').hidden=!!mine;
  if(roster){if(rows===null)fetchRoster();else renderRoster()}
 }
+async function quickLevel(){
+ const m=load(); if(!m)return;
+ const lvl=parseInt($('lvlQuick').value,10);
+ if(!(lvl>=1&&lvl<=60)){$('lvlMsg').textContent='Enter a level from 1 to 60.';return}
+ if(lvl===m.level){$('lvlMsg').textContent='That’s already your level.';return}
+ const main=Object.keys(m.picks||{}).find(x=>m.picks[x]==='main')||'';
+ const body=new URLSearchParams({'form-name':'raid-signup',signup_id:m.id||newId(),discord:m.discord||'',character:m.character,level:String(lvl),'class':m.cls,main_role:main,also_play:ORDER.filter(x=>(m.picks||{})[x]==='will').join(', '),dec9:m.dec9||'',raid_after:m.dec9==='No'?(m.later||''):'',ready_by:lvl>=60?'Already 60':(m.dec9==='No'?(m.eta||''):''),notes:m.notes||''});
+ $('lvlBtn').disabled=true;$('lvlMsg').textContent='Saving…';
+ try{
+  const r=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body.toString()});
+  if(!r.ok)throw new Error(r.status);
+  m.level=lvl;if(!m.id)m.id=body.get('signup_id');save(m);pending=m;
+  $('lvlMsg').textContent=lvl>=60?'Updated. Grats on 60!':'Updated to level '+lvl+'.';
+  show();
+ }catch(_){$('lvlMsg').textContent='Couldn’t save that. Try again in a moment.'}
+ finally{$('lvlBtn').disabled=false}
+}
+$('lvlBtn').addEventListener('click',quickLevel);
+$('lvlQuick').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();quickLevel()}});
 $('editBtn').addEventListener('click',()=>{fill(load());location.hash='signup';scrollTo(0,0)});
 $('newBtn').addEventListener('click',()=>{try{localStorage.removeItem(KEY)}catch(_){};pending=null;fill(null);location.hash='signup';scrollTo(0,0)});
 addEventListener('hashchange',show);
