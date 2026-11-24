@@ -352,7 +352,28 @@ export default async (req, context) => {
     const device = clean(body.device, 64);
     if (device.length < 8) return json({ error: 'Missing device id' }, 400);
 
+    if (route === 'verify') {
+      // One-time guild check per browser: Discord name + the guild password (GUILD_PASSWORD env var).
+      const expected = process.env.GUILD_PASSWORD;
+      if (!expected) return json({ error: 'The guild password hasn’t been set up yet. Ask an officer.' }, 503);
+      const discord = clean(body.discord, 40);
+      if (!discord) return json({ error: 'Add your Discord name' }, 400);
+      const tries = (await s.get(`tries/${device}`, { type: 'json' })) || { n: 0, at: 0 };
+      if (tries.n >= 5 && Date.now() - tries.at < 10 * 60 * 1000) return json({ error: 'Too many tries. Wait a few minutes and try again.' }, 429);
+      const ok = String(body.password || '') === expected;
+      if (!ok) {
+        await s.setJSON(`tries/${device}`, { n: Date.now() - tries.at > 10 * 60 * 1000 ? 1 : tries.n + 1, at: Date.now() });
+        return json({ error: 'That’s not the guild password. Ask in Discord if you’re not sure.' }, 403);
+      }
+      await s.setJSON(`verified/${device}`, { discord, at: new Date().toISOString() });
+      await s.delete(`tries/${device}`);
+      await log(s, 'verify', discord, device);
+      return json({ ok: true, discord });
+    }
+
     if (route === 'claim') {
+      const verified = await s.get(`verified/${device}`, { type: 'json' });
+      if (!verified) return json({ error: 'Enter your Discord name and the guild password first.', needsVerify: true }, 403);
       let c = body.key ? await s.get(`char/${clean(body.key, 40)}`, { type: 'json' }) : null;
       if (!c && !body.key) {
         // Not in the guild roster: add it by hand.
@@ -366,7 +387,7 @@ export default async (req, context) => {
           const key = manualKey(name), now = new Date().toISOString();
           c = { key, name, cls: body.cls, level: Math.max(1, Math.min(60, parseInt(body.level, 10) || 1)), ...f, claims: [device], created_at: now, updated_at: now };
           await s.setJSON(`char/${key}`, c);
-          await log(s, 'create', name, device);
+          await log(s, 'create', name, device, { discord: verified.discord });
           return json({ ok: true, created: true, character: publicChar(c) });
         }
       }
@@ -376,7 +397,7 @@ export default async (req, context) => {
       if (!claims.includes(device)) {
         c.claims = [...claims, device].slice(-10);
         await s.setJSON(`char/${c.key}`, c);
-        await log(s, claims.length ? 'claim-again' : 'claim', c.name, device);
+        await log(s, claims.length ? 'claim-again' : 'claim', c.name, device, { discord: verified.discord });
       }
       return json({ ok: true, character: publicChar(c) });
     }

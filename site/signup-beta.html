@@ -234,7 +234,7 @@ function drawRoster(){
  try{
   await G.loadRoster();$('loading').hidden=true;$('rosterView').hidden=false;drawRoster();
   if(!G.mainChar()){$('needClaim').hidden=false;return}
-  as=G.me().main;$('signForm').hidden=false;drawAs();loadSign();
+  as=G.me().main;$('signForm').hidden=false;if(G.me().discord)$('sDiscord').value=G.me().discord;drawAs();loadSign();
  }catch(e){$('loading').textContent='Couldn’t load the roster right now. Try refreshing in a bit.'}
 })();
 }

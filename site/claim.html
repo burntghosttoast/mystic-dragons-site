@@ -106,6 +106,17 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <a id="doneLink" class="rs-btn rs-btn-p" href="/characters" style="display: inline-flex; align-items: center; text-decoration: none">MY CHARACTERS →</a>
 </div>
 
+<form id="gate" hidden class="md-card" novalidate style="border-color: #A3BC6E">
+<h3 style="font-size: 21px; line-height: 1.25">Guildies only</h3>
+<p style="font-size: 15px; color: #AEA49A; margin-bottom: 10px">Enter your Discord name and the guild password. You only do this once on this browser.</p>
+<div class="md-who" style="grid-template-columns: minmax(0,1fr) minmax(0,1fr)">
+<label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">DISCORD NAME</span><input class="md-in" type="text" id="gDiscord" maxlength="40" autocomplete="username" placeholder="e.g. goguk"></label>
+<label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">GUILD PASSWORD</span><input class="md-in" type="password" id="gPass" maxlength="80" autocomplete="current-password" placeholder="Ask in Discord"></label>
+</div>
+<button type="submit" id="gGo" class="rs-btn rs-btn-p" style="margin-top: 10px; align-self: flex-start">CONTINUE</button>
+<p role="alert" id="gErr" style="font-size: 15px; color: #D96A5F; min-height: 22px"></p>
+</form>
+
 <div id="findCard" hidden class="md-card">
 <h3 style="font-size: 21px; line-height: 1.25">Find your character</h3>
 <p id="syncLine" style="font-size: 14px; color: #8F857C; margin-bottom: 8px"></p>
@@ -156,6 +167,15 @@ function drawFind(){
  const list=G.roster().filter(c=>!q||low(c.name).includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
  $('findList').innerHTML=list.length?list.map(c=>`<button type="button" data-claim="${esc(c.key)}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;min-height:48px;padding:8px 14px;border-radius:6px;border:1px solid #362D2A;background:${mineKeys.has(c.key)?'#241E1C':'#121011'};color:#F1ECE6;cursor:pointer;font:500 16px Barlow,sans-serif"><span style="display:flex;align-items:center;gap:2px">${G.dot(c.cls)}<strong style="font-weight:600">${esc(c.name)}</strong></span><span style="color:#AEA49A;font-size:14px;white-space:nowrap">${mineKeys.has(c.key)?'<span style="color:#A3BC6E">Yours · </span>':''}${esc(c.level)} ${esc(c.race)} ${esc(c.cls)}</span></button>`).join(''):'<p style="font-size:15px;color:#8F857C">No match. If you’re new to the guild you may not show up yet; add yourself below.</p>';
 }
+function showGate(v){$('gate').hidden=!v;$('findCard').hidden=v;$('addCard').hidden=v;if(v)$('gDiscord').focus()}
+$('gate').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const discord=$('gDiscord').value.trim(),password=$('gPass').value;
+ if(!discord||!password){$('gErr').textContent=!discord?'Add your Discord name.':'Enter the guild password.';return}
+ $('gGo').disabled=true;
+ try{await G.api('verify',{discord,password});G.setVerified(discord);$('gPass').value='';showGate(false);drawFind();$('find').focus()}
+ catch(x){$('gErr').textContent=x.message}finally{$('gGo').disabled=false}
+});
 async function claim(key,confirm){
  $('findErr').textContent='';
  try{
@@ -163,7 +183,7 @@ async function claim(key,confirm){
   if(d.needsConfirm){$('cName').textContent=d.name;$('confirm').dataset.key=d.key;$('confirm').showModal();return}
   G.addClaim(d.character.key);
   location.href=nextUrl;
- }catch(e){$('findErr').textContent=e.message}
+ }catch(e){if(/guild password first/.test(e.message)){G.setVerified('');showGate(true);return}$('findErr').textContent=e.message}
 }
 $('find').addEventListener('input',drawFind);
 $('findList').addEventListener('click',e=>{const b=e.target.closest('[data-claim]');if(b)claim(b.dataset.claim)});
@@ -178,10 +198,10 @@ $('addForm').addEventListener('submit',async e=>{
  $('aErr').textContent=err;if(err)return;
  $('aGo').disabled=true;
  try{const d=await G.api('claim',{name,level:lvl,cls:add.cls,...p});if(d.needsConfirm){$('cName').textContent=d.name;$('confirm').dataset.key=d.key;$('confirm').showModal();return}G.addClaim(d.character.key);location.href=nextUrl}
- catch(x){$('aErr').textContent=x.message}finally{$('aGo').disabled=false}
+ catch(x){if(/guild password first/.test(x.message)){G.setVerified('');showGate(true);return}$('aErr').textContent=x.message}finally{$('aGo').disabled=false}
 });
 (async()=>{
- try{await G.loadRoster();$('loading').hidden=true;$('findCard').hidden=false;$('addCard').hidden=false;$('syncLine').textContent=G.syncLine();drawMine();drawFind();drawAdd()}
+ try{await G.loadRoster();$('loading').hidden=true;showGate(!G.me().verified);$('syncLine').textContent=G.syncLine();drawMine();drawFind();drawAdd()}
  catch(e){$('loading').textContent='Couldn’t load the guild roster. Try refreshing in a bit.'}
 })();
 }
