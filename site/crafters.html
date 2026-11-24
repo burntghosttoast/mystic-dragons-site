@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mystic Dragons — Guild Crafters</title>
+<title>Mystic Dragons — Crafters</title>
 <link rel="icon" type="image/png" href="/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&amp;family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600&amp;display=swap">
@@ -12,13 +12,47 @@ body{margin:0;background:#121011}
 a{color:#A3BC6E}a:hover{color:#C2D69A}
 h1,h2,h3{font-family:'Cinzel',Georgia,serif;font-weight:700;margin:0;letter-spacing:0.02em}
 p{margin:0}
-
+.md-who{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 120px;gap:12px}
+.md-classes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.md-in{width:100%;box-sizing:border-box;font:16px 'Barlow',sans-serif;padding:11px 14px;min-height:46px;border-radius:4px;border:1px solid #362D2A;background:#121011;color:#F1ECE6}
+.md-in::placeholder{color:#8F857C}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC6E;outline-offset:2px}
 @media (max-width: 700px){
   header nav a{padding:8px 9px !important;font-size:14px !important}
   header img{width:36px !important;height:36px !important}
-  [style*="border-radius: 8px; padding: 48px"]{padding:24px !important}
-  [style*="padding: 48px 32px"]{padding:32px 20px !important}
+  .md-who{grid-template-columns:minmax(0,1fr) 96px}
+  .md-who label:first-child{grid-column:1/-1}
+  .md-classes{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+.md-card{background:#1B1716;border:1px solid #362D2A;border-radius:8px;padding:24px;display:flex;flex-direction:column;gap:6px}
+.md-lab{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.2em;color:#8F857C}
+.md-chips{display:flex;flex-wrap:wrap;gap:8px}
+[hidden]{display:none !important}
+.rs-tally{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rs-two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.rs-key{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.rs-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.rs-wrap{background:#1B1716;border:1px solid #362D2A;border-radius:8px;overflow:hidden}
+.rs-table{width:100%;border-collapse:collapse;font-size:15px}
+.rs-table th,.rs-table td{text-align:left;padding:11px 14px;border-bottom:1px solid #362D2A;vertical-align:top}
+.rs-table th{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#8F857C}
+.rs-table .n{text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:700px){.rs-tally{grid-template-columns:repeat(2,minmax(0,1fr))}.rs-two{grid-template-columns:minmax(0,1fr)}
+.rs-table thead{display:none}.rs-table tr{display:grid;padding:10px 0;border-bottom:1px solid #362D2A}.rs-table td{border:0;padding:3px 14px 3px 8.5em;text-align:left !important}.rs-table td::before{content:attr(data-l);float:left;width:7.5em;margin-left:-7.5em;color:#8F857C;font-size:13px}}
+.rs-btn{min-height:46px;padding:0 20px;border:1px solid #362D2A;border-radius:4px;background:transparent;color:#CFC7BE;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:16px;letter-spacing:.12em;cursor:pointer}
+.rs-btn-p{background:#A3BC6E;border-color:#A3BC6E;color:#121011}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.link-btn{background:none;border:0;padding:0;color:#A3BC6E;text-decoration:underline;cursor:pointer;font:inherit}
+.link-btn:hover{color:#C2D69A}
+.ch-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 20px;margin-top:10px;font-size:15px;color:#CFC7BE}
+.ch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:16px;align-items:start}
+.ch-wide{grid-column:1/-1}
+.ch-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
+.ch-row span:first-child{color:#CFC7BE}.ch-row span:last-child{color:#F1ECE6;text-align:right;font-variant-numeric:tabular-nums}
+.ch-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:4px 24px;margin-top:6px}
+.ch-item{display:grid;grid-template-columns:84px minmax(0,1fr);gap:10px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
+.ch-slot{color:#8F857C;font-size:13px;padding-top:2px}
+details>summary::-webkit-details-marker{display:none}
 </style>
 </head>
 <body>
@@ -57,20 +91,62 @@ p{margin:0}
 </div>
 </div>
 
-
-<!-- PLACEHOLDER -->
+<!-- PAGE HEAD -->
 <section style="border-bottom: 1px solid #362D2A">
-<div style="max-width: 1160px; margin: 0 auto; padding: clamp(56px, 8vw, 80px) 24px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 20px">
-<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">FOREVER · GUILD CRAFTERS</div>
-<div style="width: 96px; height: 96px; border-radius: 50%; border: 1px dashed #CDB07C; display: flex; align-items: center; justify-content: center; color: #CDB07C"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h13a4 4 0 0 1-4 4H9"></path><path d="M16 8h5"></path><path d="M9 12v3l-2 3h10l-2-3v-3"></path><path d="M6 21h12"></path></svg></div>
-<h1 style="font-size: clamp(32px, 5vw, 46px); line-height: 1.05">Nothing to see here <span style="color: #AEA49A">(yet)</span></h1>
-<p style="font-size: 17px; color: #CFC7BE; max-width: 560px">Once professions start getting leveled and people settle into what they’re playing, we’ll keep a list here of who can craft what.</p>
-<div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; padding-top: 8px">
-<a href="/forever" style="display: inline-flex; align-items: center; gap: 10px; border: 1px solid #362D2A; color: #CFC7BE; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.12em; padding: 14px 22px; border-radius: 4px">← FOREVER OVERVIEW</a>
-<a href="https://discord.gg/mfScPwH9rY" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 10px; background: #A83A35; color: #F7F2EC; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.12em; padding: 14px 22px; border-radius: 4px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"></path></svg>ASK IN DISCORD</a>
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(48px, 7vw, 72px) 24px clamp(40px, 5vw, 52px); display: flex; flex-direction: column; gap: 20px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">WOW FOREVER</div>
+<h1 style="font-size: clamp(40px, 7vw, 64px); line-height: 1">Guild crafters</h1>
+<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Need something made? Search for it and see who in the guild knows the recipe. Pulled straight from the game, so it stays up to date as people learn new ones.</p>
+</div>
+</section>
+
+<section style="border-bottom: 1px solid #362D2A">
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(40px, 6vw, 64px) 24px; display: flex; flex-direction: column; gap: 20px">
+<p id="loading" style="color: #AEA49A">Loading the guild’s recipes…</p>
+<div id="body" hidden style="display: flex; flex-direction: column; gap: 20px">
+<input class="md-in" type="search" id="q" placeholder="Search for an item or recipe, like “Runecloth Bag” or “Enchant Bracer”" autocomplete="off" style="font-size: 18px; min-height: 54px">
+<div id="profs" style="display: flex; flex-wrap: wrap; gap: 8px"></div>
+<p id="scan" style="font-size: 14px; color: #8F857C"></p>
+<div id="results" style="display: flex; flex-direction: column; gap: 12px"></div>
 </div>
 </div>
 </section>
+
+<script src="/guild.js"></script>
+<script>
+{
+const G=Guild,$=G.$,esc=G.esc,low=G.low;
+let data=null, prof='';
+const crafterChip=(c,skill)=>`<a href="/character?c=${encodeURIComponent(c.key)}" style="display:inline-flex;align-items:center;gap:2px;font-size:14px;color:#F1ECE6;background:#241E1C;border-radius:999px;padding:4px 12px;text-decoration:none">${G.dot(c.cls)}${esc(c.name)}${skill!=null?` <span style="color:#8F857C;margin-left:4px">${esc(skill)}</span>`:''}</a>`;
+function draw(){
+ const P=data.professions, names=Object.keys(P).sort((a,b)=>(P[b].primary-P[a].primary)||a.localeCompare(b));
+ $('profs').innerHTML=['',...names].map(n=>`<button type="button" data-p="${esc(n)}" style='${G.chipStyle(prof===n)};text-transform:none;letter-spacing:.02em;font-size:15px;min-height:38px;padding:0 12px'>${n?esc(n)+` <span style="opacity:.7">${P[n].crafters.length}</span>`:'All professions'}</button>`).join('');
+ const q=low($('q').value);
+ const byKey={};Object.values(P).forEach(p=>p.crafters.forEach(c=>{byKey[c.key]=c}));
+ if(q.length>=2){
+  // Search: every matching recipe, with who can make it.
+  const hits=[];
+  for(const n of names){ if(prof&&n!==prof)continue; for(const [r,keys] of Object.entries(P[n].recipes)) if(low(r).includes(q)) hits.push({r,n,keys}); }
+  hits.sort((a,b)=>a.r.localeCompare(b.r));
+  $('results').innerHTML=hits.length?hits.slice(0,150).map(h=>`<div class="md-card" style="gap:8px"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px"><strong style="font-size:17px">${esc(h.r)}</strong><span class="md-lab">${esc(h.n.toUpperCase())}</span></div><div style="display:flex;flex-wrap:wrap;gap:6px">${h.keys.map(k=>byKey[k]).filter(Boolean).sort((a,b)=>b.skill-a.skill).map(c=>crafterChip(c)).join('')}</div></div>`).join('')+(hits.length>150?`<p style="color:#8F857C">Showing the first 150 of ${hits.length}. Try a more specific search.</p>`:''):`<p style="color:#8F857C">Nobody in the guild knows a recipe matching “${esc($('q').value)}” yet.</p>`;
+  return;
+ }
+ // Browse: crafters per profession, with their full recipe lists.
+ const show=prof?[prof]:names;
+ $('results').innerHTML=show.map(n=>{const p=P[n];return `<div class="md-card" style="gap:10px"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:baseline"><h2 style="font-size:clamp(22px,3vw,27px)">${esc(n)}</h2><span style="color:#8F857C;font-size:14px">${p.crafters.length} ${p.crafters.length===1?'crafter':'crafters'} · ${Object.keys(p.recipes).length} recipes known in the guild</span></div>${p.crafters.slice().sort((a,b)=>b.skill-a.skill||b.count-a.count).map(c=>`<details style="border-top:1px solid #2A2321;padding:8px 0"><summary style="cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:8px;list-style:none">${crafterChip(c)}<span style="color:#CFC7BE;font-size:14px">${c.max?`${c.skill} / ${c.max}`:c.skill} · ${c.count} recipes</span></summary><p style="color:#AEA49A;font-size:14px;margin-top:8px;line-height:1.7">${esc(Object.entries(p.recipes).filter(([,k])=>k.includes(c.key)).map(([r])=>r).join(' · ')||'No recipes listed.')}</p></details>`).join('')}</div>`}).join('')||'<p style="color:#8F857C">No professions found yet.</p>';
+}
+$('q').addEventListener('input',draw);
+$('profs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;prof=b.dataset.p;draw()});
+(async()=>{
+ try{
+  data=await (await fetch('/api/crafting',{cache:'no-store'})).json();
+  $('loading').hidden=true;$('body').hidden=false;
+  $('scan').textContent=data.scanned<data.total?`Still collecting recipes: ${data.scanned} of ${data.total} guild members checked so far. Check back in a few minutes.`:`Recipes from all ${data.total} guild members.`;
+  draw();
+ }catch(e){$('loading').textContent='Couldn’t load the crafting directory. Try refreshing in a bit.'}
+})();
+}
+</script>
 
 <!-- PREV / NEXT -->
 <section>

@@ -22,6 +22,7 @@ const NS = 'profile-forever-us';
 const SYNC_EVERY_MS = 20 * 60 * 1000;
 const CATCHUP_EVERY_MS = 60 * 1000; // while names/races are still missing
 const PROFILE_EVERY_MS = 6 * 60 * 60 * 1000;
+const PROF_EVERY_MS = 6 * 60 * 60 * 1000; // professions and known recipes
 const INFO_TTL_MS = 30 * 60 * 1000;
 const INFO_V = 3; // bump to refresh cached game data after format changes
 
@@ -187,7 +188,20 @@ async function syncGuild(s, force) {
         await s.setJSON(`char/${c.key}`, upd);
       }));
     }
-    const out = { at: Date.now(), ok: true, members: members.length, pending: todo.length > batchTodo.length };
+    // Professions and known recipes for the crafting directory, a few per sync.
+    const profTodo = [...byKey.values()].filter(c => c.synced && ids.has(c.key) && c.bslug && (!c.prof_at || Date.now() - c.prof_at > PROF_EVERY_MS))
+      .sort((a, b) => (a.prof_at || 0) - (b.prof_at || 0));
+    const profBatch = profTodo.slice(0, 30);
+    for (let i = 0; i < profBatch.length; i += 10) {
+      await Promise.all(profBatch.slice(i, i + 10).map(async c => {
+        const r = await bget(token, `/profile/wow/character/${encodeURIComponent(c.bslug)}/professions`);
+        if (r.body) await s.setJSON(`prof/${c.key}`, profList(r.body));
+        else if (r.status === 404) await s.setJSON(`prof/${c.key}`, []);
+        const cur = (await s.get(`char/${c.key}`, { type: 'json' })) || c;
+        await s.setJSON(`char/${c.key}`, { ...cur, prof_at: Date.now() });
+      }));
+    }
+    const out = { at: Date.now(), ok: true, members: members.length, pending: todo.length > batchTodo.length || profTodo.length > profBatch.length };
     await s.setJSON('meta/sync', out);
     return out;
   } catch (_) { return meta; }
@@ -336,6 +350,18 @@ async function migrateKeys(s) {
   await s.set('meta/keys-v2', '1');
 }
 
+function profList(body) {
+  const nm = o => o?.name ?? '';
+  return ['primaries', 'secondaries'].flatMap(k => (body?.[k] || []).map(pr => {
+    const tiers = pr.tiers || [pr];
+    return {
+      name: nm(pr.profession), primary: k === 'primaries',
+      skill: Math.max(0, ...tiers.map(t => t.skill_points || 0)), max: Math.max(0, ...tiers.map(t => t.max_skill_points || 0)),
+      recipes: [...new Set(tiers.flatMap(t => (t.known_recipes || []).map(nm)).filter(Boolean))].sort()
+    };
+  })).filter(p => p.name);
+}
+
 /* ---------- Officers ---------- */
 const rid = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 async function officerRoute(s, route, body) {
@@ -443,6 +469,21 @@ export default async (req, context) => {
         synced_at: sync && sync.ok ? sync.at : null,
         aliases: (await s.get('meta/aliases', { type: 'json' })) || {}
       });
+    }
+
+    if (req.method === 'GET' && route === 'crafting') {
+      const meta = await s.get('meta/sync', { type: 'json' });
+      if (syncDue(meta, false)) { const job = syncGuild(s, false); if (context?.waitUntil) context.waitUntil(job); else await job; }
+      const chars = (await allChars(s)).filter(c => c.key && c.synced && c.in_guild !== false);
+      const profs = await Promise.all(chars.map(c => s.get(`prof/${c.key}`, { type: 'json' })));
+      const out = {};
+      chars.forEach((c, i) => (profs[i] || []).forEach(p => {
+        const P = out[p.name] || (out[p.name] = { primary: p.primary, crafters: [], recipes: {} });
+        P.crafters.push({ key: c.key, name: c.name, cls: c.cls, level: c.level, skill: p.skill, max: p.max, count: p.recipes.length });
+        p.recipes.forEach(r => { (P.recipes[r] || (P.recipes[r] = [])).push(c.key); });
+      }));
+      const scanned = chars.filter(c => c.prof_at).length;
+      return json({ professions: out, scanned, total: chars.length });
     }
 
     if (req.method !== 'POST') return json({ error: 'Not found' }, 404);
