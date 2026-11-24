@@ -24,17 +24,24 @@ export default async (req, context) => {
       page++;
     }
 
-    // Keep only each character's latest signup.
+    // Keep only the latest signup per person (same signup_id), or per character name for older entries.
     const latest = new Map();
     for (const s of all) {
       const d = s.data || {};
       const name = String(d.character || '').trim();
       if (!name) continue;
-      const key = name.toLowerCase();
+      const key = d.signup_id ? 'id:' + d.signup_id : 'name:' + name.toLowerCase();
       const prev = latest.get(key);
       if (!prev || new Date(s.created_at) > new Date(prev.created_at)) latest.set(key, s);
     }
-    const rows = [...latest.values()].map(s => {
+    // Then one row per character name, in case an older signup has no id.
+    const byName = new Map();
+    for (const s of latest.values()) {
+      const key = String(s.data.character).trim().toLowerCase();
+      const prev = byName.get(key);
+      if (!prev || new Date(s.created_at) > new Date(prev.created_at)) byName.set(key, s);
+    }
+    const rows = [...byName.values()].map(s => {
       const d = s.data || {};
       return {
         character: String(d.character || '').trim().slice(0, 40),
@@ -42,7 +49,8 @@ export default async (req, context) => {
         level: parseInt(d.level, 10) || 0,
         main_role: String(d.main_role || '').slice(0, 20),
         also_play: String(d.also_play || '').slice(0, 60),
-        dec9: String(d.dec9 || '').slice(0, 20)
+        dec9: String(d.dec9 || '').slice(0, 20),
+        id: String(d.signup_id || '').slice(0, 64)
       };
     });
     return Response.json({ rows }, { headers: { 'Cache-Control': 'public, max-age=60' } });

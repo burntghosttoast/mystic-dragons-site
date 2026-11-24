@@ -28,6 +28,19 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 .md-lab{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.2em;color:#8F857C}
 .md-chips{display:flex;flex-wrap:wrap;gap:8px}
 [hidden]{display:none !important}
+.rs-tally{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rs-two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.rs-key{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.rs-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.rs-wrap{background:#1B1716;border:1px solid #362D2A;border-radius:8px;overflow:hidden}
+.rs-table{width:100%;border-collapse:collapse;font-size:15px}
+.rs-table th,.rs-table td{text-align:left;padding:11px 14px;border-bottom:1px solid #362D2A;vertical-align:top}
+.rs-table th{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#8F857C}
+.rs-table .n{text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:700px){.rs-tally{grid-template-columns:repeat(2,minmax(0,1fr))}.rs-two{grid-template-columns:minmax(0,1fr)}
+.rs-table thead{display:none}.rs-table tr{display:grid;padding:10px 0;border-bottom:1px solid #362D2A}.rs-table td{border:0;padding:3px 14px 3px 8.5em;text-align:left !important}.rs-table td::before{content:attr(data-l);float:left;width:7.5em;margin-left:-7.5em;color:#8F857C;font-size:13px}}
+.rs-btn{min-height:46px;padding:0 20px;border:1px solid #362D2A;border-radius:4px;background:transparent;color:#CFC7BE;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:16px;letter-spacing:.12em;cursor:pointer}
+.rs-btn-p{background:#A3BC6E;border-color:#A3BC6E;color:#121011}
 </style>
 </head>
 <body>
@@ -60,7 +73,6 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 <a href="/addons" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Addons</a>
 <a href="/forever-faq" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">FAQ</a>
 <a href="/signup" aria-current="page" style="color: #F1ECE6; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid #A3BC6E; font-weight: 600">Sign Up</a>
-<a href="/roster" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Roster</a>
 </nav>
 </div>
 </div>
@@ -69,16 +81,18 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 <section style="border-bottom: 1px solid #362D2A">
 <div style="max-width: 1160px; margin: 0 auto; padding: clamp(48px, 7vw, 72px) 24px clamp(40px, 5vw, 52px); display: flex; flex-direction: column; gap: 20px">
 <div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">WOW FOREVER</div>
-<h1 style="font-size: clamp(40px, 7vw, 64px); line-height: 1">roster check</h1>
-<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Raid day is almost upon us. Please fill this out so we have an up-to-date roster: <strong style="color: rgb(241, 236, 230)">who’s raiding on December 9, and who’s joining in as they hit 60.</strong> Takes about 30 seconds.</p>
+<h1 id="headTitle" style="font-size: clamp(40px, 7vw, 64px); line-height: 1">roster check</h1>
+<p id="headForm" style="font-size: 18px; color: #CFC7BE; max-width: 680px">Raid day is almost upon us. Please fill this out so we have an up-to-date roster: <strong style="color: rgb(241, 236, 230)">who’s raiding on December 9, and who’s joining in as they hit 60.</strong> Takes about 30 seconds.</p>
+<p id="headRoster" hidden style="font-size: 18px; color: #CFC7BE; max-width: 680px">Everyone who’s signed up so far, updated as signups come in. Final raid groups are set by the raid leads.</p>
 </div>
 </section>
 
 <!-- FORM -->
-<section style="border-bottom: 1px solid #362D2A">
+<section id="formView" style="border-bottom: 1px solid #362D2A">
 <div style="max-width: 1160px; margin: 0 auto; padding: clamp(40px, 6vw, 64px) 24px">
 <form id="form" name="raid-signup" method="POST" data-netlify="true" netlify-honeypot="bot-field" novalidate style="max-width: 760px; display: flex; flex-direction: column; gap: 16px">
 <input type="hidden" name="form-name" value="raid-signup">
+<input type="hidden" name="signup_id" id="fId">
 <p hidden><label>Don’t fill this out: <input name="bot-field"></label></p>
 <input type="hidden" name="class" id="fClass">
 <input type="hidden" name="main_role" id="fMain">
@@ -130,28 +144,59 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 <div style="display: flex; flex-direction: column; gap: 8px">
 <button type="submit" id="go" style="min-height: 52px; border: 0; border-radius: 4px; background: #A3BC6E; color: #121011; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 17px; letter-spacing: 0.12em; cursor: pointer">SIGN ME UP</button>
 <p role="alert" id="err" style="font-size: 15px; color: #D96A5F; min-height: 22px"></p>
+<p id="peek" style="font-size: 15px; color: #AEA49A">Already signed up on another device? <a href="#roster">See who’s in</a>.</p>
 </div>
 </form>
+</div>
+</section>
 
-<div id="done" role="status" hidden style="max-width: 760px; background: #1B1716; border: 1px solid #A3BC6E; border-radius: 8px; padding: clamp(24px, 4vw, 40px); flex-direction: column; gap: 14px">
-<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">YOU’RE ON THE LIST</span>
-<h2 style="font-size: clamp(26px, 3.4vw, 32px); line-height: 1.15">See you in there, <span id="who"></span>.</h2>
-<p style="color: #CFC7BE">Your answers went straight to the officers. Plans change? Just sign up again and we’ll go with your latest answer.</p>
-<button type="button" id="again" style="align-self: flex-start; min-height: 46px; padding: 0 20px; border: 1px solid #362D2A; border-radius: 4px; background: transparent; color: #CFC7BE; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.12em; cursor: pointer">SIGN UP ANOTHER CHARACTER</button>
-<a href="/roster" style="align-self: flex-start">See who’s signed up →</a>
+<!-- ROSTER -->
+<section id="rosterView" hidden style="border-bottom: 1px solid #362D2A">
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(40px, 6vw, 64px) 24px; display: flex; flex-direction: column; gap: 24px">
+
+<div id="mine" hidden class="md-card" style="border-color: #A3BC6E; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px">
+<div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+<span class="md-lab" style="color: #A3BC6E">YOU’RE SIGNED UP</span>
+<p style="font-size: 17px; color: #CFC7BE"><strong id="mineName" style="color: #F1ECE6"></strong> <span id="mineInfo"></span></p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px">
+<button type="button" id="editBtn" class="rs-btn rs-btn-p">EDIT MY ANSWERS</button>
+<button type="button" id="newBtn" class="rs-btn">SIGN UP ANOTHER CHARACTER</button>
+</div>
+</div>
+
+<p id="notMine" hidden style="font-size: 15px; color: #AEA49A">Not on here yet? <a href="#signup">Sign up</a>.</p>
+
+<p id="msg" style="color: #AEA49A">Loading the roster…</p>
+<div id="body" hidden style="display: flex; flex-direction: column; gap: 24px">
+<div class="rs-tally" id="tally"></div>
+<div class="rs-two">
+<div class="md-card"><span class="md-lab">ROLES · YES + PROBABLY</span><div id="cover" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div>
+<div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #AEA49A; margin-top: 12px"><span><i class="rs-key" style="background: #E9E2D9"></i>Main role</span><span><i class="rs-key" style="background: #6E625C"></i>Willing to play</span></div></div>
+<div class="md-card"><span class="md-lab">CLASSES · YES + PROBABLY</span><div id="classBars" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div></div>
+</div>
+<div id="lists" style="display: flex; flex-direction: column; gap: 24px"></div>
 </div>
 </div>
 </section>
 
 <script>
 {
-const ACC='#A3BC6E';
+const ACC='#A3BC6E', MAIN='#E9E2D9', WILL='#6E625C';
 const CLASSES=[['Warrior','#C69B6D',['Tank','Melee DPS']],['Paladin','#F48CBA',['Tank','Healer','Melee DPS']],['Hunter','#AAD372',['Ranged DPS','Melee DPS']],['Rogue','#FFF468',['Melee DPS']],['Priest','#E6E6E6',['Healer','Ranged DPS']],['Shaman','#2F8FEA',['Healer','Melee DPS','Ranged DPS']],['Mage','#3FC7EB',['Ranged DPS']],['Warlock','#8788EE',['Ranged DPS']],['Druid','#FF7C0A',['Tank','Healer','Melee DPS','Ranged DPS']]];
+const COLOR=Object.fromEntries(CLASSES.map(c=>[c[0],c[1]]));
 const ORDER=['Tank','Healer','Melee DPS','Ranged DPS'];
-const st={cls:'',picks:{},dec9:'',later:'',eta:''};
+const KEY='md-raid-signup';
 const $=id=>document.getElementById(id);
-const chip=(on)=>'min-height:44px;padding:0 18px;border-radius:4px;cursor:pointer;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:15px;letter-spacing:.12em;border:1px solid '+(on?ACC:'#362D2A')+';background:'+(on?ACC:'#121011')+';color:'+(on?'#121011':'#CFC7BE');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const newId=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
+const load=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(_){return null}};
+const save=v=>{try{localStorage.setItem(KEY,JSON.stringify(v))}catch(_){}};
 
+let st={cls:'',picks:{},dec9:'',later:'',eta:''}, signupId=newId();
+
+/* ---------- form ---------- */
+const chip=(on)=>'min-height:44px;padding:0 18px;border-radius:4px;cursor:pointer;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:15px;letter-spacing:.12em;border:1px solid '+(on?ACC:'#362D2A')+';background:'+(on?ACC:'#121011')+';color:'+(on?'#121011':'#CFC7BE');
 function draw(){
  $('classes').innerHTML=CLASSES.map(([n,c,r])=>{const on=st.cls===n;
   return `<button type="button" data-c="${n}" aria-pressed="${on}" style="min-height:62px;text-align:left;padding:10px 14px;border-radius:6px;cursor:pointer;color:#F1ECE6;font-family:Cinzel,Georgia,serif;font-weight:700;font-size:16px;letter-spacing:.02em;border:1px solid ${on?c:'#362D2A'};border-top:3px solid ${c};background:${on?`color-mix(in srgb, ${c} 14%, #1B1716)`:'#241E1C'}${on?`;box-shadow:inset 0 0 0 1px ${c}`:''}">${n}<span style="display:block;font-family:Barlow,sans-serif;font-weight:500;font-size:13px;letter-spacing:0;color:#AEA49A;margin-top:2px">${r.map(x=>x.replace(' DPS','')).join(' · ')}</span></button>`}).join('');
@@ -165,12 +210,19 @@ function draw(){
  $('laterCard').hidden=st.dec9!=='No';
  const lvl=parseInt($('level').value,10);
  $('etaWrap').hidden=!(st.dec9==='No'&&st.later&&st.later!=='Not planning to raid'&&!(lvl>=60));
+ $('fId').value=signupId;
  $('fClass').value=st.cls;
  $('fMain').value=Object.keys(st.picks).find(x=>st.picks[x]==='main')||'';
  $('fAlso').value=ORDER.filter(x=>st.picks[x]==='will').join(', ');
  $('fDec9').value=st.dec9;
  $('fLater').value=st.dec9==='No'?st.later:'';
  $('fEta').value=lvl>=60?'Already 60':(st.dec9==='No'?st.eta:'');
+}
+function fill(m){
+ $('form').reset();
+ if(m){signupId=m.id||newId();$('discord').value=m.discord||'';$('character').value=m.character||'';$('level').value=m.level||'';$('notes').value=m.notes||'';st={cls:m.cls||'',picks:m.picks||{},dec9:m.dec9||'',later:m.later||'',eta:m.eta||''}}
+ else{signupId=newId();st={cls:'',picks:{},dec9:'',later:'',eta:''}}
+ $('err').textContent='';draw();
 }
 $('form').addEventListener('click',e=>{
  const c=e.target.closest('[data-c]');
@@ -190,13 +242,70 @@ $('form').addEventListener('submit',async e=>{
  try{
   const r=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(d).toString()});
   if(!r.ok)throw new Error(r.status);
-  $('who').textContent=String(d.get('character')).trim();
-  $('form').hidden=true;$('form').style.display='none';$('done').hidden=false;$('done').style.display='flex';$('done').scrollIntoView({behavior:'smooth',block:'start'});
+  const mine={id:signupId,discord:String(d.get('discord')).trim(),character:String(d.get('character')).trim(),level:lvl,notes:String(d.get('notes')||''),cls:st.cls,picks:st.picks,dec9:st.dec9,later:st.later,eta:st.eta};
+  save(mine);pending=mine;
+  location.hash='roster';show();scrollTo(0,0);
  }catch(_){$('err').textContent='That didn’t go through. Try again in a moment, or let an officer know in Discord.'}
  finally{$('go').disabled=false;$('go').textContent='SIGN ME UP'}
 });
-$('again').addEventListener('click',()=>{$('form').reset();Object.assign(st,{cls:'',picks:{},dec9:'',later:'',eta:''});draw();$('done').hidden=true;$('done').style.display='none';$('form').hidden=false;$('form').style.display='';scrollTo(0,0)});
-draw();
+
+/* ---------- roster ---------- */
+let rows=null, pending=null;
+const bar=(label,parts,max,note)=>`<div><div style="display:flex;justify-content:space-between;gap:10px;font-size:15px;margin-bottom:5px"><b style="font-weight:600">${esc(label)}</b><span style="color:#AEA49A;white-space:nowrap">${esc(note)}</span></div><div style="height:10px;background:#241E1C;border-radius:999px;overflow:hidden;display:flex">${parts.map(([v,c])=>`<i style="display:block;height:100%;width:${max?v/max*100:0}%;background:${c}"></i>`).join('')}</div></div>`;
+function withMine(list){
+ // Show your fresh answers right away, even before Netlify's list catches up.
+ const p=pending||load();
+ if(!p||!p.character)return list;
+ const k=p.id, name=p.character.toLowerCase();
+ const me={character:p.character,cls:p.cls,level:p.level,main_role:Object.keys(p.picks||{}).find(x=>p.picks[x]==='main')||'',also_play:ORDER.filter(x=>(p.picks||{})[x]==='will').join(', '),dec9:p.dec9,id:k};
+ return list.filter(r=>r.id!==k&&String(r.character).toLowerCase()!==name).concat([me]);
+}
+function renderRoster(){
+ if(rows===null)return;
+ const all=withMine(rows);
+ if(!all.length){$('msg').hidden=false;$('msg').textContent='Nobody’s signed up yet.';$('body').hidden=true;return}
+ $('msg').hidden=true;$('body').hidden=false;
+ const by=a=>all.filter(r=>r.dec9===a);
+ const yes=by('Yes'),maybe=by('Probably'),unsure=by('Not sure yet');
+ const going=yes.concat(maybe), at60=all.filter(r=>r.level>=60).length;
+ $('tally').innerHTML=[['Yes',yes.length,'for December 9'],['Probably',maybe.length,'for December 9'],['Not sure yet',unsure.length,'for December 9'],['Full roster',all.length,`${at60} at level 60`]]
+  .map(([l,n,sub])=>`<div class="md-card"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(30px,4vw,42px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong><span style="font-size:14px;color:#AEA49A">${esc(sub)}</span></div>`).join('');
+ const main=k=>going.filter(r=>r.main_role===k).length, will=k=>going.filter(r=>(r.also_play||'').split(', ').includes(k)).length;
+ const maxR=Math.max(1,...ORDER.map(k=>main(k)+will(k)));
+ $('cover').innerHTML=ORDER.map(k=>bar(k,[[main(k),MAIN],[will(k),WILL]],maxR,`${main(k)} main · ${will(k)} willing`)).join('');
+ const cc=CLASSES.map(c=>[c[0],going.filter(r=>r.cls===c[0]).length]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]);
+ const maxC=Math.max(1,...cc.map(x=>x[1]));
+ $('classBars').innerHTML=cc.length?cc.map(([k,v])=>bar(k,[[v,COLOR[k]]],maxC,String(v))).join(''):'<p style="color:#8F857C;font-size:15px">Nobody yet.</p>';
+ const mineName=(load()||{}).character?.toLowerCase();
+ const table=(title,list)=>!list.length?'':`<div><h2 style="font-size:clamp(24px,3vw,27px);margin-bottom:12px">${esc(title)} <span style="font-family:Barlow,sans-serif;font-weight:500;font-size:16px;color:#AEA49A">${list.length}</span></h2><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Class</th><th class="n">Level</th><th>Main role</th><th>Will also play</th></tr></thead><tbody>${list.slice().sort((a,b)=>ORDER.indexOf(a.main_role)-ORDER.indexOf(b.main_role)||b.level-a.level).map(r=>`<tr${String(r.character).toLowerCase()===mineName?' style="background:#241E1C"':''}><td data-l="Character"><strong>${esc(r.character)}</strong>${String(r.character).toLowerCase()===mineName?' <span style="font-size:13px;color:#A3BC6E">(you)</span>':''}</td><td data-l="Class"><i class="rs-dot" style="background:${COLOR[r.cls]||'#999'}"></i>${esc(r.cls)}</td><td data-l="Level" class="n">${esc(r.level||'–')}</td><td data-l="Main role">${esc(r.main_role)}</td><td data-l="Will also play">${esc(r.also_play||'—')}</td></tr>`).join('')}</tbody></table></div></div>`;
+ $('lists').innerHTML=table('Yes',yes)+table('Probably',maybe)+table('Not sure yet',unsure);
+}
+function fetchRoster(){
+ const t=setTimeout(()=>{if(rows===null)$('msg').textContent='The roster is taking a while to load. Try refreshing in a minute.'},10000);
+ fetch('/.netlify/functions/roster',{cache:'no-store'}).then(r=>{if(!r.ok)throw 0;return r.json()}).then(d=>{clearTimeout(t);rows=d.rows||[];renderRoster()}).catch(()=>{clearTimeout(t);$('msg').textContent='Couldn’t load the roster right now. Try again in a bit.'});
+}
+
+/* ---------- which view ---------- */
+function show(){
+ const mine=load();
+ const roster=location.hash==='#roster'||(!!mine&&location.hash!=='#signup');
+ $('formView').hidden=roster;$('rosterView').hidden=!roster;
+ $('headForm').hidden=roster;$('headRoster').hidden=!roster;
+ $('headTitle').textContent=roster?'Who’s in for December 9':'roster check';
+ document.title='Mystic Dragons — '+(roster?'Roster':'Raid Signup');
+ $('mine').hidden=!(roster&&mine);$('notMine').hidden=!(roster&&!mine);
+ if(mine){$('mineName').textContent=mine.character;
+  const main=Object.keys(mine.picks||{}).find(x=>mine.picks[x]==='main')||'';
+  $('mineInfo').textContent=`· Level ${mine.level} ${mine.cls} · ${main} · December 9: ${mine.dec9}`;}
+ $('peek').hidden=!!mine;
+ if(roster){if(rows===null)fetchRoster();else renderRoster()}
+}
+$('editBtn').addEventListener('click',()=>{fill(load());location.hash='signup';scrollTo(0,0)});
+$('newBtn').addEventListener('click',()=>{try{localStorage.removeItem(KEY)}catch(_){};pending=null;fill(null);location.hash='signup';scrollTo(0,0)});
+addEventListener('hashchange',show);
+
+fill(null);
+show();
 }
 </script>
 
