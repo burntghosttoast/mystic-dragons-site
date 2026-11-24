@@ -266,10 +266,6 @@ async function characterInfo(s, c) {
   const iconMap = Object.fromEntries(icons);
   info.equipment.forEach(it => { it.icon = iconMap[it.id] || ''; });
   await s.setJSON(`info/${c.key}`, info);
-  // The profile is fresher than the guild roster; keep the higher level.
-  if (info.profile?.level && info.profile.level > (c.level || 0)) {
-    await s.setJSON(`char/${c.key}`, { ...c, level: info.profile.level, profile_level: info.profile.level, updated_at: new Date().toISOString() });
-  }
   return info;
 }
 
@@ -404,7 +400,16 @@ export default async (req, context) => {
 
     const c = await s.get(`char/${clean(body.key, 40)}`, { type: 'json' });
     if (!c) return json({ error: 'That character isn’t on the roster anymore' }, 404);
-    if (route === 'info') { const info = await characterInfo(s, c); const fresh = await s.get(`char/${c.key}`, { type: 'json' }); return json({ ok: true, character: publicChar(fresh || c), info }); }
+    if (route === 'info') {
+      const info = await characterInfo(s, c);
+      // The character profile is fresher than the guild roster; keep the higher level (cached data too).
+      const pl = info.profile?.level;
+      if (pl && (pl > (c.level || 0) || pl !== c.profile_level)) {
+        Object.assign(c, { profile_level: pl, level: Math.max(c.level || 0, pl), updated_at: new Date().toISOString() });
+        await s.setJSON(`char/${c.key}`, c);
+      }
+      return json({ ok: true, character: publicChar(c), info });
+    }
     if (!(c.claims || []).includes(device)) return json({ error: 'Claim this character first' }, 403);
 
     if (route === 'unclaim') {
