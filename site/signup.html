@@ -271,8 +271,8 @@ function renderRoster(){
  const by=a=>all.filter(r=>r.dec9===a);
  const yes=by('Yes'),maybe=by('Probably'),unsure=by('Not sure yet');
  const going=yes.concat(maybe), at60=all.filter(r=>r.level>=60).length;
- $('tally').innerHTML=[['Yes',yes.length,'for December 9'],['Probably',maybe.length,'for December 9'],['Not sure yet',unsure.length,'for December 9'],['Full roster',all.length,`${at60} at level 60`]]
-  .map(([l,n,sub])=>`<div class="md-card"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(30px,4vw,42px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong><span style="font-size:14px;color:#AEA49A">${esc(sub)}</span></div>`).join('');
+ $('tally').innerHTML=[['Yes',yes.length,''],['Probably',maybe.length,''],['Not sure yet',unsure.length,''],['Full roster',all.length,`${at60} at level 60`]]
+  .map(([l,n,sub])=>`<div class="md-card"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(30px,4vw,42px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong>${sub?`<span style="font-size:14px;color:#AEA49A">${esc(sub)}</span>`:''}</div>`).join('');
  const main=k=>going.filter(r=>r.main_role===k).length, will=k=>going.filter(r=>(r.also_play||'').split(', ').includes(k)).length;
  const maxR=Math.max(1,...ORDER.map(k=>main(k)+will(k)));
  $('cover').innerHTML=ORDER.map(k=>bar(k,[[main(k),MAIN],[will(k),WILL]],maxR,`${main(k)} main · ${will(k)} willing`)).join('');
