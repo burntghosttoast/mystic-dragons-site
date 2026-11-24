@@ -46,5 +46,10 @@ export default async () => {
     }
   }
   out.guildChecks = candidates.length;
+  // Retail guild on Thrall
+  const thrall = await get(`/data/wow/guild/thrall/${GUILD}/roster`, 'profile-us');
+  const tm = (thrall.body && thrall.body.members) || [];
+  out.retailThrall = { status: thrall.status, members: tm.length,
+    sample: tm.slice(0, 5).map(x => ({ name: x.character?.name, level: x.character?.level, class_id: x.character?.playable_class?.id })) };
   return Response.json(out, { headers: { 'Cache-Control': 'no-store' } });
 };
