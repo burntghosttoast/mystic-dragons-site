@@ -70,5 +70,38 @@ window.Guild = (() => {
   const summary = c => `Level ${c.level}${c.race ? ' ' + c.race : ''} ${c.cls}${c.main_role ? ' · ' + c.main_role : ''}${(c.also_play || []).length ? ' · also ' + c.also_play.join(', ') : ''}`;
   const syncLine = () => syncedAt ? 'Levels and classes synced from the game ' + new Date(syncedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '.' : '';
 
-  return { CLASSES, COLOR, ORDER, ACC, $, esc, low, api, me: () => me, loadRoster, roster: () => roster, byKey, mine, mainChar, addClaim, dropClaim, setMain, setVerified, setDiscord, dot, chipStyle, editor, picksFrom, picksOut, summary, syncLine };
+
+  // Game-data view shared by My Characters and the public character page.
+  const QUAL = { POOR: '#9d9d9d', COMMON: '#F1ECE6', UNCOMMON: '#1eff00', RARE: '#0070dd', EPIC: '#a335ee', LEGENDARY: '#ff8000', ARTIFACT: '#e6cc80', HEIRLOOM: '#00ccff' };
+  const when = t => t ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  function renderInfo(d, c) {
+    const card = (title, html, wide) => `<div class="md-card${wide ? ' ch-wide' : ''}"><span class="md-lab">${esc(title)}</span>${html}</div>`;
+    const row = (a, b) => `<div class="ch-row"><span>${esc(a)}</span><span>${esc(b)}</span></div>`;
+    const p = d.profile || {};
+    const img = (d.media.find(m => m.key === 'avatar') || d.media.find(m => m.key === 'inset') || d.media[0]);
+    const out = [];
+    if (d.equipment.length) out.push(card('EQUIPMENT', `<div class="ch-list">${d.equipment.map(it => `<div class="ch-item"><span class="ch-slot">${esc(it.slot)}</span><span style="display:flex;gap:10px;align-items:flex-start">${it.icon ? `<img src="${esc(it.icon)}" alt="" width="36" height="36" loading="lazy" style="flex:none;border-radius:4px;border:1px solid ${QUAL[it.quality] || '#362D2A'}">` : ''}<span><strong style="color:${QUAL[it.quality] || '#F1ECE6'};font-weight:600">${esc(it.name)}</strong>${it.level ? ` <span style="color:#8F857C">· ilvl ${esc(it.level)}</span>` : ''}${it.stats.length || it.enchant.length ? `<br><span style="color:#AEA49A;font-size:13px">${esc([...it.stats, ...it.enchant].join(' · '))}</span>` : ''}</span></span></div>`).join('')}</div>`, true));
+    if (d.specs.length) out.push(card('TALENTS', d.specs.map((g, i) => `<div style="margin-top:6px"><span style="font-size:13px;color:${g.active ? '#A3BC6E' : '#8F857C'}">${d.specs.length > 1 ? 'SPEC ' + (i + 1) + (g.active ? ' · ACTIVE' : '') : (g.active ? 'ACTIVE' : '')}</span>${g.trees.map(t => row(t.name, t.points != null ? t.points + ' points' : '')).join('')}</div>`).join('')));
+    if (d.professions.length) out.push(card('PROFESSIONS', d.professions.map(pr => pr.tiers.map(t => row(pr.name + (t.name && t.name !== pr.name ? ' · ' + t.name : ''), t.skill != null ? `${t.skill}${t.max ? ' / ' + t.max : ''}` : '')).join('')).join('')));
+    if (d.raids.length) out.push(card('RAID PROGRESS', d.raids.map(r => r.modes.map(m => row(r.name + (r.modes.length > 1 ? ' · ' + m.mode : ''), m.total ? `${m.done} / ${m.total}` : m.status)).join('')).join('')));
+    const dg = d.dungeons.filter(x => x.kills);
+    if (dg.length) out.push(card('DUNGEON BOSS KILLS', dg.map(x => row(x.name, x.kills)).join('')));
+    out.push(card('AT A GLANCE', [
+      d.achievements && ['Achievement points', d.achievements.points], d.achievements && ['Achievements', d.achievements.count],
+      ['Quests completed', d.quests_completed], ['Mounts', d.collections.mounts], ['Pets', d.collections.pets], ['Toys', d.collections.toys],
+      d.pvp && ['Honorable kills', d.pvp.honorable_kills], d.pvp && ['PvP rank', d.pvp.rank]].filter(x => x && x[1] != null).map(([a, b]) => row(a, b)).join('')));
+    if (d.reputations.length) out.push(card('REPUTATION', d.reputations.slice().sort((a, b) => (b.value || 0) - (a.value || 0)).map(r => row(r.name, r.standing)).join('')));
+    if (d.titles.length) out.push(card('TITLES', `<p style="color:#CFC7BE">${esc(d.titles.join(' · '))}</p>`));
+    if (d.statistics.length) out.push(card('STATISTICS', d.statistics.map(cat => `<details style="border-top:1px solid #362D2A;padding:8px 0"><summary style="cursor:pointer;font-weight:600">${esc(cat.name)} <span style="color:#8F857C;font-weight:400">${cat.stats.length}</span></summary>${cat.stats.map(st => row(st.name, typeof st.value === 'number' ? st.value.toLocaleString() : st.value)).join('')}</details>`).join(''), true));
+    return {
+      portrait: img ? `<img src="${esc(img.url)}" alt="${esc(c.name)} portrait" style="width:100%;height:100%;object-fit:cover;display:block">` : '',
+      title: p.title ? p.title.replace('{name}', c.name) : '',
+      facts: [['Race', p.race], ['Gender', p.gender], ['Faction', p.faction], ['Guild', p.guild], ['Ruleset', p.ruleset], ['Item level', p.item_level], ['Experience', p.experience != null && p.level < 60 ? p.experience.toLocaleString() + ' XP' : ''], ['Last login', when(p.last_login)]]
+        .filter(x => x[1] !== '' && x[1] != null).map(([a, b]) => `<div><span class="md-lab">${esc(a.toUpperCase())}</span><div>${esc(b)}</div></div>`).join(''),
+      cards: out.join(''),
+      msg: 'Game data refreshes about every 30 minutes. Last pulled ' + when(d.at) + '.'
+    };
+  }
+
+  return { renderInfo, CLASSES, COLOR, ORDER, ACC, $, esc, low, api, me: () => me, loadRoster, roster: () => roster, byKey, mine, mainChar, addClaim, dropClaim, setMain, setVerified, setDiscord, dot, chipStyle, editor, picksFrom, picksOut, summary, syncLine };
 })();

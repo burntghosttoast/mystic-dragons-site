@@ -85,6 +85,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <a href="/addons" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Addons</a>
 <a href="/forever-faq" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">FAQ</a>
 <a href="/signup" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Sign Up</a>
+<a href="/roster" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Roster</a>
 </nav>
 </div>
 </div>
@@ -202,28 +203,8 @@ async function drawInfo(){
  let d;try{const r=await G.api('info',{key:c.key});d=r.info;if(r.character&&r.character.level!==c.level){Object.assign(c,r.character);$('cSum').textContent=G.summary(c)}}catch(e){$('infoMsg').textContent='Couldn’t load game data right now.';return}
  if(sel!==c.key)return;
  if(!d||!d.available){$('infoMsg').textContent='Blizzard doesn’t have details for this character yet. It can take a little while after the guild roster syncs.';return}
- $('infoMsg').textContent='Game data refreshes about every 30 minutes. Last pulled '+when(d.at)+'.';
- const p=d.profile||{};
- const img=(d.media.find(m=>m.key==='avatar')||d.media.find(m=>m.key==='inset')||d.media[0]);
- if(img)$('portrait').innerHTML=`<img src="${esc(img.url)}" alt="${esc(c.name)} portrait" style="width:100%;height:100%;object-fit:cover;display:block">`;
- $('cTitle').textContent=p.title?p.title.replace('{name}',c.name):'';
- $('facts').innerHTML=[['Race',p.race],['Gender',p.gender],['Faction',p.faction],['Guild',p.guild],['Ruleset',p.ruleset],['Item level',p.item_level],['Experience',p.experience!=null&&p.level<60?p.experience.toLocaleString()+' XP':''],['Last login',when(p.last_login)]]
-  .filter(x=>x[1]!==''&&x[1]!=null).map(([a,b])=>`<div><span class="md-lab">${esc(a.toUpperCase())}</span><div>${esc(b)}</div></div>`).join('');
- const out=[];
- if(d.equipment.length)out.push(card('EQUIPMENT',`<div class="ch-list">${d.equipment.map(it=>`<div class="ch-item"><span class="ch-slot">${esc(it.slot)}</span><span style="display:flex;gap:10px;align-items:flex-start">${it.icon?`<img src="${esc(it.icon)}" alt="" width="36" height="36" loading="lazy" style="flex:none;border-radius:4px;border:1px solid ${QUAL[it.quality]||'#362D2A'}">`:''}<span><strong style="color:${QUAL[it.quality]||'#F1ECE6'};font-weight:600">${esc(it.name)}</strong>${it.level?` <span style="color:#8F857C">· ilvl ${esc(it.level)}</span>`:''}${it.stats.length||it.enchant.length?`<br><span style="color:#AEA49A;font-size:13px">${esc([...it.stats,...it.enchant].join(' · '))}</span>`:''}</span></span></div>`).join('')}</div>`,true));
- if(d.specs.length)out.push(card('TALENTS',d.specs.map((g,i)=>`<div style="margin-top:6px"><span style="font-size:13px;color:${g.active?'#A3BC6E':'#8F857C'}">${d.specs.length>1?'SPEC '+(i+1)+(g.active?' · ACTIVE':''):(g.active?'ACTIVE':'')}</span>${g.trees.map(t=>row(t.name,t.points!=null?t.points+' points':'')).join('')}</div>`).join('')));
- if(d.professions.length)out.push(card('PROFESSIONS',d.professions.map(pr=>pr.tiers.map(t=>row(pr.name+(t.name&&t.name!==pr.name?' · '+t.name:''),t.skill!=null?`${t.skill}${t.max?' / '+t.max:''}`:'')).join('')).join('')));
- if(d.raids.length)out.push(card('RAID PROGRESS',d.raids.map(r=>r.modes.map(m=>row(r.name+(r.modes.length>1?' · '+m.mode:''),m.total?`${m.done} / ${m.total}`:m.status)).join('')).join('')));
- const dg=d.dungeons.filter(x=>x.kills);
- if(dg.length)out.push(card('DUNGEON BOSS KILLS',dg.map(x=>row(x.name,x.kills)).join('')));
- out.push(card('AT A GLANCE',[
-  d.achievements&&['Achievement points',d.achievements.points],d.achievements&&['Achievements',d.achievements.count],
-  ['Quests completed',d.quests_completed],['Mounts',d.collections.mounts],['Pets',d.collections.pets],['Toys',d.collections.toys],
-  d.pvp&&['Honorable kills',d.pvp.honorable_kills],d.pvp&&['PvP rank',d.pvp.rank]].filter(x=>x&&x[1]!=null).map(([a,b])=>row(a,b)).join('')));
- if(d.reputations.length)out.push(card('REPUTATION',d.reputations.slice().sort((a,b)=>(b.value||0)-(a.value||0)).map(r=>row(r.name,r.standing)).join('')));
- if(d.titles.length)out.push(card('TITLES',`<p style="color:#CFC7BE">${esc(d.titles.join(' · '))}</p>`));
- if(d.statistics.length)out.push(card('STATISTICS',d.statistics.map(cat=>`<details style="border-top:1px solid #362D2A;padding:8px 0"><summary style="cursor:pointer;font-weight:600">${esc(cat.name)} <span style="color:#8F857C;font-weight:400">${cat.stats.length}</span></summary>${cat.stats.map(st=>row(st.name,typeof st.value==='number'?st.value.toLocaleString():st.value)).join('')}</details>`).join(''),true));
- $('info').innerHTML=out.join('');
+ const v=G.renderInfo(d,c);
+ $('infoMsg').textContent=v.msg;$('portrait').innerHTML=v.portrait;$('cTitle').textContent=v.title;$('facts').innerHTML=v.facts;$('info').innerHTML=v.cards;
 }
 function render(){
  const m=G.mine();
