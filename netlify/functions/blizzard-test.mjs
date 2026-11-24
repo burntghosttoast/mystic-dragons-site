@@ -46,6 +46,19 @@ export default async () => {
     }
   }
   out.guildChecks = candidates.length;
+  // WoW Forever: no realms; guild looked up by name in profile-forever-us
+  const fg = await get(`/data/wow/guild/${GUILD}`, 'profile-forever-us');
+  const fr = await get(`/data/wow/guild/${GUILD}/roster`, 'profile-forever-us');
+  const fm = (fr.body && fr.body.members) || [];
+  out.forever = { guild: fg.status, name: fg.body?.name, members_reported: fg.body?.member_count, ruleset: fg.body?.ruleset?.name,
+    roster: fr.status, members: fm.length,
+    sample: fm.slice(0, 8).map(x => ({ name: x.character?.name, level: x.character?.level, class_id: x.character?.playable_class?.id, rank: x.rank })) };
+  if (fm[0]) {
+    const first = fm[0].character;
+    const key = String(first?.name || '').toLowerCase().replace(/\s+/g, '-');
+    const prof = await get(`/profile/wow/character/${encodeURIComponent(key)}`, 'profile-forever-us');
+    out.forever.firstProfile = { slug: key, status: prof.status, level: prof.body?.level, class: prof.body?.character_class?.name, race: prof.body?.race?.name, last_login: prof.body?.last_login_timestamp };
+  }
   // Retail guild on Thrall
   const thrall = await get(`/data/wow/guild/thrall/${GUILD}/roster`, 'profile-us');
   const tm = (thrall.body && thrall.body.members) || [];
