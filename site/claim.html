@@ -84,7 +84,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <a href="/crafters" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Crafters</a>
 <a href="/addons" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Addons</a>
 <a href="/forever-faq" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">FAQ</a>
-<a href="/signup-beta" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Sign Up</a>
+<a href="/signup" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Sign Up</a>
 </nav>
 </div>
 </div>
@@ -154,7 +154,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 {
 const G=Guild,$=G.$,esc=G.esc,low=G.low;
 const next=new URLSearchParams(location.search).get('next');
-const nextUrl=next==='signup'?'/signup-beta':'/characters';
+const nextUrl=next==='signup'?'/signup':'/characters';
 const nextLabel=next==='signup'?'GO SIGN UP →':'MY CHARACTERS →';
 function drawMine(){
  const m=G.mine();
@@ -210,7 +210,7 @@ $('addForm').addEventListener('submit',async e=>{
 <!-- PREV / NEXT -->
 <section>
 <div style="max-width: 1160px; margin: 0 auto; padding: clamp(32px, 4vw, 40px) 24px 40px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px">
-<a href="/signup-beta" style="display: inline-flex; align-items: center; gap: 12px; border: 1px solid #362D2A; color: #CFC7BE; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.12em; padding: 14px 22px; border-radius: 4px">← RAID SIGNUP</a>
+<a href="/signup" style="display: inline-flex; align-items: center; gap: 12px; border: 1px solid #362D2A; color: #CFC7BE; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.12em; padding: 14px 22px; border-radius: 4px">← RAID SIGNUP</a>
 </div>
 </section>
 

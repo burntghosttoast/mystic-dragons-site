@@ -4,5 +4,10 @@
 
 [[redirects]]
   from = "/roster"
-  to = "/signup#roster"
+  to = "/signup"
+  status = 301
+
+[[redirects]]
+  from = "/signup-beta"
+  to = "/signup"
   status = 301
