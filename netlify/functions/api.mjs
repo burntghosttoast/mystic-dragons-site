@@ -22,6 +22,7 @@ const SYNC_EVERY_MS = 20 * 60 * 1000;
 const CATCHUP_EVERY_MS = 60 * 1000; // while names/races are still missing
 const PROFILE_EVERY_MS = 6 * 60 * 60 * 1000;
 const INFO_TTL_MS = 30 * 60 * 1000;
+const INFO_V = 3; // bump to refresh cached game data after format changes
 
 const store = () => getStore({ name: 'guild', consistency: 'strong' });
 const slug = n => String(n || '').trim().toLowerCase().normalize('NFKC').replace(/\s+/g, ' ');
@@ -216,7 +217,7 @@ async function addIcons(s, token, info) {
 // Everything Blizzard has on one character, cached for half an hour.
 async function characterInfo(s, c) {
   const cached = await s.get(`info/${c.key}`, { type: 'json' });
-  if (cached && Date.now() - cached.at < INFO_TTL_MS) {
+  if (cached && cached.v === INFO_V && Date.now() - cached.at < INFO_TTL_MS) {
     if (cached.available && cached.icons_v !== 2) {
       const token = await blizzToken(s);
       if (token) { await addIcons(s, token, cached); await s.setJSON(`info/${c.key}`, cached); }
@@ -236,7 +237,7 @@ async function characterInfo(s, c) {
   const p = res.profile || {};
   const nm = o => o?.name ?? '';
   const info = {
-    at: Date.now(), available: !!res.profile,
+    v: INFO_V, at: Date.now(), available: !!res.profile,
     profile: res.profile && {
       name: p.name, surname: p.surname, level: p.level, experience: p.experience, race: nm(p.race), cls: nm(p.character_class),
       gender: nm(p.gender), faction: nm(p.faction), guild: nm(p.guild), ruleset: nm(p.ruleset), title: p.active_title?.display_string || '',
@@ -251,7 +252,8 @@ async function characterInfo(s, c) {
     })),
     professions: ['primaries', 'secondaries'].flatMap(k => (res['/professions']?.[k] || []).map(pr => ({
       name: nm(pr.profession), primary: k === 'primaries',
-      tiers: (pr.tiers || [pr]).map(t => ({ name: nm(t.tier) || nm(pr.profession), skill: t.skill_points ?? null, max: t.max_skill_points ?? null }))
+      tiers: (pr.tiers || [pr]).map(t => ({ name: nm(t.tier) || nm(pr.profession), skill: t.skill_points ?? null, max: t.max_skill_points ?? null,
+        recipes: Array.isArray(t.known_recipes) ? t.known_recipes.map(nm).filter(Boolean) : null }))
     }))),
     specs: (res['/specializations']?.specialization_groups || []).map(g => ({
       active: !!g.is_active,
