@@ -42,6 +42,16 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 .rs-btn{min-height:46px;padding:0 20px;border:1px solid #362D2A;border-radius:4px;background:transparent;color:#CFC7BE;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:16px;letter-spacing:.12em;cursor:pointer}
 .rs-btn-p{background:#A3BC6E;border-color:#A3BC6E;color:#121011}
 dialog::backdrop{background:rgba(0,0,0,.6)}
+.link-btn{background:none;border:0;padding:0;color:#A3BC6E;text-decoration:underline;cursor:pointer;font:inherit}
+.link-btn:hover{color:#C2D69A}
+.ch-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 20px;margin-top:10px;font-size:15px;color:#CFC7BE}
+.ch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:16px;align-items:start}
+.ch-wide{grid-column:1/-1}
+.ch-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
+.ch-row span:first-child{color:#CFC7BE}.ch-row span:last-child{color:#F1ECE6;text-align:right;font-variant-numeric:tabular-nums}
+.ch-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:4px 24px;margin-top:6px}
+.ch-item{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
+.ch-slot{color:#8F857C;font-size:13px;padding-top:2px}
 </style>
 </head>
 <body>
@@ -58,6 +68,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <a href="/forever" aria-current="page" style="color: #F1ECE6; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid #A3BC6E">FOREVER</a>
 <a href="/retail" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">RETAIL</a>
 <a href="/history" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">HISTORY</a>
+<a href="/characters" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">MY CHARACTERS</a>
 <a href="https://discord.gg/mfScPwH9rY" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; color: #F7F2EC; background: #A83A35; text-decoration: none; padding: 10px 16px; border-radius: 4px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"></path></svg>JOIN DISCORD</a>
 </nav>
 </div>
@@ -73,7 +84,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <a href="/crafters" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Crafters</a>
 <a href="/addons" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Addons</a>
 <a href="/forever-faq" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">FAQ</a>
-<a href="/signup" aria-current="page" style="color: #F1ECE6; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid #A3BC6E; font-weight: 600">Sign Up</a>
+<a href="/signup-beta" aria-current="page" style="color: #F1ECE6; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid #A3BC6E; font-weight: 600">Sign Up</a>
 </nav>
 </div>
 </div>
@@ -82,66 +93,32 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <section style="border-bottom: 1px solid #362D2A">
 <div style="max-width: 1160px; margin: 0 auto; padding: clamp(48px, 7vw, 72px) 24px clamp(40px, 5vw, 52px); display: flex; flex-direction: column; gap: 20px">
 <div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">WOW FOREVER</div>
-<h1 id="headTitle" style="font-size: clamp(40px, 7vw, 64px); line-height: 1">roster check</h1>
-<p id="headLead" style="font-size: 18px; color: #CFC7BE; max-width: 680px">Raid day is almost upon us. Claim your character once, and signing up for raids is just a couple of taps.</p>
+<h1 style="font-size: clamp(40px, 7vw, 64px); line-height: 1">roster check</h1>
+<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Raid day is almost upon us. Let us know if you’re in so we can plan the first raid nights.</p>
 </div>
 </section>
 
 <section style="border-bottom: 1px solid #362D2A">
 <div style="max-width: 1160px; margin: 0 auto; padding: clamp(40px, 6vw, 64px) 24px; display: flex; flex-direction: column; gap: 24px">
-<p id="loading" style="color: #AEA49A">Loading the roster…</p>
+<p id="loading" style="color: #AEA49A">Loading…</p>
 
-<!-- CLAIM -->
-<div id="claimView" hidden style="max-width: 760px; display: flex; flex-direction: column; gap: 16px">
-<div class="md-card">
-<h3 style="font-size: 21px; line-height: 1.25">Find your character</h3>
-<p style="font-size: 15px; color: #AEA49A; margin-bottom: 10px">Search for your character and tap it to claim it. Your browser remembers you, no password needed.</p>
-<input class="md-in" type="search" id="find" placeholder="Search by name" autocomplete="off">
-<div id="findList" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px"></div>
+<div id="needClaim" hidden class="md-card" style="max-width: 760px; border-color: #A3BC6E">
+<h3 style="font-size: 21px; line-height: 1.25">First, claim your character</h3>
+<p style="color: #CFC7BE; margin-bottom: 10px">Find yourself in the guild list and tap your name. It takes a few seconds and this browser remembers you, so signing up is just a couple of taps after that.</p>
+<a class="rs-btn rs-btn-p" href="/claim?next=signup" style="align-self: flex-start; display: inline-flex; align-items: center; text-decoration: none">CLAIM MY CHARACTER →</a>
 </div>
 
-<form id="addForm" class="md-card" novalidate>
-<h3 style="font-size: 21px; line-height: 1.25">Not listed? Add your character</h3>
-<div class="md-who" style="grid-template-columns: minmax(0,1fr) 120px">
-<label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">CHARACTER NAME</span><input class="md-in" type="text" id="aName" maxlength="24" autocomplete="off" placeholder="e.g. Thrallgar"></label>
-<label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">LEVEL</span><input class="md-in" type="number" id="aLevel" min="1" max="60" inputmode="numeric" placeholder="1–60"></label>
+<form id="signForm" hidden class="md-card" novalidate style="max-width: 760px; gap: 14px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px">
+<div><span class="md-lab" style="color: #A3BC6E">SIGNING UP AS</span>
+<h2 id="asName" style="font-size: clamp(24px, 3vw, 30px)"></h2>
+<p id="asInfo" style="color: #CFC7BE; font-size: 15px"></p></div>
+<div style="display: flex; gap: 14px; font-size: 14px"><button type="button" id="altLink" class="link-btn">Sign up as an alt</button><a href="/characters">My characters</a></div>
 </div>
-<span class="md-lab" style="margin-top: 14px">CLASS</span>
-<div class="md-classes" id="aClasses"></div>
-<span class="md-lab" style="margin-top: 14px">ROLES</span>
-<div id="aRoles" style="display: flex; flex-direction: column; gap: 8px"></div>
-<button type="submit" class="rs-btn rs-btn-p" id="aGo" style="margin-top: 10px">ADD &amp; CLAIM</button>
-<p role="alert" id="aErr" style="font-size: 15px; color: #D96A5F; min-height: 22px"></p>
-</form>
-<button type="button" id="claimCancel" class="rs-btn" hidden style="align-self: flex-start">← BACK</button>
-</div>
+<div id="altBox" hidden style="display: flex; flex-wrap: wrap; gap: 8px"></div>
+<p id="rolesNeeded" hidden style="font-size: 15px; color: #D96A5F">Set your roles on <a href="/characters">My characters</a> first.</p>
 
-<!-- ME -->
-<div id="meView" hidden style="display: flex; flex-direction: column; gap: 16px">
-<div class="md-card" style="border-color: #A3BC6E; max-width: 760px">
-<span class="md-lab" style="color: #A3BC6E">YOUR CHARACTER</span>
-<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px"><h2 id="meName" style="font-size: clamp(26px, 3.4vw, 32px)"></h2><span id="meInfo" style="color: #CFC7BE"></span></div>
-<div id="meSwitch" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px"></div>
-<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px">
-<span id="syncNote" hidden style="font-size: 14px; color: #8F857C">Level and class sync from the game.</span>
-<label id="lvlWrap" style="display: flex; align-items: center; gap: 8px"><span class="md-lab">LEVEL</span><input class="md-in" type="number" id="lvlQuick" min="1" max="60" inputmode="numeric" style="width: 84px"></label>
-<button type="button" id="lvlBtn" class="rs-btn">UPDATE LEVEL</button>
-<button type="button" id="editBtn" class="rs-btn">EDIT ROLES</button>
-<button type="button" id="claimMore" class="rs-btn">CLAIM ANOTHER CHARACTER</button>
-</div>
-<p id="meMsg" role="status" style="font-size: 14px; color: #AEA49A; min-height: 20px"></p>
-<div id="editBox" hidden style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #362D2A; padding-top: 14px; margin-top: 4px">
-<span class="md-lab" id="eClassLab">CLASS</span>
-<div class="md-classes" id="eClasses"></div>
-<span class="md-lab" style="margin-top: 10px">ROLES</span>
-<div id="eRoles" style="display: flex; flex-direction: column; gap: 8px"></div>
-<div style="display: flex; gap: 10px; margin-top: 6px"><button type="button" id="eSave" class="rs-btn rs-btn-p">SAVE</button><button type="button" id="eCancel" class="rs-btn">CANCEL</button></div>
-</div>
-</div>
-
-<form id="signForm" class="md-card" novalidate style="max-width: 760px; gap: 14px">
-<span class="md-lab" id="signLab">RAID SIGNUP</span>
-<div><h3 style="font-size: 21px; line-height: 1.25">Looking to raid on December 9?</h3>
+<div style="border-top: 1px solid #362D2A; padding-top: 16px"><h3 style="font-size: 21px; line-height: 1.25">Looking to raid on December 9?</h3>
 <p style="font-size: 15px; color: #AEA49A; margin: 4px 0 10px">Release night. Change your answer any time.</p>
 <div class="md-chips" id="dec9"></div></div>
 <div id="attuneBox" hidden><h3 style="font-size: 21px; line-height: 1.25; margin-bottom: 10px">What about your attunement for the 40-man?</h3><div class="md-chips" id="attune"></div></div>
@@ -151,19 +128,16 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div id="etaBox" hidden><h3 style="font-size: 21px; line-height: 1.25; margin-top: 22px">Roughly when do you expect to hit 60?</h3>
 <p style="font-size: 15px; color: #AEA49A; margin: 4px 0 10px">No commitment. Just a ballpark so we can plan.</p>
 <div class="md-chips" id="eta"></div></div></div>
-<div class="md-who" style="grid-template-columns: minmax(0,1fr)">
 <label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">DISCORD NAME</span><input class="md-in" type="text" id="sDiscord" maxlength="40" autocomplete="off" placeholder="So officers know who you are"></label>
-<label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">ANYTHING ELSE WE SHOULD KNOW?</span><textarea class="md-in" id="sNotes" rows="3" maxlength="1000" placeholder="Totally optional" style="resize: vertical; line-height: 1.5"></textarea></label>
-</div>
+<label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">ANYTHING ELSE WE SHOULD KNOW?</span><textarea class="md-in" id="sNotes" rows="3" maxlength="1000" placeholder="Anything raid-related. Totally optional." style="resize: vertical; line-height: 1.5"></textarea></label>
 <p style="font-size: 14px; color: #8F857C">Discord name and notes only go to the officers. You can always message <strong style="color: #CFC7BE">Ghost, Goguk or Drey</strong> in Discord.</p>
 <button type="submit" id="sGo" class="rs-btn rs-btn-p" style="min-height: 52px">SAVE MY SIGNUP</button>
 <p role="alert" id="sMsg" style="font-size: 15px; min-height: 22px"></p>
 </form>
-</div>
 
 <!-- ROSTER -->
 <div id="rosterView" hidden style="display: flex; flex-direction: column; gap: 24px; margin-top: 16px">
-<div style="display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px"><div><h2 style="font-size: clamp(30px, 4vw, 40px)">Who’s in for December 9</h2><p id="syncedAt" style="font-size: 14px; color: #8F857C; margin-top: 4px"></p></div><button type="button" id="claimFromRoster" class="rs-btn">CLAIM A CHARACTER</button></div>
+<div><h2 style="font-size: clamp(30px, 4vw, 40px)">Who’s in for December 9</h2><p id="syncedAt" style="font-size: 14px; color: #8F857C; margin-top: 4px"></p></div>
 <div class="rs-tally" id="tally"></div>
 <div class="rs-two">
 <div class="md-card"><span class="md-lab">ROLES · YES + PROBABLY</span><div id="cover" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div>
@@ -179,199 +153,89 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 </div>
 </section>
 
-<dialog id="confirm" style="max-width: 460px; background: #1B1716; color: #F1ECE6; border: 1px solid #362D2A; border-radius: 8px; padding: 24px">
-<h3 style="font-size: 21px; line-height: 1.25; margin-bottom: 8px"><span id="cName"></span> has been claimed before</h3>
-<p style="color: #CFC7BE; margin-bottom: 18px">Same person on a different device? Pinky promise you’re not trolling.</p>
-<div style="display: flex; flex-wrap: wrap; gap: 10px"><button type="button" id="cYes" class="rs-btn rs-btn-p">YEP, IT’S ME</button><button type="button" id="cNo" class="rs-btn">NOT ME</button></div>
-</dialog>
-
+<script src="/guild.js"></script>
 <script>
 {
-const ACC='#A3BC6E', MAIN='#E9E2D9', WILL='#6E625C';
-const CLASSES=[['Warrior','#C69B6D',['Tank','Melee DPS']],['Paladin','#F48CBA',['Tank','Healer','Melee DPS']],['Hunter','#AAD372',['Ranged DPS','Melee DPS']],['Rogue','#FFF468',['Melee DPS']],['Priest','#E6E6E6',['Healer','Ranged DPS']],['Shaman','#2F8FEA',['Healer','Melee DPS','Ranged DPS']],['Mage','#3FC7EB',['Ranged DPS']],['Warlock','#8788EE',['Ranged DPS']],['Druid','#FF7C0A',['Tank','Healer','Melee DPS','Ranged DPS']]];
-const COLOR=Object.fromEntries(CLASSES.map(c=>[c[0],c[1]]));
-const ORDER=['Tank','Healer','Melee DPS','Ranged DPS'];
+const G=Guild,$=G.$,esc=G.esc;
+const MAIN='#E9E2D9',WILL='#6E625C';
 const ATT=['I’ve done it','I’ll try to do it','I’ll need help','What attunement?','Probably won’t have time'];
-const KEY='md-guild';
-const $=id=>document.getElementById(id);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const low=s=>String(s||'').trim().toLowerCase();
-const rid=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2,12));
-let me=(()=>{try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(_){return null}})()||{device:rid(),chars:[],main:''};
-const saveMe=()=>{try{localStorage.setItem(KEY,JSON.stringify(me))}catch(_){}};
-saveMe();
-let roster=[], view='', sign={dec9:'',attune:'',later:'',eta:''};
+let as='', sign={dec9:'',attune:'',later:'',eta:''};
+const cur=()=>G.byKey(as);
 
-async function api(path,body){
- const r=await fetch('/api/'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({device:me.device,...body})}:{cache:'no-store'});
- const d=await r.json().catch(()=>({}));
- if(!r.ok)throw new Error(d.error||'Something went wrong. Try again in a moment.');
- return d;
+function drawAs(){
+ const c=cur();
+ $('asName').textContent=c.name;$('asInfo').textContent=G.summary(c)+(c.key===G.me().main?' · Main':' · Alt');
+ const others=G.mine().filter(x=>x.key!==as);
+ $('altLink').hidden=!others.length&&as===G.me().main;
+ $('altLink').textContent=as===G.me().main?'Sign up as an alt':'Back to my main';
+ $('altBox').innerHTML=others.map(x=>`<button type="button" data-as="${esc(x.key)}" style='${G.chipStyle(false)};text-transform:none;letter-spacing:.02em;font-size:15px'>${x.key===G.me().main?'★ ':''}${esc(x.name)} · ${esc(x.level)} ${esc(x.cls)}</button>`).join('');
+ $('rolesNeeded').hidden=!!c.main_role;
 }
-const mainChar=()=>roster.find(c=>low(c.name)===low(me.main));
-
-/* ----- shared widgets ----- */
-function classTiles(el,sel){
- el.innerHTML=CLASSES.map(([n,c,r])=>{const on=sel===n;
-  return `<button type="button" data-c="${n}" aria-pressed="${on}" style="min-height:62px;text-align:left;padding:10px 14px;border-radius:6px;cursor:pointer;color:#F1ECE6;font-family:Cinzel,Georgia,serif;font-weight:700;font-size:16px;letter-spacing:.02em;border:1px solid ${on?c:'#362D2A'};border-top:3px solid ${c};background:${on?`color-mix(in srgb, ${c} 14%, #1B1716)`:'#241E1C'}${on?`;box-shadow:inset 0 0 0 1px ${c}`:''}">${n}<span style="display:block;font-family:Barlow,sans-serif;font-weight:500;font-size:13px;letter-spacing:0;color:#AEA49A;margin-top:2px">${r.map(x=>x.replace(' DPS','')).join(' · ')}</span></button>`}).join('');
-}
-function roleRows(el,cls,picks){
- const k=CLASSES.find(x=>x[0]===cls);
- el.innerHTML=!k?'<p style="font-size:15px;color:#8F857C">Pick a class first.</p>':k[2].map(role=>{const v=picks[role]||'no';
-  return `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:10px 14px;background:#241E1C;border-radius:6px"><span style="font-family:Cinzel,Georgia,serif;font-weight:700;font-size:17px">${role}</span><div role="group" aria-label="${role}" style="display:inline-flex;border:1px solid #362D2A;border-radius:4px;overflow:hidden;background:#121011">${[['main','MAIN',ACC],['will','WILL PLAY','#CDB07C'],['no','NO','#362D2A']].map(([val,lab,col],i)=>`<button type="button" data-r="${role}" data-v="${val}" aria-pressed="${v===val}" style="min-height:44px;padding:0 14px;border:0;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;letter-spacing:.12em;${i?'border-left:1px solid #362D2A;':''}${v===val?`background:${col};color:${val==='no'?'#F1ECE6':'#121011'}`:'background:transparent;color:#CFC7BE'}">${lab}</button>`).join('')}</div></div>`}).join('');
-}
-function classRoleEditor(tilesEl,rolesEl,state){
- const draw=()=>{classTiles(tilesEl,state.cls);roleRows(rolesEl,state.cls,state.picks)};
- tilesEl.addEventListener('click',e=>{const b=e.target.closest('[data-c]');if(!b)return;state.cls=b.dataset.c;const k=CLASSES.find(x=>x[0]===state.cls);state.picks=k[2].length===1?{[k[2][0]]:'main'}:{};draw()});
- rolesEl.addEventListener('click',e=>{const b=e.target.closest('[data-r]');if(!b)return;if(b.dataset.v==='main')for(const x in state.picks)if(state.picks[x]==='main')state.picks[x]='will';state.picks[b.dataset.r]=b.dataset.v;draw()});
- return draw;
-}
-const picksOut=p=>({main_role:Object.keys(p).find(x=>p[x]==='main')||'',also_play:ORDER.filter(x=>p[x]==='will')});
-const chipStyle=on=>'min-height:44px;padding:0 18px;border-radius:4px;cursor:pointer;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:15px;letter-spacing:.12em;border:1px solid '+(on?ACC:'#362D2A')+';background:'+(on?ACC:'#121011')+';color:'+(on?'#121011':'#CFC7BE');
-
-/* ----- claim view ----- */
-const add={cls:'',picks:{}};
-const drawAdd=classRoleEditor($('aClasses'),$('aRoles'),add);
-function drawFind(){
- const q=low($('find').value);
- const list=roster.filter(c=>!q||low(c.name).includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
- $('findList').innerHTML=list.length?list.map(c=>`<button type="button" data-claim="${esc(c.name)}" class="rs-btn" style="display:inline-flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-family:Barlow,sans-serif;font-size:15px"><i class="rs-dot" style="background:${COLOR[c.cls]||'#999'}"></i>${esc(c.name)} <span style="color:#8F857C">${esc(c.level)} ${esc(c.cls)}</span>${me.chars.some(n=>low(n)===low(c.name))?' <span style="color:#A3BC6E">· yours</span>':''}</button>`).join(''):`<p style="font-size:15px;color:#8F857C">${roster.length?'No match. Add your character below.':'Nobody’s on the roster yet. Add your character below.'}</p>`;
-}
-$('find').addEventListener('input',drawFind);
-async function claim(name,confirm){
- try{
-  const d=await api('claim',{name,confirm:!!confirm});
-  if(d.needsConfirm){$('cName').textContent=d.name;$('confirm').dataset.name=d.name;$('confirm').showModal();return}
-  if(!me.chars.some(n=>low(n)===low(d.character.name)))me.chars.push(d.character.name);
-  if(!me.main)me.main=d.character.name;
-  saveMe();await load();show('me');scrollTo(0,0);
- }catch(e){alertMsg(e.message)}
-}
-const alertMsg=m=>{$('aErr').textContent=m};
-$('findList').addEventListener('click',e=>{const b=e.target.closest('[data-claim]');if(b)claim(b.dataset.claim)});
-$('cYes').addEventListener('click',()=>{$('confirm').close();claim($('confirm').dataset.name,true)});
-$('cNo').addEventListener('click',()=>$('confirm').close());
-$('addForm').addEventListener('submit',async e=>{
- e.preventDefault();
- const name=$('aName').value.trim(),lvl=parseInt($('aLevel').value,10),p=picksOut(add.picks);
- const err=!name?'Add your character’s name.':!(lvl>=1&&lvl<=60)?'Add your level (1–60).':!add.cls?'Pick your class.':!p.main_role?'Mark one role as Main.':'';
- $('aErr').textContent=err;if(err)return;
- if(roster.some(c=>low(c.name)===low(name))){claim(name);return}
- $('aGo').disabled=true;
- try{const d=await api('claim',{name,level:lvl,cls:add.cls,...p});me.chars.push(d.character.name);if(!me.main)me.main=d.character.name;saveMe();$('addForm').reset();add.cls='';add.picks={};drawAdd();await load();show('me');scrollTo(0,0)}
- catch(x){$('aErr').textContent=x.message}finally{$('aGo').disabled=false}
+$('altLink').addEventListener('click',()=>{
+ if(as!==G.me().main){as=G.me().main;$('altBox').hidden=true;drawAs();loadSign();return}
+ const others=G.mine().filter(x=>x.key!==as);
+ if(!others.length){location.href='/claim?next=signup';return}
+ $('altBox').hidden=!$('altBox').hidden;
 });
-$('claimCancel').addEventListener('click',()=>{show('me');scrollTo(0,0)});
+$('altBox').addEventListener('click',e=>{const b=e.target.closest('[data-as]');if(!b)return;as=b.dataset.as;$('altBox').hidden=true;drawAs();loadSign()});
 
-/* ----- me view ----- */
-const edit={cls:'',picks:{}};
-const drawEdit=classRoleEditor($('eClasses'),$('eRoles'),edit);
-function drawMe(){
- const c=mainChar(); if(!c)return;
- $('meName').textContent=c.name;
- $('meInfo').textContent=`Level ${c.level} ${c.cls}${c.main_role?' · '+c.main_role:''}${c.also_play.length?' · also '+c.also_play.join(', '):''}`;
- if(document.activeElement!==$('lvlQuick'))$('lvlQuick').value=c.level;
- const mine=me.chars.map(n=>roster.find(x=>low(x.name)===low(n))).filter(Boolean);
- $('meSwitch').innerHTML=mine.length>1?mine.map(x=>`<button type="button" data-main="${esc(x.name)}" style='${chipStyle(low(x.name)===low(c.name))}'>${low(x.name)===low(c.name)?'★ MAIN · ':'SET AS MAIN · '}${esc(x.name.toUpperCase())}</button>`).join(''):'';
- $('signLab').textContent='RAID SIGNUP · AS '+c.name.toUpperCase();
- $('syncNote').hidden=!c.synced;$('lvlWrap').hidden=!!c.synced;$('lvlBtn').hidden=!!c.synced;
- $('editBtn').textContent=c.synced?'EDIT ROLES':'EDIT CLASS & ROLES';
- $('eClasses').hidden=!!c.synced;$('eClassLab').hidden=!!c.synced;
- if(!c.main_role&&$('editBox').hidden){openEdit();$('meMsg').textContent='First, pick the roles you play.'}
-}
-$('meSwitch').addEventListener('click',async e=>{const b=e.target.closest('[data-main]');if(!b)return;me.main=b.dataset.main;saveMe();drawMe();await loadSignup();});
-async function saveChar(fields,msg){
- const c=mainChar();
- try{await api('character',{name:c.name,cls:c.cls,level:c.level,main_role:c.main_role,also_play:c.also_play,...fields});await load();$('meMsg').textContent=msg}
- catch(e){$('meMsg').textContent=e.message;if(/Claim this character/.test(e.message)){me.chars=me.chars.filter(n=>low(n)!==low(c.name));me.main=me.chars[0]||'';saveMe();show(me.main?'me':'claim')}}
-}
-async function quickLevel(){
- const lvl=parseInt($('lvlQuick').value,10),c=mainChar();
- if(!(lvl>=1&&lvl<=60)){$('meMsg').textContent='Enter a level from 1 to 60.';return}
- if(lvl===c.level){$('meMsg').textContent='That’s already your level.';return}
- $('lvlBtn').disabled=true;await saveChar({level:lvl},lvl>=60?'Updated. Grats on 60!':'Updated to level '+lvl+'.');$('lvlBtn').disabled=false;
-}
-$('lvlBtn').addEventListener('click',quickLevel);
-$('lvlQuick').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();quickLevel()}});
-function openEdit(){const c=mainChar();edit.cls=c.cls;edit.picks=c.main_role?{[c.main_role]:'main'}:{};const k=CLASSES.find(x=>x[0]===c.cls);if(!c.main_role&&k&&k[2].length===1)edit.picks={[k[2][0]]:'main'};c.also_play.forEach(r=>edit.picks[r]='will');drawEdit();$('editBox').hidden=false}
-$('editBtn').addEventListener('click',openEdit);
-$('eCancel').addEventListener('click',()=>{$('editBox').hidden=true});
-$('eSave').addEventListener('click',async()=>{const p=picksOut(edit.picks);if(!p.main_role){$('meMsg').textContent='Mark one role as Main.';return}$('editBox').hidden=true;await saveChar({cls:edit.cls,...p},'Roles saved.')});
-$('claimMore').addEventListener('click',()=>{show('claim');scrollTo(0,0)});
-$('claimFromRoster').addEventListener('click',()=>{show('claim');scrollTo(0,0)});
-
-/* ----- signup ----- */
 function drawSign(){
- const chips=(id,key,list)=>{$(id).innerHTML=list.map(v=>`<button type="button" data-k="${key}" data-val="${v}" aria-pressed="${sign[key]===v}" style='${chipStyle(sign[key]===v)}'>${v.toUpperCase()}</button>`).join('')};
- chips('dec9','dec9',['Yes','Probably','Not sure yet','No']);
- chips('attune','attune',ATT);
- chips('later','later',['Yes','Probably','Not sure yet','Not planning to raid']);
- chips('eta','eta',['Sometime in December','After the holidays','No idea yet']);
- const c=mainChar();
- $('attuneBox').hidden=!(sign.dec9==='Yes'||sign.dec9==='Probably');
+ const chips=(id,key,list)=>{$(id).innerHTML=list.map(v=>`<button type="button" data-k="${key}" data-val="${v}" aria-pressed="${sign[key]===v}" style='${G.chipStyle(sign[key]===v)}'>${v.toUpperCase()}</button>`).join('')};
+ chips('dec9','dec9',['Yes','Probably','Not sure yet','No']);chips('attune','attune',ATT);
+ chips('later','later',['Yes','Probably','Not sure yet','Not planning to raid']);chips('eta','eta',['Sometime in December','After the holidays','No idea yet']);
+ const c=cur();
+ $('attuneBox').hidden=!['Yes','Probably'].includes(sign.dec9);
  $('laterBox').hidden=sign.dec9!=='No';
  $('etaBox').hidden=!(sign.dec9==='No'&&sign.later&&sign.later!=='Not planning to raid'&&!(c&&c.level>=60));
 }
 $('signForm').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(!b)return;sign[b.dataset.k]=b.dataset.val;if(b.dataset.k==='dec9'){if(b.dataset.val!=='No'){sign.later='';sign.eta=''}if(!['Yes','Probably'].includes(b.dataset.val))sign.attune=''}$('sMsg').textContent='';drawSign()});
-async function loadSignup(){
- const c=mainChar(); if(!c)return;
- sign={dec9:'',attune:'',later:'',eta:''};$('sDiscord').value='';$('sNotes').value='';$('sMsg').textContent='';
- try{const d=await api('mine',{name:c.name});if(d.signup){sign={dec9:d.signup.dec9||'',attune:d.signup.attune||'',later:d.signup.later||'',eta:d.signup.eta||''};$('sDiscord').value=d.signup.discord||'';$('sNotes').value=d.signup.notes||''}}catch(_){}
+async function loadSign(){
+ sign={dec9:'',attune:'',later:'',eta:''};$('sNotes').value='';$('sMsg').textContent='';
+ try{const d=await G.api('mine',{key:as});if(d.signup){sign={dec9:d.signup.dec9||'',attune:d.signup.attune||'',later:d.signup.later||'',eta:d.signup.eta||''};if(d.signup.discord)$('sDiscord').value=d.signup.discord;$('sNotes').value=d.signup.notes||''}}catch(_){}
  drawSign();
 }
 $('signForm').addEventListener('submit',async e=>{
- e.preventDefault();const c=mainChar();
- const err=!c.main_role?'Pick your roles first (Edit roles, above).':!sign.dec9?'Let us know about December 9.':(['Yes','Probably'].includes(sign.dec9)&&!sign.attune)?'Let us know about your 40-man attunement.':(sign.dec9==='No'&&!sign.later)?'Let us know if you plan to raid with us at 60.':!$('sDiscord').value.trim()?'Add your Discord name.':'';
+ e.preventDefault();const c=cur();
+ const err=!c.main_role?'Set your roles on My characters first.':!sign.dec9?'Let us know about December 9.':(['Yes','Probably'].includes(sign.dec9)&&!sign.attune)?'Let us know about your 40-man attunement.':(sign.dec9==='No'&&!sign.later)?'Let us know if you plan to raid with us at 60.':!$('sDiscord').value.trim()?'Add your Discord name.':'';
  $('sMsg').style.color='#D96A5F';$('sMsg').textContent=err;if(err)return;
  $('sGo').disabled=true;$('sGo').textContent='SAVING…';
  try{
-  await api('signup',{name:c.name,...sign,discord:$('sDiscord').value.trim(),notes:$('sNotes').value});
-  // Keep a private copy in Netlify Forms too, like the old signup did.
-  fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({'form-name':'raid-signup',signup_id:'char:'+low(c.name),discord:$('sDiscord').value.trim(),character:c.name,level:String(c.level),'class':c.cls,main_role:c.main_role,also_play:c.also_play.join(', '),dec9:sign.dec9,raid_after:sign.later,ready_by:c.level>=60?'Already 60':sign.eta,attunement:sign.attune,notes:$('sNotes').value}).toString()}).catch(()=>{});
-  await load();$('sMsg').style.color='#A3BC6E';$('sMsg').textContent='Saved. See you in there!';
+  await G.api('signup',{key:c.key,...sign,discord:$('sDiscord').value.trim(),notes:$('sNotes').value});
+  fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({'form-name':'raid-signup',signup_id:'char:'+c.key,discord:$('sDiscord').value.trim(),character:c.name,level:String(c.level),'class':c.cls,main_role:c.main_role,also_play:(c.also_play||[]).join(', '),dec9:sign.dec9,raid_after:sign.later,ready_by:c.level>=60?'Already 60':sign.eta,attunement:sign.attune,notes:$('sNotes').value}).toString()}).catch(()=>{});
+  await G.loadRoster();drawRoster();$('sMsg').style.color='#A3BC6E';$('sMsg').textContent='Saved. See you in there!';
  }catch(x){$('sMsg').textContent=x.message}
  finally{$('sGo').disabled=false;$('sGo').textContent='SAVE MY SIGNUP'}
 });
 
-/* ----- roster ----- */
 const bar=(label,parts,max,note)=>`<div><div style="display:flex;justify-content:space-between;gap:10px;font-size:15px;margin-bottom:5px"><b style="font-weight:600">${esc(label)}</b><span style="color:#AEA49A;white-space:nowrap">${esc(note)}</span></div><div style="height:10px;background:#241E1C;border-radius:999px;overflow:hidden;display:flex">${parts.map(([v,c])=>`<i style="display:block;height:100%;width:${max?v/max*100:0}%;background:${c}"></i>`).join('')}</div></div>`;
 function drawRoster(){
- const all=roster, by=a=>all.filter(r=>r.signup&&r.signup.dec9===a);
+ const all=G.roster(), by=a=>all.filter(r=>r.signup&&r.signup.dec9===a);
  const yes=by('Yes'),maybe=by('Probably'),unsure=by('Not sure yet'),none=all.filter(r=>!r.signup);
  const going=yes.concat(maybe), at60=all.filter(r=>r.level>=60).length;
+ $('syncedAt').textContent=G.syncLine();
  $('tally').innerHTML=[['Yes',yes.length,''],['Probably',maybe.length,''],['Not sure yet',unsure.length,''],['Full roster',all.length,`${at60} at level 60`]]
   .map(([l,n,sub])=>`<div class="md-card"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(30px,4vw,42px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong>${sub?`<span style="font-size:14px;color:#AEA49A">${esc(sub)}</span>`:''}</div>`).join('');
  const mainN=k=>going.filter(r=>r.main_role===k).length, will=k=>going.filter(r=>(r.also_play||[]).includes(k)).length;
- const maxR=Math.max(1,...ORDER.map(k=>mainN(k)+will(k)));
- $('cover').innerHTML=ORDER.map(k=>bar(k,[[mainN(k),MAIN],[will(k),WILL]],maxR,`${mainN(k)} main · ${will(k)} willing`)).join('');
- const cc=CLASSES.map(c=>[c[0],going.filter(r=>r.cls===c[0]).length]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]);
+ const maxR=Math.max(1,...G.ORDER.map(k=>mainN(k)+will(k)));
+ $('cover').innerHTML=G.ORDER.map(k=>bar(k,[[mainN(k),MAIN],[will(k),WILL]],maxR,`${mainN(k)} main · ${will(k)} willing`)).join('');
+ const cc=G.CLASSES.map(c=>[c[0],going.filter(r=>r.cls===c[0]).length]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]);
  const maxC=Math.max(1,...cc.map(x=>x[1]));
- $('classBars').innerHTML=cc.length?cc.map(([k,v])=>bar(k,[[v,COLOR[k]]],maxC,String(v))).join(''):'<p style="color:#8F857C;font-size:15px">Nobody yet.</p>';
- const mine=new Set(me.chars.map(low));
- const table=(title,list)=>!list.length?'':`<div><h2 style="font-size:clamp(24px,3vw,27px);margin-bottom:12px">${esc(title)} <span style="font-family:Barlow,sans-serif;font-weight:500;font-size:16px;color:#AEA49A">${list.length}</span></h2><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Class</th><th class="n">Level</th><th>Main role</th><th>Will also play</th></tr></thead><tbody>${list.slice().sort((a,b)=>ORDER.indexOf(a.main_role)-ORDER.indexOf(b.main_role)||b.level-a.level).map(r=>`<tr${mine.has(low(r.name))?' style="background:#241E1C"':''}><td data-l="Character"><strong>${esc(r.name)}</strong>${mine.has(low(r.name))?' <span style="font-size:13px;color:#A3BC6E">(you)</span>':''}</td><td data-l="Class"><i class="rs-dot" style="background:${COLOR[r.cls]||'#999'}"></i>${esc(r.cls)}</td><td data-l="Level" class="n">${esc(r.level)}</td><td data-l="Main role">${esc(r.main_role)}</td><td data-l="Will also play">${esc((r.also_play||[]).join(', ')||'—')}</td></tr>`).join('')}</tbody></table></div></div>`;
+ $('classBars').innerHTML=cc.length?cc.map(([k,v])=>bar(k,[[v,G.COLOR[k]]],maxC,String(v))).join(''):'<p style="color:#8F857C;font-size:15px">Nobody yet.</p>';
+ const mineK=new Set(G.me().keys);
+ const table=(title,list)=>!list.length?'':`<div><h2 style="font-size:clamp(24px,3vw,27px);margin-bottom:12px">${esc(title)} <span style="font-family:Barlow,sans-serif;font-weight:500;font-size:16px;color:#AEA49A">${list.length}</span></h2><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Class</th><th class="n">Level</th><th>Main role</th><th>Will also play</th></tr></thead><tbody>${list.slice().sort((a,b)=>G.ORDER.indexOf(a.main_role)-G.ORDER.indexOf(b.main_role)||b.level-a.level).map(r=>`<tr${mineK.has(r.key)?' style="background:#241E1C"':''}><td data-l="Character"><strong>${esc(r.name)}</strong>${mineK.has(r.key)?' <span style="font-size:13px;color:#A3BC6E">(you)</span>':''}</td><td data-l="Class">${G.dot(r.cls)}${esc(r.cls)}</td><td data-l="Level" class="n">${esc(r.level)}</td><td data-l="Main role">${esc(r.main_role||'—')}</td><td data-l="Will also play">${esc((r.also_play||[]).join(', ')||'—')}</td></tr>`).join('')}</tbody></table></div></div>`;
  $('lists').innerHTML=table('Yes',yes)+table('Probably',maybe)+table('Not sure yet',unsure)+(none.length?`<p style="font-size:15px;color:#AEA49A">${none.length} more guild member${none.length===1?' hasn’t':'s haven’t'} signed up yet.</p>`:'');
  const att=a=>going.filter(r=>r.signup.attune===a), unk=going.filter(r=>!ATT.includes(r.signup.attune));
  const maxA=Math.max(1,...ATT.map(a=>att(a).length),unk.length);
- const row=(label,list)=>`<div style="display:flex;flex-direction:column;gap:6px">${bar(label,[[list.length,MAIN]],maxA,String(list.length))}${list.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(r=>`<span style="display:inline-flex;align-items:center;font-size:14px;color:#CFC7BE;background:#241E1C;border-radius:999px;padding:3px 10px"><i class="rs-dot" style="background:${COLOR[r.cls]||'#999'}"></i>${esc(r.name)}</span>`).join('')}</div>`:''}</div>`;
- $('attRows').innerHTML=ATT.map(a=>row(a,att(a))).join('')+(unk.length?row('Didn’t say yet',unk):'');
+ const arow=(label,list)=>`<div style="display:flex;flex-direction:column;gap:6px">${bar(label,[[list.length,MAIN]],maxA,String(list.length))}${list.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(r=>`<span style="display:inline-flex;align-items:center;font-size:14px;color:#CFC7BE;background:#241E1C;border-radius:999px;padding:3px 10px">${G.dot(r.cls)}${esc(r.name)}</span>`).join('')}</div>`:''}</div>`;
+ $('attRows').innerHTML=ATT.map(a=>arow(a,att(a))).join('')+(unk.length?arow('Didn’t say yet',unk):'');
  $('attTrack').hidden=!going.length;
 }
-
-/* ----- views ----- */
-async function load(){const d=await api('roster');roster=d.characters||[];$('syncedAt').textContent=d.synced_at?'Levels and classes synced from the game '+new Date(d.synced_at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'.':'';me.chars=me.chars.filter(n=>roster.some(c=>low(c.name)===low(n)));if(!me.chars.some(n=>low(n)===low(me.main)))me.main=me.chars[0]||'';saveMe();drawRoster();if(view==='claim')drawFind();if(view==='me')drawMe()}
-function show(v){
- if(v==='me'&&!mainChar())v='claim';
- view=v;
- $('claimView').hidden=v!=='claim';$('meView').hidden=v!=='me';$('rosterView').hidden=false;
- $('claimCancel').hidden=!me.chars.length;
- $('headTitle').textContent=v==='me'?'roster check':'Claim your character';
- $('headLead').textContent=v==='me'?'Raid day is almost upon us. Let us know if you’re in, and keep your level up to date as you go.':'Find your character and tap it. Your browser remembers you from then on, no password needed.';
- if(v==='claim')drawFind();
- if(v==='me'){drawMe();loadSignup()}
-}
 (async()=>{
- try{await load();$('loading').hidden=true;show(me.main?'me':'claim');drawAdd()}
- catch(e){$('loading').textContent='Couldn’t load the roster right now. Try refreshing in a bit.'}
+ try{
+  await G.loadRoster();$('loading').hidden=true;$('rosterView').hidden=false;drawRoster();
+  if(!G.mainChar()){$('needClaim').hidden=false;return}
+  as=G.me().main;$('signForm').hidden=false;drawAs();loadSign();
+ }catch(e){$('loading').textContent='Couldn’t load the roster right now. Try refreshing in a bit.'}
 })();
 }
 </script>

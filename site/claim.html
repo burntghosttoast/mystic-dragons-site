@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mystic Dragons — Claim a Character</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&amp;family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121011}
+a{color:#A3BC6E}a:hover{color:#C2D69A}
+h1,h2,h3{font-family:'Cinzel',Georgia,serif;font-weight:700;margin:0;letter-spacing:0.02em}
+p{margin:0}
+.md-who{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 120px;gap:12px}
+.md-classes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.md-in{width:100%;box-sizing:border-box;font:16px 'Barlow',sans-serif;padding:11px 14px;min-height:46px;border-radius:4px;border:1px solid #362D2A;background:#121011;color:#F1ECE6}
+.md-in::placeholder{color:#8F857C}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC6E;outline-offset:2px}
+@media (max-width: 700px){
+  header nav a{padding:8px 9px !important;font-size:14px !important}
+  header img{width:36px !important;height:36px !important}
+  .md-who{grid-template-columns:minmax(0,1fr) 96px}
+  .md-who label:first-child{grid-column:1/-1}
+  .md-classes{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+.md-card{background:#1B1716;border:1px solid #362D2A;border-radius:8px;padding:24px;display:flex;flex-direction:column;gap:6px}
+.md-lab{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.2em;color:#8F857C}
+.md-chips{display:flex;flex-wrap:wrap;gap:8px}
+[hidden]{display:none !important}
+.rs-tally{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rs-two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.rs-key{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.rs-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.rs-wrap{background:#1B1716;border:1px solid #362D2A;border-radius:8px;overflow:hidden}
+.rs-table{width:100%;border-collapse:collapse;font-size:15px}
+.rs-table th,.rs-table td{text-align:left;padding:11px 14px;border-bottom:1px solid #362D2A;vertical-align:top}
+.rs-table th{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#8F857C}
+.rs-table .n{text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:700px){.rs-tally{grid-template-columns:repeat(2,minmax(0,1fr))}.rs-two{grid-template-columns:minmax(0,1fr)}
+.rs-table thead{display:none}.rs-table tr{display:grid;padding:10px 0;border-bottom:1px solid #362D2A}.rs-table td{border:0;padding:3px 14px 3px 8.5em;text-align:left !important}.rs-table td::before{content:attr(data-l);float:left;width:7.5em;margin-left:-7.5em;color:#8F857C;font-size:13px}}
+.rs-btn{min-height:46px;padding:0 20px;border:1px solid #362D2A;border-radius:4px;background:transparent;color:#CFC7BE;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:16px;letter-spacing:.12em;cursor:pointer}
+.rs-btn-p{background:#A3BC6E;border-color:#A3BC6E;color:#121011}
+dialog::backdrop{background:rgba(0,0,0,.6)}
+.link-btn{background:none;border:0;padding:0;color:#A3BC6E;text-decoration:underline;cursor:pointer;font:inherit}
+.link-btn:hover{color:#C2D69A}
+.ch-facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 20px;margin-top:10px;font-size:15px;color:#CFC7BE}
+.ch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:16px;align-items:start}
+.ch-wide{grid-column:1/-1}
+.ch-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
+.ch-row span:first-child{color:#CFC7BE}.ch-row span:last-child{color:#F1ECE6;text-align:right;font-variant-numeric:tabular-nums}
+.ch-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:4px 24px;margin-top:6px}
+.ch-item{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
+.ch-slot{color:#8F857C;font-size:13px;padding-top:2px}
+</style>
+</head>
+<body>
+<div style="background: #121011; color: #F1ECE6; font-family: 'Barlow', 'Helvetica Neue', sans-serif; font-size: 16px; line-height: 1.6; min-height: 100vh">
+
+<header style="border-top: 3px solid #A83A35; border-bottom: 1px solid #362D2A; background: #121011">
+<div style="max-width: 1160px; margin: 0 auto; padding: 18px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<a href="/" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: #F1ECE6">
+<img src="/logo.png" alt="Mystic Dragons guild logo" style="width: 44px; height: 44px; border-radius: 8px; display: block">
+<span style="font-family: 'Cinzel', Georgia, serif; font-weight: 700; font-size: 17px; letter-spacing: 0.12em">MYSTIC DRAGONS</span>
+</a>
+<nav aria-label="Guide pages" style="display: flex; flex-wrap: wrap; gap: 4px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">
+<a href="/" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">HOME</a>
+<a href="/forever" aria-current="page" style="color: #F1ECE6; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid #A3BC6E">FOREVER</a>
+<a href="/retail" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">RETAIL</a>
+<a href="/history" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">HISTORY</a>
+<a href="/characters" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">MY CHARACTERS</a>
+<a href="https://discord.gg/mfScPwH9rY" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; color: #F7F2EC; background: #A83A35; text-decoration: none; padding: 10px 16px; border-radius: 4px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"></path></svg>JOIN DISCORD</a>
+</nav>
+</div>
+</header>
+<!-- FOREVER SUBNAV -->
+<div style="border-bottom: 1px solid #362D2A; background: #181413">
+<div style="max-width: 1160px; margin: 0 auto; padding: 0 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.2em; color: #A3BC6E">FOREVER</span>
+<nav aria-label="Forever pages" style="display: flex; flex-wrap: wrap; font-size: 16px">
+<a href="/forever" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Overview</a>
+<a href="/raiding" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Raiding</a>
+<a href="/loot" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Loot</a>
+<a href="/crafters" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Crafters</a>
+<a href="/addons" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Addons</a>
+<a href="/forever-faq" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">FAQ</a>
+<a href="/signup-beta" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Sign Up</a>
+</nav>
+</div>
+</div>
+
+<!-- PAGE HEAD -->
+<section style="border-bottom: 1px solid #362D2A">
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(48px, 7vw, 72px) 24px clamp(40px, 5vw, 52px); display: flex; flex-direction: column; gap: 20px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">WOW FOREVER</div>
+<h1 style="font-size: clamp(40px, 7vw, 64px); line-height: 1">Claim your character</h1>
+<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Find your character in the guild and tap it. This browser remembers you from then on, no password needed. Claiming alts works the same way.</p>
+</div>
+</section>
+
+<section style="border-bottom: 1px solid #362D2A">
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(40px, 6vw, 64px) 24px; display: flex; flex-direction: column; gap: 16px; max-width: 808px">
+<p id="loading" style="color: #AEA49A">Loading the guild roster…</p>
+<div id="mineBox" hidden class="md-card" style="border-color: #A3BC6E; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px">
+<p style="color: #CFC7BE">Claimed on this browser: <strong id="mineList" style="color: #F1ECE6"></strong></p>
+<a id="doneLink" class="rs-btn rs-btn-p" href="/characters" style="display: inline-flex; align-items: center; text-decoration: none">MY CHARACTERS →</a>
+</div>
+
+<div id="findCard" hidden class="md-card">
+<h3 style="font-size: 21px; line-height: 1.25">Find your character</h3>
+<p id="syncLine" style="font-size: 14px; color: #8F857C; margin-bottom: 8px"></p>
+<input class="md-in" type="search" id="find" placeholder="Search by first or last name" autocomplete="off">
+<div id="findList" style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-height: 520px; overflow-y: auto"></div>
+<p role="alert" id="findErr" style="font-size: 15px; color: #D96A5F; min-height: 22px"></p>
+</div>
+
+<details id="addCard" hidden class="md-card" style="display: block">
+<summary style="cursor: pointer; font-family: Cinzel, Georgia, serif; font-weight: 700; font-size: 19px">Not in the guild list? Add your character</summary>
+<form id="addForm" novalidate style="display: flex; flex-direction: column; gap: 8px; margin-top: 16px">
+<div class="md-who" style="grid-template-columns: minmax(0,1fr) 120px">
+<label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">FIRST AND LAST NAME</span><input class="md-in" type="text" id="aName" maxlength="32" autocomplete="off" placeholder="e.g. Ghost Incarnate"></label>
+<label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">LEVEL</span><input class="md-in" type="number" id="aLevel" min="1" max="60" inputmode="numeric" placeholder="1–60"></label>
+</div>
+<span class="md-lab" style="margin-top: 10px">CLASS</span>
+<div class="md-classes" id="aClasses"></div>
+<span class="md-lab" style="margin-top: 10px">ROLES</span>
+<div id="aRoles" style="display: flex; flex-direction: column; gap: 8px"></div>
+<button type="submit" class="rs-btn rs-btn-p" id="aGo" style="margin-top: 10px; align-self: flex-start">ADD &amp; CLAIM</button>
+<p role="alert" id="aErr" style="font-size: 15px; color: #D96A5F; min-height: 22px"></p>
+</form>
+</details>
+</div>
+</section>
+
+<dialog id="confirm" style="max-width: 460px; background: #1B1716; color: #F1ECE6; border: 1px solid #362D2A; border-radius: 8px; padding: 24px">
+<h3 style="font-size: 21px; line-height: 1.25; margin-bottom: 8px"><span id="cName"></span> has been claimed before</h3>
+<p style="color: #CFC7BE; margin-bottom: 18px">Same person on a different device? Pinky promise you’re not trolling.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 10px"><button type="button" id="cYes" class="rs-btn rs-btn-p">YEP, IT’S ME</button><button type="button" id="cNo" class="rs-btn">NOT ME</button></div>
+</dialog>
+
+<script src="/guild.js"></script>
+<script>
+{
+const G=Guild,$=G.$,esc=G.esc,low=G.low;
+const next=new URLSearchParams(location.search).get('next');
+const nextUrl=next==='signup'?'/signup-beta':'/characters';
+const nextLabel=next==='signup'?'GO SIGN UP →':'MY CHARACTERS →';
+function drawMine(){
+ const m=G.mine();
+ $('mineBox').hidden=!m.length;
+ $('mineList').textContent=m.map(c=>c.name).join(', ');
+ $('doneLink').href=nextUrl;$('doneLink').textContent=nextLabel;
+}
+function drawFind(){
+ const q=low($('find').value), mineKeys=new Set(G.me().keys);
+ const list=G.roster().filter(c=>!q||low(c.name).includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
+ $('findList').innerHTML=list.length?list.map(c=>`<button type="button" data-claim="${esc(c.key)}" style="display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;min-height:48px;padding:8px 14px;border-radius:6px;border:1px solid #362D2A;background:${mineKeys.has(c.key)?'#241E1C':'#121011'};color:#F1ECE6;cursor:pointer;font:500 16px Barlow,sans-serif"><span style="display:flex;align-items:center;gap:2px">${G.dot(c.cls)}<strong style="font-weight:600">${esc(c.name)}</strong></span><span style="color:#AEA49A;font-size:14px;white-space:nowrap">${mineKeys.has(c.key)?'<span style="color:#A3BC6E">Yours · </span>':''}${esc(c.level)} ${esc(c.race)} ${esc(c.cls)}</span></button>`).join(''):'<p style="font-size:15px;color:#8F857C">No match. If you’re new to the guild you may not show up yet; add yourself below.</p>';
+}
+async function claim(key,confirm){
+ $('findErr').textContent='';
+ try{
+  const d=await G.api('claim',{key,confirm:!!confirm});
+  if(d.needsConfirm){$('cName').textContent=d.name;$('confirm').dataset.key=d.key;$('confirm').showModal();return}
+  G.addClaim(d.character.key);
+  location.href=nextUrl;
+ }catch(e){$('findErr').textContent=e.message}
+}
+$('find').addEventListener('input',drawFind);
+$('findList').addEventListener('click',e=>{const b=e.target.closest('[data-claim]');if(b)claim(b.dataset.claim)});
+$('cYes').addEventListener('click',()=>{$('confirm').close();claim($('confirm').dataset.key,true)});
+$('cNo').addEventListener('click',()=>$('confirm').close());
+const add={cls:'',picks:{}};
+const drawAdd=G.editor($('aClasses'),$('aRoles'),add);
+$('addForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const name=$('aName').value.trim().replace(/\s+/g,' '),lvl=parseInt($('aLevel').value,10),p=G.picksOut(add.picks);
+ const err=!name?'Add your character’s first and last name.':!(lvl>=1&&lvl<=60)?'Add your level (1–60).':!add.cls?'Pick your class.':!p.main_role?'Mark one role as Main.':'';
+ $('aErr').textContent=err;if(err)return;
+ $('aGo').disabled=true;
+ try{const d=await G.api('claim',{name,level:lvl,cls:add.cls,...p});if(d.needsConfirm){$('cName').textContent=d.name;$('confirm').dataset.key=d.key;$('confirm').showModal();return}G.addClaim(d.character.key);location.href=nextUrl}
+ catch(x){$('aErr').textContent=x.message}finally{$('aGo').disabled=false}
+});
+(async()=>{
+ try{await G.loadRoster();$('loading').hidden=true;$('findCard').hidden=false;$('addCard').hidden=false;$('syncLine').textContent=G.syncLine();drawMine();drawFind();drawAdd()}
+ catch(e){$('loading').textContent='Couldn’t load the guild roster. Try refreshing in a bit.'}
+})();
+}
+</script>
+
+<!-- PREV / NEXT -->
+<section>
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(32px, 4vw, 40px) 24px 40px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px">
+<a href="/signup-beta" style="display: inline-flex; align-items: center; gap: 12px; border: 1px solid #362D2A; color: #CFC7BE; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.12em; padding: 14px 22px; border-radius: 4px">← RAID SIGNUP</a>
+</div>
+</section>
+
+<!-- FOOTER -->
+<footer style="border-top: 1px solid #362D2A; background: #0E0C0D">
+<div style="max-width: 1160px; margin: 0 auto; padding: 28px 24px 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px">
+<div style="display: flex; align-items: flex-start; gap: 12px; flex: 1 1 520px; min-width: 0">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#CDB07C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+<p style="font-size: 15px; color: #AEA49A"><strong style="color: #CFC7BE">This site is a work in progress, and so is everything in it.</strong> Most of what’s here is by no means set in stone. If you have questions, <a href="https://discord.gg/mfScPwH9rY" target="_blank" rel="noopener">ask us in Discord</a>.</p>
+</div>
+<span style="font-family: 'Cinzel', Georgia, serif; font-size: 14px; letter-spacing: 0.12em; color: #8F857C">MYSTIC DRAGONS&nbsp;</span>
+</div>
+</footer>
+</div>
+</body>
+</html>
