@@ -50,6 +50,7 @@ export default async (req, context) => {
         main_role: String(d.main_role || '').slice(0, 20),
         also_play: String(d.also_play || '').slice(0, 60),
         dec9: String(d.dec9 || '').slice(0, 20),
+        attunement: String(d.attunement || '').slice(0, 40),
         id: String(d.signup_id || '').slice(0, 64)
       };
     });

@@ -185,6 +185,10 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 <div class="md-card"><span class="md-lab">CLASSES · YES + PROBABLY</span><div id="classBars" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div></div>
 </div>
 <div id="lists" style="display: flex; flex-direction: column; gap: 24px"></div>
+<div class="md-card" id="attTrack" style="gap: 14px">
+<div style="display: flex; flex-direction: column; gap: 4px"><span class="md-lab">40-MAN ATTUNEMENT · YES + PROBABLY</span><h2 style="font-size: clamp(24px, 3vw, 27px)">Attunement tracker</h2><p style="font-size: 15px; color: #AEA49A">Need a hand? Find someone in the first group, or ask in Discord.</p></div>
+<div id="attRows" style="display: flex; flex-direction: column; gap: 14px"></div>
+</div>
 </div>
 </div>
 </section>
@@ -270,7 +274,7 @@ function withMine(list){
  const p=pending||load();
  if(!p||!p.character)return list;
  const k=p.id, name=p.character.toLowerCase();
- const me={character:p.character,cls:p.cls,level:p.level,main_role:Object.keys(p.picks||{}).find(x=>p.picks[x]==='main')||'',also_play:ORDER.filter(x=>(p.picks||{})[x]==='will').join(', '),dec9:p.dec9,id:k};
+ const me={character:p.character,cls:p.cls,level:p.level,main_role:Object.keys(p.picks||{}).find(x=>p.picks[x]==='main')||'',also_play:ORDER.filter(x=>(p.picks||{})[x]==='will').join(', '),dec9:p.dec9,attunement:p.attune||'',id:k};
  return list.filter(r=>r.id!==k&&String(r.character).toLowerCase()!==name).concat([me]);
 }
 function renderRoster(){
@@ -292,6 +296,12 @@ function renderRoster(){
  const mineName=(load()||{}).character?.toLowerCase();
  const table=(title,list)=>!list.length?'':`<div><h2 style="font-size:clamp(24px,3vw,27px);margin-bottom:12px">${esc(title)} <span style="font-family:Barlow,sans-serif;font-weight:500;font-size:16px;color:#AEA49A">${list.length}</span></h2><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Class</th><th class="n">Level</th><th>Main role</th><th>Will also play</th></tr></thead><tbody>${list.slice().sort((a,b)=>ORDER.indexOf(a.main_role)-ORDER.indexOf(b.main_role)||b.level-a.level).map(r=>`<tr${String(r.character).toLowerCase()===mineName?' style="background:#241E1C"':''}><td data-l="Character"><strong>${esc(r.character)}</strong>${String(r.character).toLowerCase()===mineName?' <span style="font-size:13px;color:#A3BC6E">(you)</span>':''}</td><td data-l="Class"><i class="rs-dot" style="background:${COLOR[r.cls]||'#999'}"></i>${esc(r.cls)}</td><td data-l="Level" class="n">${esc(r.level||'–')}</td><td data-l="Main role">${esc(r.main_role)}</td><td data-l="Will also play">${esc(r.also_play||'—')}</td></tr>`).join('')}</tbody></table></div></div>`;
  $('lists').innerHTML=table('Yes',yes)+table('Probably',maybe)+table('Not sure yet',unsure);
+ const ATT=['I’ve done it','I’ll try to do it','I’ll need help','What attunement?','Probably won’t have time'];
+ const unk=going.filter(r=>!ATT.includes(r.attunement));
+ const maxA=Math.max(1,...ATT.map(a=>going.filter(r=>r.attunement===a).length),unk.length);
+ const attRow=(label,list)=>`<div style="display:flex;flex-direction:column;gap:6px">${bar(label,[[list.length,MAIN]],maxA,String(list.length))}${list.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(r=>`<span style="display:inline-flex;align-items:center;font-size:14px;color:#CFC7BE;background:#241E1C;border-radius:999px;padding:3px 10px"><i class="rs-dot" style="background:${COLOR[r.cls]||'#999'}"></i>${esc(r.character)}</span>`).join('')}</div>`:''}</div>`;
+ $('attRows').innerHTML=ATT.map(a=>attRow(a,going.filter(r=>r.attunement===a))).join('')+(unk.length?attRow('Didn’t say (signed up before this question)',unk):'');
+ $('attTrack').hidden=!going.length;
 }
 function fetchRoster(){
  const t=setTimeout(()=>{if(rows===null)$('msg').textContent='The roster is taking a while to load. Try refreshing in a minute.'},10000);
