@@ -100,6 +100,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 <input type="hidden" name="dec9" id="fDec9">
 <input type="hidden" name="raid_after" id="fLater">
 <input type="hidden" name="ready_by" id="fEta">
+<input type="hidden" name="attunement" id="fAttune">
 
 <div class="md-card">
 <h3 style="font-size: 21px; line-height: 1.25">name &amp; main</h3>
@@ -122,6 +123,11 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 <h3 style="font-size: 21px; line-height: 1.25">Looking to raid on December 9?</h3>
 <p style="font-size: 15px; color: #AEA49A; margin-bottom: 10px">Release night. Change your answer any time by signing up again.</p>
 <div class="md-chips" id="dec9"></div>
+</div>
+
+<div class="md-card" id="attuneCard" hidden>
+<h3 style="font-size: 21px; line-height: 1.25">What about your attunement for the 40-man?</h3>
+<div class="md-chips" id="attune" style="margin-top: 10px"></div>
 </div>
 
 <div class="md-card" id="laterCard" hidden>
@@ -196,10 +202,11 @@ const newId=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+M
 const load=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(_){return null}};
 const save=v=>{try{localStorage.setItem(KEY,JSON.stringify(v))}catch(_){}};
 
-let st={cls:'',picks:{},dec9:'',later:'',eta:''}, signupId=newId();
+let st={cls:'',picks:{},dec9:'',later:'',eta:'',attune:''}, signupId=newId();
 
 /* ---------- form ---------- */
 const chip=(on)=>'min-height:44px;padding:0 18px;border-radius:4px;cursor:pointer;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:15px;letter-spacing:.12em;border:1px solid '+(on?ACC:'#362D2A')+';background:'+(on?ACC:'#121011')+';color:'+(on?'#121011':'#CFC7BE');
+const attuneAsked=()=>st.dec9==='Yes'||st.dec9==='Probably';
 function draw(){
  $('classes').innerHTML=CLASSES.map(([n,c,r])=>{const on=st.cls===n;
   return `<button type="button" data-c="${n}" aria-pressed="${on}" style="min-height:62px;text-align:left;padding:10px 14px;border-radius:6px;cursor:pointer;color:#F1ECE6;font-family:Cinzel,Georgia,serif;font-weight:700;font-size:16px;letter-spacing:.02em;border:1px solid ${on?c:'#362D2A'};border-top:3px solid ${c};background:${on?`color-mix(in srgb, ${c} 14%, #1B1716)`:'#241E1C'}${on?`;box-shadow:inset 0 0 0 1px ${c}`:''}">${n}<span style="display:block;font-family:Barlow,sans-serif;font-weight:500;font-size:13px;letter-spacing:0;color:#AEA49A;margin-top:2px">${r.map(x=>x.replace(' DPS','')).join(' · ')}</span></button>`}).join('');
@@ -210,6 +217,9 @@ function draw(){
  chips('dec9','dec9',['Yes','Probably','Not sure yet','No']);
  chips('later','later',['Yes','Probably','Not sure yet','Not planning to raid']);
  chips('eta','eta',['Sometime in December','After the holidays','No idea yet']);
+ chips('attune','attune',['I’ve done it','I’ll try to do it','I’ll need help','What attunement?','Probably won’t have time']);
+ $('attuneCard').hidden=!attuneAsked();
+ $('fAttune').value=attuneAsked()?st.attune:'';
  $('laterCard').hidden=st.dec9!=='No';
  const lvl=parseInt($('level').value,10);
  $('etaWrap').hidden=!(st.dec9==='No'&&st.later&&st.later!=='Not planning to raid'&&!(lvl>=60));
@@ -223,8 +233,8 @@ function draw(){
 }
 function fill(m){
  $('form').reset();
- if(m){signupId=m.id||newId();$('discord').value=m.discord||'';$('character').value=m.character||'';$('level').value=m.level||'';$('notes').value=m.notes||'';st={cls:m.cls||'',picks:m.picks||{},dec9:m.dec9||'',later:m.later||'',eta:m.eta||''}}
- else{signupId=newId();st={cls:'',picks:{},dec9:'',later:'',eta:''}}
+ if(m){signupId=m.id||newId();$('discord').value=m.discord||'';$('character').value=m.character||'';$('level').value=m.level||'';$('notes').value=m.notes||'';st={cls:m.cls||'',picks:m.picks||{},dec9:m.dec9||'',later:m.later||'',eta:m.eta||'',attune:m.attune||''}}
+ else{signupId=newId();st={cls:'',picks:{},dec9:'',later:'',eta:'',attune:''}}
  $('err').textContent='';draw();
 }
 $('form').addEventListener('click',e=>{
@@ -233,19 +243,19 @@ $('form').addEventListener('click',e=>{
  const r=e.target.closest('[data-r]');
  if(r){if(r.dataset.v==='main')for(const x in st.picks)if(st.picks[x]==='main')st.picks[x]='will';st.picks[r.dataset.r]=r.dataset.v;draw();return}
  const ch=e.target.closest('[data-k]');
- if(ch){st[ch.dataset.k]=ch.dataset.val;if(ch.dataset.k==='dec9'&&ch.dataset.val!=='No'){st.later='';st.eta=''}$('err').textContent='';draw()}
+ if(ch){st[ch.dataset.k]=ch.dataset.val;if(ch.dataset.k==='dec9'){if(ch.dataset.val!=='No'){st.later='';st.eta=''}if(!attuneAsked()){st.attune=''}}$('err').textContent='';draw()}
 });
 $('level').addEventListener('input',draw);
 $('form').addEventListener('submit',async e=>{
  e.preventDefault();draw();
  const d=new FormData($('form')),lvl=parseInt(d.get('level'),10);
- const err=!String(d.get('discord')).trim()?'Add your Discord name.':!String(d.get('character')).trim()?'Add your main character’s name.':!(lvl>=1&&lvl<=60)?'Add your current level (1–60).':!st.cls?'Pick your class.':!d.get('main_role')?'Mark one role as Main.':!st.dec9?'Let us know about December 9.':(st.dec9==='No'&&!st.later)?'Let us know if you plan to raid with us at 60.':'';
+ const err=!String(d.get('discord')).trim()?'Add your Discord name.':!String(d.get('character')).trim()?'Add your main character’s name.':!(lvl>=1&&lvl<=60)?'Add your current level (1–60).':!st.cls?'Pick your class.':!d.get('main_role')?'Mark one role as Main.':!st.dec9?'Let us know about December 9.':(st.dec9==='No'&&!st.later)?'Let us know if you plan to raid with us at 60.':(attuneAsked()&&!st.attune)?'Let us know about your 40-man attunement.':'';
  $('err').textContent=err;if(err)return;
  $('go').disabled=true;$('go').textContent='SENDING…';
  try{
   const r=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(d).toString()});
   if(!r.ok)throw new Error(r.status);
-  const mine={id:signupId,discord:String(d.get('discord')).trim(),character:String(d.get('character')).trim(),level:lvl,notes:String(d.get('notes')||''),cls:st.cls,picks:st.picks,dec9:st.dec9,later:st.later,eta:st.eta};
+  const mine={id:signupId,discord:String(d.get('discord')).trim(),character:String(d.get('character')).trim(),level:lvl,notes:String(d.get('notes')||''),cls:st.cls,picks:st.picks,dec9:st.dec9,later:st.later,eta:st.eta,attune:attuneAsked()?st.attune:''};
   save(mine);pending=mine;
   location.hash='roster';show();scrollTo(0,0);
  }catch(_){$('err').textContent='That didn’t go through. Try again in a moment, or let an officer know in Discord.'}
@@ -310,7 +320,7 @@ async function quickLevel(){
  if(!(lvl>=1&&lvl<=60)){$('lvlMsg').textContent='Enter a level from 1 to 60.';return}
  if(lvl===m.level){$('lvlMsg').textContent='That’s already your level.';return}
  const main=Object.keys(m.picks||{}).find(x=>m.picks[x]==='main')||'';
- const body=new URLSearchParams({'form-name':'raid-signup',signup_id:m.id||newId(),discord:m.discord||'',character:m.character,level:String(lvl),'class':m.cls,main_role:main,also_play:ORDER.filter(x=>(m.picks||{})[x]==='will').join(', '),dec9:m.dec9||'',raid_after:m.dec9==='No'?(m.later||''):'',ready_by:lvl>=60?'Already 60':(m.dec9==='No'?(m.eta||''):''),notes:m.notes||''});
+ const body=new URLSearchParams({'form-name':'raid-signup',signup_id:m.id||newId(),discord:m.discord||'',character:m.character,level:String(lvl),'class':m.cls,main_role:main,also_play:ORDER.filter(x=>(m.picks||{})[x]==='will').join(', '),dec9:m.dec9||'',raid_after:m.dec9==='No'?(m.later||''):'',ready_by:lvl>=60?'Already 60':(m.dec9==='No'?(m.eta||''):''),attunement:(m.dec9==='Yes'||m.dec9==='Probably')?(m.attune||''):'',notes:m.notes||''});
  $('lvlBtn').disabled=true;$('lvlMsg').textContent='Saving…';
  try{
   const r=await fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body.toString()});
