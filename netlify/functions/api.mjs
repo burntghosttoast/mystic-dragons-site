@@ -3,6 +3,7 @@
 // - Characters are claimed per browser (random device id); no logins.
 // - Raid signups and a change log live in Netlify Blobs (store "guild").
 import { getStore } from '@netlify/blobs';
+import { postSummary } from '../lib/summary.mjs';
 
 const CLASSES = {
   Warrior: ['Tank', 'Melee DPS'], Paladin: ['Tank', 'Healer', 'Melee DPS'], Hunter: ['Ranged DPS', 'Melee DPS'],
@@ -335,6 +336,89 @@ async function migrateKeys(s) {
   await s.set('meta/keys-v2', '1');
 }
 
+/* ---------- Officers ---------- */
+const rid = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+async function officerRoute(s, route, body) {
+  if (route === 'officer/login') {
+    const expected = process.env.OFFICER_PASSWORD;
+    if (!expected) return json({ error: 'The officer password hasn’t been set up yet.' }, 503);
+    const who = clean(body.name, 40);
+    const key = 'officer-tries/' + clean(body.device, 64);
+    const tries = (await s.get(key, { type: 'json' })) || { n: 0, at: 0 };
+    if (tries.n >= 5 && Date.now() - tries.at < 10 * 60 * 1000) return json({ error: 'Too many tries. Wait a few minutes.' }, 429);
+    if (String(body.password || '') !== expected) {
+      await s.setJSON(key, { n: Date.now() - tries.at > 10 * 60 * 1000 ? 1 : tries.n + 1, at: Date.now() });
+      return json({ error: 'That’s not the officer password.' }, 403);
+    }
+    const token = rid() + rid();
+    await s.setJSON(`officer-session/${token}`, { who: who || 'Officer', at: Date.now() });
+    await log(s, 'officer-login', who || 'Officer', body.device || 'web');
+    return json({ ok: true, token, who: who || 'Officer' });
+  }
+  const sess = body.token ? await s.get(`officer-session/${clean(body.token, 100)}`, { type: 'json' }) : null;
+  if (!sess || Date.now() - sess.at > 60 * 24 * 60 * 60 * 1000) return json({ error: 'Officer login expired. Log in again.', needsLogin: true }, 401);
+  const who = sess.who;
+
+  if (route === 'officer/data') {
+    const chars = await allChars(s);
+    const signs = await Promise.all(chars.map(c => s.get(`signup/dec9/${c.key}`, { type: 'json' })));
+    const { blobs } = await s.list({ prefix: 'log/' });
+    const recent = blobs.map(b => b.key).sort().reverse().slice(0, 200);
+    const logs = (await Promise.all(recent.map(k => s.get(k, { type: 'json' })))).filter(Boolean);
+    return json({
+      who,
+      characters: chars.filter(c => c.key).map((c, i) => ({ ...publicChar(c), claims: (c.claims || []).length, signup: signs[i] || null })),
+      log: logs
+    });
+  }
+  const c = body.key ? await s.get(`char/${clean(body.key, 40)}`, { type: 'json' }) : null;
+  if (route === 'officer/remove-signup') {
+    if (!c) return json({ error: 'Character not found' }, 404);
+    await s.delete(`signup/dec9/${c.key}`);
+    await log(s, 'officer-remove-signup', c.name, 'officer', { by: who });
+    return json({ ok: true });
+  }
+  if (route === 'officer/release') {
+    if (!c) return json({ error: 'Character not found' }, 404);
+    await s.setJSON(`char/${c.key}`, { ...c, claims: [] });
+    await log(s, 'officer-release', c.name, 'officer', { by: who });
+    return json({ ok: true });
+  }
+  if (route === 'officer/delete-char') {
+    if (!c) return json({ error: 'Character not found' }, 404);
+    if (c.synced && c.in_guild !== false) return json({ error: 'This character is in the guild roster, so it would come right back on the next sync. Release the claim or remove the signup instead.' }, 400);
+    await s.delete(`char/${c.key}`);
+    await s.delete(`signup/dec9/${c.key}`);
+    await s.delete(`info/${c.key}`);
+    await log(s, 'officer-delete', c.name, 'officer', { by: who });
+    return json({ ok: true });
+  }
+  if (route === 'officer/board') {
+    // Old-school bulletin board for site and officer ideas.
+    const action = body.action;
+    if (action === 'add') {
+      const text = clean(body.text, 1000);
+      if (!text) return json({ error: 'Write something first' }, 400);
+      const id = new Date().toISOString() + '-' + Math.random().toString(36).slice(2, 6);
+      await s.setJSON(`board/${id}`, { id, text, tag: ['site', 'officer', 'other'].includes(body.tag) ? body.tag : 'site', by: clean(body.by, 40) || who, status: 'open', at: new Date().toISOString() });
+    } else if (action === 'status' || action === 'delete') {
+      const id = clean(body.id, 80), doc = await s.get(`board/${id}`, { type: 'json' });
+      if (!doc) return json({ error: 'Post not found' }, 404);
+      if (action === 'delete') await s.delete(`board/${id}`);
+      else await s.setJSON(`board/${id}`, { ...doc, status: ['open', 'doing', 'done'].includes(body.status) ? body.status : doc.status });
+    }
+    const { blobs } = await s.list({ prefix: 'board/' });
+    const posts = (await Promise.all(blobs.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at));
+    return json({ ok: true, posts });
+  }
+  if (route === 'officer/post-summary') {
+    const r = await postSummary(s, { reason: '' });
+    if (r.ok) await log(s, 'officer-post-summary', 'Discord', 'officer', { by: who });
+    return r.ok ? json({ ok: true }) : json({ error: r.error }, 400);
+  }
+  return json({ error: 'Not found' }, 404);
+}
+
 export default async (req, context) => {
   const s = store();
   const url = new URL(req.url);
@@ -363,6 +447,7 @@ export default async (req, context) => {
 
     if (req.method !== 'POST') return json({ error: 'Not found' }, 404);
     const body = await req.json().catch(() => ({}));
+    if (route.startsWith('officer/')) return await officerRoute(s, route, body);
     const device = clean(body.device, 64);
     if (device.length < 8) return json({ error: 'Missing device id' }, 400);
 

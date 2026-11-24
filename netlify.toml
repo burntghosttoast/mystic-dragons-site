@@ -6,3 +6,6 @@
   from = "/signup-beta"
   to = "/signup"
   status = 301
+
+[functions]
+  node_bundler = "esbuild"
