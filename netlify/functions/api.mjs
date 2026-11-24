@@ -453,8 +453,12 @@ export default async (req, context) => {
         attune: dec9 === 'Yes' || dec9 === 'Probably' ? pick(body.attune, ATTUNE) : '',
         later: dec9 === 'No' ? pick(body.later, LATER) : '',
         eta: dec9 === 'No' ? pick(body.eta, ETA) : '',
-        discord: clean(body.discord, 40), notes: clean(body.notes, 1000), at: new Date().toISOString()
+        discord: '', notes: clean(body.notes, 1000), at: new Date().toISOString()
       };
+      // Discord name comes from the one-time guild check; older browsers can still send it.
+      const verified = await s.get(`verified/${device}`, { type: 'json' });
+      const prevSign = await s.get(`signup/dec9/${c.key}`, { type: 'json' });
+      doc.discord = clean(verified?.discord || body.discord || prevSign?.discord, 40);
       await s.setJSON(`signup/dec9/${c.key}`, doc);
       await log(s, 'signup', c.name, device, { dec9 });
       return json({ ok: true });

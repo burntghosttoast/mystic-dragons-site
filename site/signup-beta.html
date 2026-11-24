@@ -128,9 +128,9 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div id="etaBox" hidden><h3 style="font-size: 21px; line-height: 1.25; margin-top: 22px">Roughly when do you expect to hit 60?</h3>
 <p style="font-size: 15px; color: #AEA49A; margin: 4px 0 10px">No commitment. Just a ballpark so we can plan.</p>
 <div class="md-chips" id="eta"></div></div></div>
-<label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">DISCORD NAME</span><input class="md-in" type="text" id="sDiscord" maxlength="40" autocomplete="off" placeholder="So officers know who you are"></label>
+<label id="discordWrap" hidden style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">DISCORD NAME</span><input class="md-in" type="text" id="sDiscord" maxlength="40" autocomplete="off" placeholder="So officers know who you are"></label>
 <label style="display: flex; flex-direction: column; gap: 6px"><span class="md-lab">ANYTHING ELSE WE SHOULD KNOW?</span><textarea class="md-in" id="sNotes" rows="3" maxlength="1000" placeholder="Anything raid-related. Totally optional." style="resize: vertical; line-height: 1.5"></textarea></label>
-<p style="font-size: 14px; color: #8F857C">Discord name and notes only go to the officers. You can always message <strong style="color: #CFC7BE">Ghost, Goguk or Drey</strong> in Discord.</p>
+<p style="font-size: 14px; color: #8F857C">Notes only go to the officers. You can always message <strong style="color: #CFC7BE">Ghost, Goguk or Drey</strong> in Discord.</p>
 <button type="submit" id="sGo" class="rs-btn rs-btn-p" style="min-height: 52px">SAVE MY SIGNUP</button>
 <p role="alert" id="sMsg" style="font-size: 15px; min-height: 22px"></p>
 </form>
@@ -196,12 +196,13 @@ async function loadSign(){
 }
 $('signForm').addEventListener('submit',async e=>{
  e.preventDefault();const c=cur();
- const err=!c.main_role?'Set your roles on My characters first.':!sign.dec9?'Let us know about December 9.':(['Yes','Probably'].includes(sign.dec9)&&!sign.attune)?'Let us know about your 40-man attunement.':(sign.dec9==='No'&&!sign.later)?'Let us know if you plan to raid with us at 60.':!$('sDiscord').value.trim()?'Add your Discord name.':'';
+ const err=!c.main_role?'Set your roles on My characters first.':!sign.dec9?'Let us know about December 9.':(['Yes','Probably'].includes(sign.dec9)&&!sign.attune)?'Let us know about your 40-man attunement.':(sign.dec9==='No'&&!sign.later)?'Let us know if you plan to raid with us at 60.':(!G.me().discord&&!$('sDiscord').value.trim())?'Add your Discord name.':'';
  $('sMsg').style.color='#D96A5F';$('sMsg').textContent=err;if(err)return;
  $('sGo').disabled=true;$('sGo').textContent='SAVING…';
  try{
-  await G.api('signup',{key:c.key,...sign,discord:$('sDiscord').value.trim(),notes:$('sNotes').value});
-  fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({'form-name':'raid-signup',signup_id:'char:'+c.key,discord:$('sDiscord').value.trim(),character:c.name,level:String(c.level),'class':c.cls,main_role:c.main_role,also_play:(c.also_play||[]).join(', '),dec9:sign.dec9,raid_after:sign.later,ready_by:c.level>=60?'Already 60':sign.eta,attunement:sign.attune,notes:$('sNotes').value}).toString()}).catch(()=>{});
+  const discord=G.me().discord||$('sDiscord').value.trim();
+  await G.api('signup',{key:c.key,...sign,discord,notes:$('sNotes').value});
+  fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({'form-name':'raid-signup',signup_id:'char:'+c.key,discord,character:c.name,level:String(c.level),'class':c.cls,main_role:c.main_role,also_play:(c.also_play||[]).join(', '),dec9:sign.dec9,raid_after:sign.later,ready_by:c.level>=60?'Already 60':sign.eta,attunement:sign.attune,notes:$('sNotes').value}).toString()}).catch(()=>{});
   await G.loadRoster();drawRoster();$('sMsg').style.color='#A3BC6E';$('sMsg').textContent='Saved. See you in there!';
  }catch(x){$('sMsg').textContent=x.message}
  finally{$('sGo').disabled=false;$('sGo').textContent='SAVE MY SIGNUP'}
@@ -234,7 +235,7 @@ function drawRoster(){
  try{
   await G.loadRoster();$('loading').hidden=true;$('rosterView').hidden=false;drawRoster();
   if(!G.mainChar()){$('needClaim').hidden=false;return}
-  as=G.me().main;$('signForm').hidden=false;if(G.me().discord)$('sDiscord').value=G.me().discord;drawAs();loadSign();
+  as=G.me().main;$('signForm').hidden=false;$('discordWrap').hidden=!!G.me().discord;drawAs();loadSign();
  }catch(e){$('loading').textContent='Couldn’t load the roster right now. Try refreshing in a bit.'}
 })();
 }
