@@ -95,7 +95,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div id="claimView" hidden style="max-width: 760px; display: flex; flex-direction: column; gap: 16px">
 <div class="md-card">
 <h3 style="font-size: 21px; line-height: 1.25">Find your character</h3>
-<p style="font-size: 15px; color: #AEA49A; margin-bottom: 10px">Tap your character to claim it. Your browser remembers you, no password needed.</p>
+<p style="font-size: 15px; color: #AEA49A; margin-bottom: 10px">Search for your character and tap it to claim it. Your browser remembers you, no password needed.</p>
 <input class="md-in" type="search" id="find" placeholder="Search by name" autocomplete="off">
 <div id="findList" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px"></div>
 </div>
@@ -123,14 +123,15 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px"><h2 id="meName" style="font-size: clamp(26px, 3.4vw, 32px)"></h2><span id="meInfo" style="color: #CFC7BE"></span></div>
 <div id="meSwitch" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px"></div>
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px">
-<label style="display: flex; align-items: center; gap: 8px"><span class="md-lab">LEVEL</span><input class="md-in" type="number" id="lvlQuick" min="1" max="60" inputmode="numeric" style="width: 84px"></label>
+<span id="syncNote" hidden style="font-size: 14px; color: #8F857C">Level and class sync from the game.</span>
+<label id="lvlWrap" style="display: flex; align-items: center; gap: 8px"><span class="md-lab">LEVEL</span><input class="md-in" type="number" id="lvlQuick" min="1" max="60" inputmode="numeric" style="width: 84px"></label>
 <button type="button" id="lvlBtn" class="rs-btn">UPDATE LEVEL</button>
-<button type="button" id="editBtn" class="rs-btn">EDIT CLASS &amp; ROLES</button>
+<button type="button" id="editBtn" class="rs-btn">EDIT ROLES</button>
 <button type="button" id="claimMore" class="rs-btn">CLAIM ANOTHER CHARACTER</button>
 </div>
 <p id="meMsg" role="status" style="font-size: 14px; color: #AEA49A; min-height: 20px"></p>
 <div id="editBox" hidden style="display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #362D2A; padding-top: 14px; margin-top: 4px">
-<span class="md-lab">CLASS</span>
+<span class="md-lab" id="eClassLab">CLASS</span>
 <div class="md-classes" id="eClasses"></div>
 <span class="md-lab" style="margin-top: 10px">ROLES</span>
 <div id="eRoles" style="display: flex; flex-direction: column; gap: 8px"></div>
@@ -162,7 +163,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 
 <!-- ROSTER -->
 <div id="rosterView" hidden style="display: flex; flex-direction: column; gap: 24px; margin-top: 16px">
-<div style="display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px"><h2 style="font-size: clamp(30px, 4vw, 40px)">Who’s in for December 9</h2><button type="button" id="claimFromRoster" class="rs-btn">CLAIM A CHARACTER</button></div>
+<div style="display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px"><div><h2 style="font-size: clamp(30px, 4vw, 40px)">Who’s in for December 9</h2><p id="syncedAt" style="font-size: 14px; color: #8F857C; margin-top: 4px"></p></div><button type="button" id="claimFromRoster" class="rs-btn">CLAIM A CHARACTER</button></div>
 <div class="rs-tally" id="tally"></div>
 <div class="rs-two">
 <div class="md-card"><span class="md-lab">ROLES · YES + PROBABLY</span><div id="cover" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div>
@@ -268,11 +269,15 @@ const drawEdit=classRoleEditor($('eClasses'),$('eRoles'),edit);
 function drawMe(){
  const c=mainChar(); if(!c)return;
  $('meName').textContent=c.name;
- $('meInfo').textContent=`Level ${c.level} ${c.cls} · ${c.main_role}${c.also_play.length?' · also '+c.also_play.join(', '):''}`;
+ $('meInfo').textContent=`Level ${c.level} ${c.cls}${c.main_role?' · '+c.main_role:''}${c.also_play.length?' · also '+c.also_play.join(', '):''}`;
  if(document.activeElement!==$('lvlQuick'))$('lvlQuick').value=c.level;
  const mine=me.chars.map(n=>roster.find(x=>low(x.name)===low(n))).filter(Boolean);
  $('meSwitch').innerHTML=mine.length>1?mine.map(x=>`<button type="button" data-main="${esc(x.name)}" style='${chipStyle(low(x.name)===low(c.name))}'>${low(x.name)===low(c.name)?'★ MAIN · ':'SET AS MAIN · '}${esc(x.name.toUpperCase())}</button>`).join(''):'';
  $('signLab').textContent='RAID SIGNUP · AS '+c.name.toUpperCase();
+ $('syncNote').hidden=!c.synced;$('lvlWrap').hidden=!!c.synced;$('lvlBtn').hidden=!!c.synced;
+ $('editBtn').textContent=c.synced?'EDIT ROLES':'EDIT CLASS & ROLES';
+ $('eClasses').hidden=!!c.synced;$('eClassLab').hidden=!!c.synced;
+ if(!c.main_role&&$('editBox').hidden){openEdit();$('meMsg').textContent='First, pick the roles you play.'}
 }
 $('meSwitch').addEventListener('click',async e=>{const b=e.target.closest('[data-main]');if(!b)return;me.main=b.dataset.main;saveMe();drawMe();await loadSignup();});
 async function saveChar(fields,msg){
@@ -288,9 +293,10 @@ async function quickLevel(){
 }
 $('lvlBtn').addEventListener('click',quickLevel);
 $('lvlQuick').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();quickLevel()}});
-$('editBtn').addEventListener('click',()=>{const c=mainChar();edit.cls=c.cls;edit.picks={[c.main_role]:'main'};c.also_play.forEach(r=>edit.picks[r]='will');drawEdit();$('editBox').hidden=false});
+function openEdit(){const c=mainChar();edit.cls=c.cls;edit.picks=c.main_role?{[c.main_role]:'main'}:{};const k=CLASSES.find(x=>x[0]===c.cls);if(!c.main_role&&k&&k[2].length===1)edit.picks={[k[2][0]]:'main'};c.also_play.forEach(r=>edit.picks[r]='will');drawEdit();$('editBox').hidden=false}
+$('editBtn').addEventListener('click',openEdit);
 $('eCancel').addEventListener('click',()=>{$('editBox').hidden=true});
-$('eSave').addEventListener('click',async()=>{const p=picksOut(edit.picks);if(!p.main_role){$('meMsg').textContent='Mark one role as Main.';return}await saveChar({cls:edit.cls,...p},'Class and roles updated.');$('editBox').hidden=true});
+$('eSave').addEventListener('click',async()=>{const p=picksOut(edit.picks);if(!p.main_role){$('meMsg').textContent='Mark one role as Main.';return}$('editBox').hidden=true;await saveChar({cls:edit.cls,...p},'Roles saved.')});
 $('claimMore').addEventListener('click',()=>{show('claim');scrollTo(0,0)});
 $('claimFromRoster').addEventListener('click',()=>{show('claim');scrollTo(0,0)});
 
@@ -315,7 +321,7 @@ async function loadSignup(){
 }
 $('signForm').addEventListener('submit',async e=>{
  e.preventDefault();const c=mainChar();
- const err=!sign.dec9?'Let us know about December 9.':(['Yes','Probably'].includes(sign.dec9)&&!sign.attune)?'Let us know about your 40-man attunement.':(sign.dec9==='No'&&!sign.later)?'Let us know if you plan to raid with us at 60.':!$('sDiscord').value.trim()?'Add your Discord name.':'';
+ const err=!c.main_role?'Pick your roles first (Edit roles, above).':!sign.dec9?'Let us know about December 9.':(['Yes','Probably'].includes(sign.dec9)&&!sign.attune)?'Let us know about your 40-man attunement.':(sign.dec9==='No'&&!sign.later)?'Let us know if you plan to raid with us at 60.':!$('sDiscord').value.trim()?'Add your Discord name.':'';
  $('sMsg').style.color='#D96A5F';$('sMsg').textContent=err;if(err)return;
  $('sGo').disabled=true;$('sGo').textContent='SAVING…';
  try{
@@ -343,7 +349,7 @@ function drawRoster(){
  $('classBars').innerHTML=cc.length?cc.map(([k,v])=>bar(k,[[v,COLOR[k]]],maxC,String(v))).join(''):'<p style="color:#8F857C;font-size:15px">Nobody yet.</p>';
  const mine=new Set(me.chars.map(low));
  const table=(title,list)=>!list.length?'':`<div><h2 style="font-size:clamp(24px,3vw,27px);margin-bottom:12px">${esc(title)} <span style="font-family:Barlow,sans-serif;font-weight:500;font-size:16px;color:#AEA49A">${list.length}</span></h2><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Class</th><th class="n">Level</th><th>Main role</th><th>Will also play</th></tr></thead><tbody>${list.slice().sort((a,b)=>ORDER.indexOf(a.main_role)-ORDER.indexOf(b.main_role)||b.level-a.level).map(r=>`<tr${mine.has(low(r.name))?' style="background:#241E1C"':''}><td data-l="Character"><strong>${esc(r.name)}</strong>${mine.has(low(r.name))?' <span style="font-size:13px;color:#A3BC6E">(you)</span>':''}</td><td data-l="Class"><i class="rs-dot" style="background:${COLOR[r.cls]||'#999'}"></i>${esc(r.cls)}</td><td data-l="Level" class="n">${esc(r.level)}</td><td data-l="Main role">${esc(r.main_role)}</td><td data-l="Will also play">${esc((r.also_play||[]).join(', ')||'—')}</td></tr>`).join('')}</tbody></table></div></div>`;
- $('lists').innerHTML=table('Yes',yes)+table('Probably',maybe)+table('Not sure yet',unsure)+table('Haven’t answered yet',none);
+ $('lists').innerHTML=table('Yes',yes)+table('Probably',maybe)+table('Not sure yet',unsure)+(none.length?`<p style="font-size:15px;color:#AEA49A">${none.length} more guild member${none.length===1?' hasn’t':'s haven’t'} signed up yet.</p>`:'');
  const att=a=>going.filter(r=>r.signup.attune===a), unk=going.filter(r=>!ATT.includes(r.signup.attune));
  const maxA=Math.max(1,...ATT.map(a=>att(a).length),unk.length);
  const row=(label,list)=>`<div style="display:flex;flex-direction:column;gap:6px">${bar(label,[[list.length,MAIN]],maxA,String(list.length))}${list.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(r=>`<span style="display:inline-flex;align-items:center;font-size:14px;color:#CFC7BE;background:#241E1C;border-radius:999px;padding:3px 10px"><i class="rs-dot" style="background:${COLOR[r.cls]||'#999'}"></i>${esc(r.name)}</span>`).join('')}</div>`:''}</div>`;
@@ -352,7 +358,7 @@ function drawRoster(){
 }
 
 /* ----- views ----- */
-async function load(){roster=(await api('roster')).characters||[];me.chars=me.chars.filter(n=>roster.some(c=>low(c.name)===low(n)));if(!me.chars.some(n=>low(n)===low(me.main)))me.main=me.chars[0]||'';saveMe();drawRoster();if(view==='claim')drawFind();if(view==='me')drawMe()}
+async function load(){const d=await api('roster');roster=d.characters||[];$('syncedAt').textContent=d.synced_at?'Levels and classes synced from the game '+new Date(d.synced_at).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'.':'';me.chars=me.chars.filter(n=>roster.some(c=>low(c.name)===low(n)));if(!me.chars.some(n=>low(n)===low(me.main)))me.main=me.chars[0]||'';saveMe();drawRoster();if(view==='claim')drawFind();if(view==='me')drawMe()}
 function show(v){
  if(v==='me'&&!mainChar())v='claim';
  view=v;

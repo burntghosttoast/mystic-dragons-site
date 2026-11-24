@@ -13,6 +13,10 @@ const LATER = ['Yes', 'Probably', 'Not sure yet', 'Not planning to raid'];
 const ETA = ['Sometime in December', 'After the holidays', 'No idea yet'];
 const ATTUNE = ['I’ve done it', 'I’ll try to do it', 'I’ll need help', 'What attunement?', 'Probably won’t have time'];
 
+const CLASS_IDS = { 1: 'Warrior', 2: 'Paladin', 3: 'Hunter', 4: 'Rogue', 5: 'Priest', 7: 'Shaman', 8: 'Mage', 9: 'Warlock', 11: 'Druid' };
+const GUILD = 'mystic-dragons';
+const SYNC_EVERY_MS = 20 * 60 * 1000;
+
 const store = () => getStore({ name: 'guild', consistency: 'strong' });
 const slug = n => String(n || '').trim().toLowerCase().normalize('NFKC').replace(/\s+/g, ' ');
 const clean = (v, max) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, max);
@@ -72,6 +76,71 @@ async function seedFromForms(s, context) {
   } catch (_) { /* leave whatever imported */ }
 }
 
+// Pull the WoW Forever guild roster from Blizzard (no realms: guild by name, profile-forever-us).
+async function blizzToken(s) {
+  const cached = await s.get('meta/blizz-token', { type: 'json' });
+  if (cached && cached.expires > Date.now() + 60000) return cached.token;
+  const id = process.env.BLIZZARD_CLIENT_ID, secret = process.env.BLIZZARD_CLIENT_SECRET;
+  if (!id || !secret) return null;
+  const r = await fetch('https://oauth.battle.net/token', {
+    method: 'POST',
+    headers: { Authorization: 'Basic ' + Buffer.from(id + ':' + secret).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'grant_type=client_credentials'
+  });
+  if (!r.ok) return null;
+  const d = await r.json();
+  await s.setJSON('meta/blizz-token', { token: d.access_token, expires: Date.now() + (d.expires_in || 3600) * 1000 });
+  return d.access_token;
+}
+async function syncGuild(s, force) {
+  const meta = await s.get('meta/sync', { type: 'json' });
+  if (!force && meta && Date.now() - meta.at < SYNC_EVERY_MS) return meta;
+  await s.setJSON('meta/sync', { ...(meta || {}), at: Date.now() }); // claim this sync window
+  try {
+    const token = await blizzToken(s);
+    if (!token) return meta;
+    const r = await fetch(`https://us.api.blizzard.com/data/wow/guild/${GUILD}/roster?namespace=profile-forever-us&locale=en_US`, { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) return meta;
+    const members = ((await r.json()).members || []).map(m => ({
+      name: clean(m.character?.name, 24), level: parseInt(m.character?.level, 10) || 1,
+      cls: CLASS_IDS[m.character?.playable_class?.id] || '', rank: m.rank
+    })).filter(m => m.name && m.cls);
+    const existing = await allChars(s);
+    const now = new Date().toISOString();
+    for (const m of members) {
+      const key = slug(m.name);
+      let doc = existing.find(c => slug(c.name) === key);
+      if (!doc) {
+        // Someone typed "First Last" before the sync existed: merge it into the guild character.
+        doc = existing.find(c => !c.synced && slug(c.name).split(' ')[0] === key);
+        if (doc) {
+          const oldKey = slug(doc.name);
+          const sign = await s.get(`signup/dec9/${oldKey}`, { type: 'json' });
+          if (sign) { await s.setJSON(`signup/dec9/${key}`, sign); await s.delete(`signup/dec9/${oldKey}`); }
+          await s.delete(`char/${oldKey}`);
+          doc.full_name = doc.name;
+          await log(s, 'merge', m.name, 'system', { from: doc.name });
+        }
+      }
+      const roles = CLASSES[m.cls];
+      const keepRoles = doc && doc.cls === m.cls;
+      const next = {
+        claims: [], created_at: now, ...(doc || {}),
+        name: m.name, cls: m.cls, level: m.level, rank: m.rank, synced: true, in_guild: true,
+        main_role: keepRoles ? doc.main_role : (roles.length === 1 ? roles[0] : ''),
+        also_play: keepRoles ? (doc.also_play || []) : [],
+        updated_at: doc && doc.level === m.level && doc.cls === m.cls ? doc.updated_at : now
+      };
+      if (!doc || JSON.stringify(doc) !== JSON.stringify(next)) await s.setJSON(`char/${key}`, next);
+    }
+    const names = new Set(members.map(m => slug(m.name)));
+    for (const c of existing) if (c.synced && c.in_guild && !names.has(slug(c.name))) await s.setJSON(`char/${slug(c.name)}`, { ...c, in_guild: false });
+    const out = { at: Date.now(), ok: true, members: members.length };
+    await s.setJSON('meta/sync', out);
+    return out;
+  } catch (_) { return meta; }
+}
+
 export default async (req, context) => {
   const s = store();
   const url = new URL(req.url);
@@ -80,14 +149,16 @@ export default async (req, context) => {
   try {
     if (req.method === 'GET' && route === 'roster') {
       await seedFromForms(s, context);
-      const chars = await allChars(s);
+      const sync = await syncGuild(s, url.searchParams.get('sync') === '1');
+      const chars = (await allChars(s)).filter(c => c.in_guild !== false || (c.claims || []).length);
       const sign = await Promise.all(chars.map(c => s.get(`signup/dec9/${slug(c.name)}`, { type: 'json' })));
       return json({
         characters: chars.map((c, i) => ({
           name: c.name, cls: c.cls, level: c.level, main_role: c.main_role, also_play: c.also_play,
-          claimed: (c.claims || []).length > 0, updated_at: c.updated_at,
+          claimed: (c.claims || []).length > 0, updated_at: c.updated_at, synced: !!c.synced,
           signup: sign[i] ? { dec9: sign[i].dec9, attune: sign[i].attune, later: sign[i].later, eta: sign[i].eta } : null
-        }))
+        })),
+        synced_at: sync && sync.ok ? sync.at : null
       });
     }
 
@@ -127,7 +198,7 @@ export default async (req, context) => {
     if (!(prev.claims || []).includes(device)) return json({ error: 'Claim this character first' }, 403);
 
     if (route === 'character') {
-      const f = charFields(body, prev);
+      const f = charFields(prev.synced ? { ...body, cls: prev.cls, level: prev.level } : body, prev);
       const changed = Object.keys(f).filter(k => JSON.stringify(f[k]) !== JSON.stringify(prev[k]));
       Object.assign(prev, f, { updated_at: new Date().toISOString() });
       await s.setJSON(`char/${key}`, prev);
