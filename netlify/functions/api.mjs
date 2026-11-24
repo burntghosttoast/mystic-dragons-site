@@ -19,6 +19,7 @@ const GUILD = 'mystic-dragons';
 const API = 'https://us.api.blizzard.com';
 const NS = 'profile-forever-us';
 const SYNC_EVERY_MS = 20 * 60 * 1000;
+const CATCHUP_EVERY_MS = 60 * 1000; // while names/races are still missing
 const PROFILE_EVERY_MS = 6 * 60 * 60 * 1000;
 const INFO_TTL_MS = 30 * 60 * 1000;
 
@@ -81,9 +82,13 @@ async function bget(token, path) {
 const slugFromHref = href => { const m = /\/profile\/wow\/character\/(?:[^/?]+\/)?([^/?]+)\?/.exec(String(href || '')); return m ? decodeURIComponent(m[1]) : ''; };
 const titleCase = sl => sl.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
+function syncDue(meta, force) {
+  if (force || !meta) return true;
+  return Date.now() - meta.at > (meta.pending ? CATCHUP_EVERY_MS : SYNC_EVERY_MS);
+}
 async function syncGuild(s, force) {
   const meta = await s.get('meta/sync', { type: 'json' });
-  if (!force && meta && Date.now() - meta.at < SYNC_EVERY_MS) return meta;
+  if (!syncDue(meta, force)) return meta;
   await s.setJSON('meta/sync', { ...(meta || {}), at: Date.now() });
   try {
     const token = await blizzToken(s);
@@ -101,6 +106,7 @@ async function syncGuild(s, force) {
     const firstCount = {};
     members.forEach(m => { firstCount[slug(m.first)] = (firstCount[slug(m.first)] || 0) + 1; });
 
+    const writes = [];
     for (const m of members) {
       const key = 'b' + m.id;
       let doc = byKey.get(key);
@@ -131,17 +137,40 @@ async function syncGuild(s, force) {
         also_play: keepRoles ? doc.also_play || [] : [],
         updated_at: !fresh && doc.level === m.level && doc.cls === m.cls ? doc.updated_at : now
       };
-      if (JSON.stringify(doc) !== JSON.stringify(next)) await s.setJSON(`char/${key}`, next);
+      if (JSON.stringify(doc) !== JSON.stringify(next)) writes.push([`char/${key}`, next]);
       byKey.set(key, next);
     }
+    for (let i = 0; i < writes.length; i += 25) await Promise.all(writes.slice(i, i + 25).map(([k, v]) => s.setJSON(k, v)));
     const ids = new Set(members.map(m => 'b' + m.id));
     for (const c of byKey.values()) if (c.synced && c.in_guild && !ids.has(c.key)) await s.setJSON(`char/${c.key}`, { ...c, in_guild: false });
 
+    // Fold any remaining hand-added or older copies into the matching guild character.
+    const aliases = (await s.get('meta/aliases', { type: 'json' })) || {};
+    for (const c of [...byKey.values()]) {
+      if (c.bid || !c.key) continue;
+      const first = slug(c.name).split(' ')[0];
+      const twin = members.filter(m => slug(m.first) === first && (!c.cls || m.cls === c.cls));
+      if (twin.length !== 1) continue;
+      const key = 'b' + twin[0].id, target = byKey.get(key);
+      if (!target) continue;
+      target.claims = [...new Set([...(target.claims || []), ...(c.claims || [])])].slice(-10);
+      if (!target.main_role && c.cls === target.cls) { target.main_role = c.main_role || ''; target.also_play = c.also_play || []; }
+      if (!target.typed_name && slug(c.name).includes(' ')) target.typed_name = c.name;
+      await s.setJSON(`char/${key}`, target);
+      await moveSignup(s, c.key, key);
+      await s.delete(`char/${c.key}`);
+      byKey.delete(c.key);
+      aliases[c.key] = key;
+      await log(s, 'merge', target.first, 'system', { from: c.name });
+    }
+    await s.setJSON('meta/aliases', aliases);
+
     // Fill in surnames and race from character profiles, a few per sync.
     const todo = [...byKey.values()].filter(c => c.synced && ids.has(c.key) && (!c.profile_at || Date.now() - c.profile_at > PROFILE_EVERY_MS))
-      .sort((a, b) => (a.profile_at || 0) - (b.profile_at || 0)).slice(0, 24);
-    for (let i = 0; i < todo.length; i += 6) {
-      await Promise.all(todo.slice(i, i + 6).map(async c => {
+      .sort((a, b) => (a.profile_at || 0) - (b.profile_at || 0));
+    const batchTodo = todo.slice(0, 30);
+    for (let i = 0; i < batchTodo.length; i += 10) {
+      await Promise.all(batchTodo.slice(i, i + 10).map(async c => {
         const tries = [c.bslug, c.typed_name && slug(c.typed_name).replace(/ /g, '-')].filter(Boolean);
         let prof = null;
         for (const t of tries) { const r = await bget(token, `/profile/wow/character/${encodeURIComponent(t)}`); if (r.body) { prof = r.body; c.bslug = t; break; } }
@@ -155,7 +184,7 @@ async function syncGuild(s, force) {
         await s.setJSON(`char/${c.key}`, upd);
       }));
     }
-    const out = { at: Date.now(), ok: true, members: members.length };
+    const out = { at: Date.now(), ok: true, members: members.length, pending: todo.length > batchTodo.length };
     await s.setJSON('meta/sync', out);
     return out;
   } catch (_) { return meta; }
@@ -284,7 +313,10 @@ export default async (req, context) => {
 
     if (req.method === 'GET' && route === 'roster') {
       await seedFromForms(s, context);
-      const sync = await syncGuild(s, url.searchParams.get('sync') === '1');
+      const force = url.searchParams.get('sync') === '1';
+      let sync = await s.get('meta/sync', { type: 'json' });
+      if (!sync || !sync.ok) sync = await syncGuild(s, force); // very first sync: wait for it
+      else if (syncDue(sync, force)) { const job = syncGuild(s, force); if (context?.waitUntil) context.waitUntil(job); else await job; }
       const chars = (await allChars(s)).filter(c => c.key && (c.in_guild !== false || (c.claims || []).length));
       const sign = await Promise.all(chars.map(c => s.get(`signup/dec9/${c.key}`, { type: 'json' })));
       return json({
@@ -292,7 +324,8 @@ export default async (req, context) => {
           ...publicChar(c),
           signup: sign[i] ? { dec9: sign[i].dec9, attune: sign[i].attune, later: sign[i].later, eta: sign[i].eta } : null
         })),
-        synced_at: sync && sync.ok ? sync.at : null
+        synced_at: sync && sync.ok ? sync.at : null,
+        aliases: (await s.get('meta/aliases', { type: 'json' })) || {}
       });
     }
 

@@ -27,6 +27,10 @@ window.Guild = (() => {
   async function loadRoster() {
     const d = await api('roster');
     roster = d.characters || []; syncedAt = d.synced_at;
+    // Characters that were merged into their guild copy keep working.
+    const al = d.aliases || {};
+    me.keys = [...new Set(me.keys.map(k => al[k] || k))];
+    if (al[me.main]) me.main = al[me.main];
     // Forget claims for characters that no longer exist.
     me.keys = me.keys.filter(k => roster.some(c => c.key === k));
     if (!me.keys.includes(me.main)) me.main = me.keys[0] || '';
