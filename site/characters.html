@@ -50,7 +50,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .ch-row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
 .ch-row span:first-child{color:#CFC7BE}.ch-row span:last-child{color:#F1ECE6;text-align:right;font-variant-numeric:tabular-nums}
 .ch-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:4px 24px;margin-top:6px}
-.ch-item{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
+.ch-item{display:grid;grid-template-columns:84px minmax(0,1fr);gap:10px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
 .ch-slot{color:#8F857C;font-size:13px;padding-top:2px}
 </style>
 </head>
@@ -193,7 +193,7 @@ async function drawInfo(){
  $('portrait').innerHTML='';$('cTitle').textContent='';$('facts').innerHTML='';$('info').innerHTML='';
  if(!c.synced){$('infoMsg').textContent='This character was added by hand, so there’s no game data for it. Characters in the guild show their full in-game details here.';return}
  $('infoMsg').textContent='Loading game data…';
- let d;try{d=(await G.api('info',{key:c.key})).info}catch(e){$('infoMsg').textContent='Couldn’t load game data right now.';return}
+ let d;try{const r=await G.api('info',{key:c.key});d=r.info;if(r.character&&r.character.level!==c.level){Object.assign(c,r.character);$('cSum').textContent=G.summary(c)}}catch(e){$('infoMsg').textContent='Couldn’t load game data right now.';return}
  if(sel!==c.key)return;
  if(!d||!d.available){$('infoMsg').textContent='Blizzard doesn’t have details for this character yet. It can take a little while after the guild roster syncs.';return}
  $('infoMsg').textContent='Game data refreshes about every 30 minutes. Last pulled '+when(d.at)+'.';
@@ -204,8 +204,8 @@ async function drawInfo(){
  $('facts').innerHTML=[['Race',p.race],['Gender',p.gender],['Faction',p.faction],['Guild',p.guild],['Ruleset',p.ruleset],['Item level',p.item_level],['Experience',p.experience!=null&&p.level<60?p.experience.toLocaleString()+' XP':''],['Last login',when(p.last_login)]]
   .filter(x=>x[1]!==''&&x[1]!=null).map(([a,b])=>`<div><span class="md-lab">${esc(a.toUpperCase())}</span><div>${esc(b)}</div></div>`).join('');
  const out=[];
- if(d.equipment.length)out.push(card('EQUIPMENT',`<div class="ch-list">${d.equipment.map(it=>`<div class="ch-item"><span class="ch-slot">${esc(it.slot)}</span><span><strong style="color:${QUAL[it.quality]||'#F1ECE6'};font-weight:600">${esc(it.name)}</strong>${it.level?` <span style="color:#8F857C">· ilvl ${esc(it.level)}</span>`:''}${it.stats.length||it.enchant.length?`<br><span style="color:#AEA49A;font-size:13px">${esc([...it.stats,...it.enchant].join(' · '))}</span>`:''}</span></div>`).join('')}</div>`,true));
- if(d.specs.length)out.push(card('TALENTS',d.specs.map(g=>`<div style="margin-top:6px">${g.active?'<span style="color:#A3BC6E;font-size:13px">ACTIVE</span>':''}${g.trees.map(t=>row(t.name,t.points!=null?t.points+' points':'')).join('')}</div>`).join('')));
+ if(d.equipment.length)out.push(card('EQUIPMENT',`<div class="ch-list">${d.equipment.map(it=>`<div class="ch-item"><span class="ch-slot">${esc(it.slot)}</span><span style="display:flex;gap:10px;align-items:flex-start">${it.icon?`<img src="${esc(it.icon)}" alt="" width="36" height="36" loading="lazy" style="flex:none;border-radius:4px;border:1px solid ${QUAL[it.quality]||'#362D2A'}">`:''}<span><strong style="color:${QUAL[it.quality]||'#F1ECE6'};font-weight:600">${esc(it.name)}</strong>${it.level?` <span style="color:#8F857C">· ilvl ${esc(it.level)}</span>`:''}${it.stats.length||it.enchant.length?`<br><span style="color:#AEA49A;font-size:13px">${esc([...it.stats,...it.enchant].join(' · '))}</span>`:''}</span></span></div>`).join('')}</div>`,true));
+ if(d.specs.length)out.push(card('TALENTS',d.specs.map((g,i)=>`<div style="margin-top:6px"><span style="font-size:13px;color:${g.active?'#A3BC6E':'#8F857C'}">${d.specs.length>1?'SPEC '+(i+1)+(g.active?' · ACTIVE':''):(g.active?'ACTIVE':'')}</span>${g.trees.map(t=>row(t.name,t.points!=null?t.points+' points':'')).join('')}</div>`).join('')));
  if(d.professions.length)out.push(card('PROFESSIONS',d.professions.map(pr=>pr.tiers.map(t=>row(pr.name+(t.name&&t.name!==pr.name?' · '+t.name:''),t.skill!=null?`${t.skill}${t.max?' / '+t.max:''}`:'')).join('')).join('')));
  if(d.raids.length)out.push(card('RAID PROGRESS',d.raids.map(r=>r.modes.map(m=>row(r.name+(r.modes.length>1?' · '+m.mode:''),m.total?`${m.done} / ${m.total}`:m.status)).join('')).join('')));
  const dg=d.dungeons.filter(x=>x.kills);

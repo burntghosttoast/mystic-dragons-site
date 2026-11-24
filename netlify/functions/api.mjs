@@ -73,8 +73,8 @@ async function blizzToken(s) {
   await s.setJSON('meta/blizz-token', { token: d.access_token, expires: Date.now() + (d.expires_in || 3600) * 1000 });
   return d.access_token;
 }
-async function bget(token, path) {
-  const r = await fetch(`${API}${path}${path.includes('?') ? '&' : '?'}namespace=${NS}&locale=en_US`, { headers: { Authorization: 'Bearer ' + token } });
+async function bget(token, path, ns = NS) {
+  const r = await fetch(`${API}${path}${path.includes('?') ? '&' : '?'}namespace=${ns}&locale=en_US`, { headers: { Authorization: 'Bearer ' + token } });
   if (!r.ok) return { status: r.status, body: null };
   return { status: 200, body: await r.json() };
 }
@@ -131,11 +131,11 @@ async function syncGuild(s, force) {
       const keepRoles = doc.cls ? doc.cls === m.cls : false;
       const bslug = m.bslug && m.bslug.includes('-') ? m.bslug : (doc.bslug || '');
       const next = {
-        ...doc, key, bid: m.id, first: m.first, cls: m.cls, level: m.level, rank: m.rank, synced: true, in_guild: true,
+        ...doc, key, bid: m.id, first: m.first, cls: m.cls, level: Math.max(m.level, doc.cls === m.cls ? doc.profile_level || 0 : 0), rank: m.rank, synced: true, in_guild: true,
         bslug, name: doc.surname ? `${m.first} ${doc.surname}` : (bslug ? titleCase(bslug) : (doc.typed_name || m.first)),
         main_role: keepRoles ? doc.main_role || '' : (roles.length === 1 ? roles[0] : ''),
         also_play: keepRoles ? doc.also_play || [] : [],
-        updated_at: !fresh && doc.level === m.level && doc.cls === m.cls ? doc.updated_at : now
+        updated_at: !fresh && doc.level === Math.max(m.level, doc.profile_level || 0) && doc.cls === m.cls ? doc.updated_at : now
       };
       if (JSON.stringify(doc) !== JSON.stringify(next)) writes.push([`char/${key}`, next]);
       byKey.set(key, next);
@@ -179,6 +179,7 @@ async function syncGuild(s, force) {
           upd.surname = clean(prof.surname, 24);
           upd.name = upd.surname ? `${c.first} ${upd.surname}` : (c.bslug ? titleCase(c.bslug) : c.first);
           upd.race = clean(prof.race?.name, 24);
+          if (prof.level) { upd.profile_level = prof.level; upd.level = Math.max(upd.level || 1, prof.level); }
           upd.faction = clean(prof.faction?.name, 16);
         }
         await s.setJSON(`char/${c.key}`, upd);
@@ -251,7 +252,24 @@ async function characterInfo(s, c) {
       stats: [...(cat.statistics || []), ...(cat.sub_categories || []).flatMap(sc => sc.statistics || [])].map(st => ({ name: st.name, value: st.quantity }))
     })).filter(cat => cat.stats.length)
   };
+  // Item icons (static game data, cached for good).
+  const ids = [...new Set(info.equipment.map(it => it.id).filter(Boolean))];
+  const icons = await Promise.all(ids.map(async id => {
+    let url = await s.get(`icon/${id}`);
+    if (url == null) {
+      const r = await bget(token, `/data/wow/media/item/${id}`, 'static-forever-us');
+      url = (r.body?.assets || []).find(a => a.key === 'icon')?.value || '';
+      if (r.status === 200 || r.status === 404) await s.set(`icon/${id}`, url);
+    }
+    return [id, /^https:\/\//.test(url) ? url : ''];
+  }));
+  const iconMap = Object.fromEntries(icons);
+  info.equipment.forEach(it => { it.icon = iconMap[it.id] || ''; });
   await s.setJSON(`info/${c.key}`, info);
+  // The profile is fresher than the guild roster; keep the higher level.
+  if (info.profile?.level && info.profile.level > (c.level || 0)) {
+    await s.setJSON(`char/${c.key}`, { ...c, level: info.profile.level, profile_level: info.profile.level, updated_at: new Date().toISOString() });
+  }
   return info;
 }
 
@@ -365,7 +383,7 @@ export default async (req, context) => {
 
     const c = await s.get(`char/${clean(body.key, 40)}`, { type: 'json' });
     if (!c) return json({ error: 'That character isn’t on the roster anymore' }, 404);
-    if (route === 'info') return json({ ok: true, character: publicChar(c), info: await characterInfo(s, c) });
+    if (route === 'info') { const info = await characterInfo(s, c); const fresh = await s.get(`char/${c.key}`, { type: 'json' }); return json({ ok: true, character: publicChar(fresh || c), info }); }
     if (!(c.claims || []).includes(device)) return json({ error: 'Claim this character first' }, 403);
 
     if (route === 'unclaim') {
