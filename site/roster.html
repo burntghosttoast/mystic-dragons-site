@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mystic Dragons — Roster</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&amp;family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600&amp;display=swap">
+<style>
+body{margin:0;background:#121011}
+a{color:#A3BC6E}a:hover{color:#C2D69A}
+h1,h2,h3{font-family:'Cinzel',Georgia,serif;font-weight:700;margin:0;letter-spacing:0.02em}
+p{margin:0}
+.md-who{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 120px;gap:12px}
+.md-classes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.md-in{width:100%;box-sizing:border-box;font:16px 'Barlow',sans-serif;padding:11px 14px;min-height:46px;border-radius:4px;border:1px solid #362D2A;background:#121011;color:#F1ECE6}
+.md-in::placeholder{color:#8F857C}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC6E;outline-offset:2px}
+@media (max-width: 700px){
+  header nav a{padding:8px 9px !important;font-size:14px !important}
+  header img{width:36px !important;height:36px !important}
+  .md-who{grid-template-columns:minmax(0,1fr) 96px}
+  .md-who label:first-child{grid-column:1/-1}
+  .md-classes{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+.md-card{background:#1B1716;border:1px solid #362D2A;border-radius:8px;padding:24px;display:flex;flex-direction:column;gap:6px}
+.md-lab{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.2em;color:#8F857C}
+.md-chips{display:flex;flex-wrap:wrap;gap:8px}
+[hidden]{display:none !important}
+.rs-tally{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.rs-two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.rs-key{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.rs-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px}
+.rs-wrap{background:#1B1716;border:1px solid #362D2A;border-radius:8px;overflow:hidden}
+.rs-table{width:100%;border-collapse:collapse;font-size:15px}
+.rs-table th,.rs-table td{text-align:left;padding:11px 14px;border-bottom:1px solid #362D2A;vertical-align:top}
+.rs-table th{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#8F857C}
+.rs-table .n{text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:700px){.rs-tally{grid-template-columns:repeat(2,minmax(0,1fr))}.rs-two{grid-template-columns:minmax(0,1fr)}
+.rs-table thead{display:none}.rs-table tr{display:grid;padding:10px 0;border-bottom:1px solid #362D2A}.rs-table td{border:0;padding:3px 14px 3px 8.5em;text-align:left !important}.rs-table td::before{content:attr(data-l);float:left;width:7.5em;margin-left:-7.5em;color:#8F857C;font-size:13px}}
+</style>
+</head>
+<body>
+<div style="background: #121011; color: #F1ECE6; font-family: 'Barlow', 'Helvetica Neue', sans-serif; font-size: 16px; line-height: 1.6; min-height: 100vh">
+
+<header style="border-top: 3px solid #A83A35; border-bottom: 1px solid #362D2A; background: #121011">
+<div style="max-width: 1160px; margin: 0 auto; padding: 18px 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px">
+<a href="/" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: #F1ECE6">
+<img src="/logo.png" alt="Mystic Dragons guild logo" style="width: 44px; height: 44px; border-radius: 8px; display: block">
+<span style="font-family: 'Cinzel', Georgia, serif; font-weight: 700; font-size: 17px; letter-spacing: 0.12em">MYSTIC DRAGONS</span>
+</a>
+<nav aria-label="Guide pages" style="display: flex; flex-wrap: wrap; gap: 4px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.1em">
+<a href="/" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">HOME</a>
+<a href="/forever" aria-current="page" style="color: #F1ECE6; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid #A3BC6E">FOREVER</a>
+<a href="/retail" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">RETAIL</a>
+<a href="/history" style="color: #AEA49A; text-decoration: none; padding: 10px 14px; border-bottom: 2px solid transparent">HISTORY</a>
+<a href="https://discord.gg/mfScPwH9rY" target="_blank" rel="noopener" style="display: inline-flex; align-items: center; gap: 8px; color: #F7F2EC; background: #A83A35; text-decoration: none; padding: 10px 16px; border-radius: 4px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"></path></svg>JOIN DISCORD</a>
+</nav>
+</div>
+</header>
+<!-- FOREVER SUBNAV -->
+<div style="border-bottom: 1px solid #362D2A; background: #181413">
+<div style="max-width: 1160px; margin: 0 auto; padding: 0 24px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px">
+<span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.2em; color: #A3BC6E">FOREVER</span>
+<nav aria-label="Forever pages" style="display: flex; flex-wrap: wrap; font-size: 16px">
+<a href="/forever" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Overview</a>
+<a href="/raiding" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Raiding</a>
+<a href="/loot" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Loot</a>
+<a href="/crafters" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Crafters</a>
+<a href="/addons" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Addons</a>
+<a href="/forever-faq" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">FAQ</a>
+<a href="/signup" style="color: #AEA49A; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid transparent">Sign Up</a>
+<a href="/roster" aria-current="page" style="color: #F1ECE6; text-decoration: none; padding: 12px 16px; border-bottom: 2px solid #A3BC6E; font-weight: 600">Roster</a>
+</nav>
+</div>
+</div>
+
+<!-- PAGE HEAD -->
+<section style="border-bottom: 1px solid #362D2A">
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(48px, 7vw, 72px) 24px clamp(40px, 5vw, 52px); display: flex; flex-direction: column; gap: 20px">
+<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">WOW FOREVER</div>
+<h1 style="font-size: clamp(40px, 7vw, 64px); line-height: 1">Who’s in for December 9</h1>
+<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Everyone who’s signed up so far, updated as signups come in. Not on here yet? <a href="/signup">Sign up</a>. Final raid groups are set by the raid leads.</p>
+</div>
+</section>
+
+<!-- ROSTER -->
+<section style="border-bottom: 1px solid #362D2A">
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(40px, 6vw, 64px) 24px; display: flex; flex-direction: column; gap: 24px">
+<p id="msg" style="color: #AEA49A">Loading the roster…</p>
+<div id="body" hidden style="display: flex; flex-direction: column; gap: 24px">
+<div class="rs-tally" id="tally"></div>
+<div class="rs-two">
+<div class="md-card"><span class="md-lab">ROLES · YES + PROBABLY</span><div id="cover" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div>
+<div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #AEA49A; margin-top: 12px"><span><i class="rs-key" style="background: #A3BC6E"></i>Main role</span><span><i class="rs-key" style="background: #CDB07C"></i>Willing to play</span></div></div>
+<div class="md-card"><span class="md-lab">CLASSES · YES + PROBABLY</span><div id="classes" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div></div>
+</div>
+<div id="lists" style="display: flex; flex-direction: column; gap: 24px"></div>
+</div>
+</div>
+</section>
+
+<script>
+{
+const COLORS={Warrior:'#C69B6D',Paladin:'#F48CBA',Hunter:'#AAD372',Rogue:'#FFF468',Priest:'#E6E6E6',Shaman:'#2F8FEA',Mage:'#3FC7EB',Warlock:'#8788EE',Druid:'#FF7C0A'};
+const ROLES=['Tank','Healer','Melee DPS','Ranged DPS'];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const bar=(label,parts,max,note)=>`<div><div style="display:flex;justify-content:space-between;gap:10px;font-size:15px;margin-bottom:5px"><b style="font-weight:600">${esc(label)}</b><span style="color:#AEA49A;white-space:nowrap">${esc(note)}</span></div><div style="height:10px;background:#241E1C;border-radius:999px;overflow:hidden;display:flex">${parts.map(([v,c])=>`<i style="display:block;height:100%;width:${max?v/max*100:0}%;background:${c}"></i>`).join('')}</div></div>`;
+function render(rows){
+ if(!rows.length){$('msg').innerHTML='Nobody’s signed up yet. <a href="/signup">Be the first</a>.';return}
+ $('msg').hidden=true;$('body').hidden=false;
+ const by=a=>rows.filter(r=>r.dec9===a);
+ const yes=by('Yes'),maybe=by('Probably'),unsure=by('Not sure yet'),no=by('No');
+ const going=yes.concat(maybe);
+ const at60=rows.filter(r=>r.level>=60).length;
+ $('tally').innerHTML=[['Yes',yes.length,'#A3BC6E'],['Probably',maybe.length,'#CDB07C'],['Not sure yet',unsure.length,'#AEA49A'],['Full roster',rows.length,'#A3BC6E',`${at60} at level 60`]]
+  .map(([l,n,c,sub])=>`<div class="md-card" style="border-top:3px solid ${c}"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(30px,4vw,42px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong><span style="font-size:14px;color:#AEA49A">${esc(sub||(l==='Full roster'?'':'for December 9'))}</span></div>`).join('');
+ const main=k=>going.filter(r=>r.main_role===k).length, will=k=>going.filter(r=>(r.also_play||'').split(', ').includes(k)).length;
+ const maxR=Math.max(1,...ROLES.map(k=>main(k)+will(k)));
+ $('cover').innerHTML=ROLES.map(k=>bar(k,[[main(k),'#A3BC6E'],[will(k),'#CDB07C']],maxR,`${main(k)} main · ${will(k)} willing`)).join('');
+ const cc=Object.keys(COLORS).map(k=>[k,going.filter(r=>r.cls===k).length]).filter(x=>x[1]).sort((a,b)=>b[1]-a[1]);
+ const maxC=Math.max(1,...cc.map(x=>x[1]));
+ $('classes').innerHTML=cc.length?cc.map(([k,v])=>bar(k,[[v,COLORS[k]]],maxC,String(v))).join(''):'<p style="color:#8F857C;font-size:15px">Nobody yet.</p>';
+ const table=(title,list)=>!list.length?'':`<div><h2 style="font-size:clamp(24px,3vw,27px);margin-bottom:12px">${esc(title)} <span style="font-family:Barlow,sans-serif;font-weight:500;font-size:16px;color:#AEA49A">${list.length}</span></h2><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Class</th><th class="n">Level</th><th>Main role</th><th>Will also play</th></tr></thead><tbody>${list.slice().sort((a,b)=>ROLES.indexOf(a.main_role)-ROLES.indexOf(b.main_role)||b.level-a.level).map(r=>`<tr><td data-l="Character"><strong>${esc(r.character)}</strong></td><td data-l="Class"><i class="rs-dot" style="background:${COLORS[r.cls]||'#999'}"></i>${esc(r.cls)}</td><td data-l="Level" class="n">${esc(r.level||'–')}</td><td data-l="Main role">${esc(r.main_role)}</td><td data-l="Will also play">${esc(r.also_play||'—')}</td></tr>`).join('')}</tbody></table></div></div>`;
+ $('lists').innerHTML=table('Yes',yes)+table('Probably',maybe)+table('Not sure yet',unsure);
+}
+const t=setTimeout(()=>{$('msg').textContent='The roster is taking a while to load. Try refreshing in a minute.'},10000);
+fetch('/.netlify/functions/roster').then(r=>{if(!r.ok)throw 0;return r.json()}).then(d=>{clearTimeout(t);render(d.rows||[])}).catch(()=>{clearTimeout(t);$('msg').textContent='Couldn’t load the roster right now. Try again in a bit.'});
+}
+</script>
+
+<!-- PREV / NEXT -->
+<section>
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(32px, 4vw, 40px) 24px 40px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px">
+<a href="/signup" style="display: inline-flex; align-items: center; gap: 12px; border: 1px solid #362D2A; color: #CFC7BE; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.12em; padding: 14px 22px; border-radius: 4px">← SIGN UP</a>
+</div>
+</section>
+
+<!-- FOOTER -->
+<footer style="border-top: 1px solid #362D2A; background: #0E0C0D">
+<div style="max-width: 1160px; margin: 0 auto; padding: 28px 24px 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px">
+<div style="display: flex; align-items: flex-start; gap: 12px; flex: 1 1 520px; min-width: 0">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#CDB07C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+<p style="font-size: 15px; color: #AEA49A"><strong style="color: #CFC7BE">This site is a work in progress, and so is everything in it.</strong> Most of what’s here is by no means set in stone. If you have questions, <a href="https://discord.gg/mfScPwH9rY" target="_blank" rel="noopener">ask us in Discord</a>.</p>
+</div>
+<span style="font-family: 'Cinzel', Georgia, serif; font-size: 14px; letter-spacing: 0.12em; color: #8F857C">MYSTIC DRAGONS&nbsp;</span>
+</div>
+</footer>
+</div>
+</body>
+</html>
