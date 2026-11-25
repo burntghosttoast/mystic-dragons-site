@@ -56,6 +56,7 @@ function A.Start(items, opts)
         wire[#wire + 1] = i .. "=" .. tostring(s.items[i].itemId or 0)
     end
     A.session = s
+    if not opts.test then D.db.isLM = true end
     if not opts.solo then M.Send("O:" .. s.sid .. ":" .. table.concat(wire, ","), C.GroupChannel() or "WHISPER", C.PlayerName()) end
     if ns.B then ns.B.Open(C.PlayerName(), s.sid, s.items, true) end
     if ns.UI then ns.UI.ShowLM() end
@@ -248,6 +249,7 @@ local function finish(it, winner, price, kind)
         give(it, winner)
         local r = D.AddResult({ itemId = it.itemId, itemName = it.name or linkOf(it), winner = winner, price = price, kind = kind, test = A.session.test })
         it.result = r
+        M.ShareAward(r)
         dropOverBids(winner)
     end
     M.Send("W:" .. A.session.sid .. ":" .. it.idx .. ":" .. winner .. ":" .. price, C.GroupChannel())
@@ -336,7 +338,7 @@ end
 -- Take back an award made by mistake (the DKP goes back; the item has to be traded back by hand).
 function A.Undo(idx)
     local it = item(idx); if not it or it.state ~= "done" then return end
-    if it.result then it.result.undone = true; D.RefreshExport() end
+    if it.result then it.result.undone = true; D.RefreshExport(); M.ShareUndo(it.result) end
     it.state, it.winner, it.price, it.result = "open", nil, nil, nil
     if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
 end

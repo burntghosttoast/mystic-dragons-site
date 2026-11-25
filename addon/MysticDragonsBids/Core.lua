@@ -5,6 +5,8 @@
 --   /mdkp test         practice alone with fake items and fake bidders
 --   /mdkp test group   practice with your group: everyone gets the bid window, nothing is real
 --   /mdkp show         reopen the windows
+--   /mdkp history      every award (officers and loot masters), or your own
+--   /mdkp balances     what everyone can spend (officers and loot masters), or just you
 --   /mdkp check        what works on this patch (send this to whoever maintains the addon)
 --   /mdkp clear        forget results the site already has
 --   /mdkp keep <days>  how long to keep old results on this PC (default 120, about a raid tier)
@@ -97,6 +99,8 @@ SlashCmdList.MDBIDS = function(input)
         if A.session then UI.ShowLM() end
         if B.cur then UI.ShowBidder() end
         if not A.session and not B.cur then ns.Print("Nothing is open.") end
+    elseif cmd == "history" or cmd == "h" then UI.ShowHistory()
+    elseif cmd == "balances" or cmd == "bal" or cmd == "b" then UI.ShowBalances()
     elseif cmd == "check" then
         ns.Print("Version " .. C.VERSION .. ", game " .. tostring((select(4, GetBuildInfo()))) .. ":")
         for _, row in ipairs(C.Check()) do ns.Print(row[1] .. ": " .. (row[2] and "|cff7CD67Cworks|r" or "|cffD96A5FMISSING|r")) end
@@ -110,7 +114,7 @@ SlashCmdList.MDBIDS = function(input)
             ns.Print("Keeping " .. D.db.opts.keepDays .. " days of results. Older ones drop off when the next sheet arrives.")
         elseif rest ~= "" then ns.Print("Pick a number of days between 14 and 730, like /mdkp keep 120.")
         else ns.Print("Keeping " .. (D.db.opts.keepDays or 120) .. " days of results (" .. #D.db.results .. " saved now). Change it with /mdkp keep <days>.") end
-    else ns.Print("Commands: /mdkp, /mdkp import, /mdkp export, /mdkp test, /mdkp test group, /mdkp show, /mdkp check, /mdkp clear, /mdkp keep") end
+    else ns.Print("Commands: /mdkp, /mdkp import, /mdkp export, /mdkp test, /mdkp test group, /mdkp history, /mdkp balances, /mdkp show, /mdkp check, /mdkp clear, /mdkp keep") end
 end
 
 local f = CreateFrame("Frame")

@@ -14,6 +14,9 @@
 --   LV:<sid>:<idx>                 RAID, live auction started on it.
 --   LH:<sid>:<idx>:<amount>:<name> RAID, new high bid in the live auction.
 --   X:<sid>                        RAID, bidding over.
+--   AW:<seq>:<time>:<itemId>:<price>:<kind>:<winner>   GUILD (or WHISPER for catch-up), a loot master's award.
+--   AU:<seq>                       GUILD, that award was undone.
+--   AQ:<since>                     GUILD at login: loot masters online whisper back their awards since then.
 local _, ns = ...
 local C = ns.C
 local M = {}
@@ -34,6 +37,30 @@ end
 function M.Hello()
     local s = ns.D.db.sheet
     M.Send("HELLO:" .. C.VERSION .. ":" .. (s and s.at or ""), "GUILD")
+    -- Catch up on awards handed out while I was offline (the last two weeks).
+    local newest = C.Now() - 14 * 86400
+    for _, r in pairs(ns.D.db.log) do if (r.at or 0) > newest then newest = r.at end end
+    C.After(4, function() M.Send("AQ:" .. newest, "GUILD") end)
+end
+
+local function awardMsg(r)
+    return "AW:" .. r.seq .. ":" .. (r.at or 0) .. ":" .. (r.itemId or 0) .. ":" .. (r.price or 0) .. ":" .. (r.kind or "bid") .. ":" .. tostring(r.winner)
+end
+function M.ShareAward(r) if not r.test then M.Send(awardMsg(r), "GUILD") end end
+function M.ShareUndo(r) if not r.test then M.Send("AU:" .. r.seq, "GUILD") end end
+
+-- Someone logged in and asked for awards since a time: whisper back mine (at most 60, spaced out).
+function M.SendAwardsTo(who, since)
+    local list = {}
+    for _, r in ipairs(ns.D.db.results) do
+        if not r.test and not r.undone and (r.at or 0) > since then list[#list + 1] = r end
+    end
+    if #list == 0 then return end
+    local start = 1 + math.random() * 5
+    for i = math.max(1, #list - 59), #list do
+        local r = list[i]
+        C.After(start + i * 0.3, function() M.Send(awardMsg(r), "WHISPER", who) end)
+    end
 end
 
 local function newerVersion(v)
@@ -107,6 +134,20 @@ function M.OnMessage(prefix, msg, channel, sender)
         end
     elseif kind == "SH" then
         if sender ~= me then onSheetPart(sender, msg) end
+    elseif kind == "AW" then
+        if sender ~= me then
+            local seq, at, itemId, price, k, winner = msg:match("^AW:(%d+):(%d+):(%d+):(%d+):(%a*):(.+)$")
+            if seq then
+                ns.D.LogAward({ lm = sender, seq = tonumber(seq), at = tonumber(at), itemId = tonumber(itemId) ~= 0 and tonumber(itemId) or nil,
+                                price = tonumber(price), kind = k, winner = C.Norm(winner) })
+                if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+            end
+        end
+    elseif kind == "AU" then
+        if sender ~= me then ns.D.UndoLogged(sender, tonumber(msg:match("^AU:(%d+)"))) end
+    elseif kind == "AQ" then
+        local since = tonumber(msg:match("^AQ:(%d+)")) or 0
+        if sender ~= me then M.SendAwardsTo(sender, since) end
     elseif kind == "B" or kind == "P" then
         if ns.A then ns.A.OnAddonBid(sender, msg) end
     else

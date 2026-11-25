@@ -11,7 +11,7 @@ local D = {}
 ns.D = D
 
 local function defaults()
-    return { sheet = nil, results = {}, seq = 0, opts = { minQuality = 4, lastCall = 30, keepDays = 120 }, errors = {} }
+    return { sheet = nil, results = {}, log = {}, seq = 0, opts = { minQuality = 4, lastCall = 30, keepDays = 120 }, errors = {} }
 end
 
 function D.Init()
@@ -87,6 +87,7 @@ function D.Prune()
     end
     local dropped = #D.db.results - #kept
     D.db.results = kept
+    for k, r in pairs(D.db.log) do if (r.at or 0) <= cut - keep then D.db.log[k] = nil end end
     if D.RefreshExport then D.RefreshExport() end
     return dropped
 end
@@ -131,10 +132,46 @@ function D.Spendable(name)
         else return 0, "New raiders can't spend DKP until their second raid." end
     end
     s = s or { at = "" }
-    for _, r in ipairs(D.db.results) do
+    -- Every loot master's awards since the sheet (mine, plus the ones other loot masters' addons shared).
+    for _, r in ipairs(D.AllAwards()) do
         if after(r, s) and r.person == person and not r.undone then bal = bal - (r.price or 0) end
     end
     return math.max(0, bal)
+end
+
+-- Awards other loot masters' addons shared with this one, keyed "loot master|seq".
+-- Officers and loot masters keep everyone's; raiders keep only their own (DKP is private to the person and officers).
+function D.CanSeeAll()
+    local rank = C.MyGuildRank()
+    return (rank and rank <= 1) or D.db.isLM or false
+end
+function D.LogAward(rec)
+    if not (rec and rec.lm and rec.seq) then return end
+    rec.person = D.PersonOf(rec.winner)
+    if not D.CanSeeAll() and rec.person ~= D.PersonOf(C.PlayerName()) then return end
+    if C.Key(rec.lm) == C.Key(C.PlayerName()) then return end -- my own are in results already
+    local key = C.Key(rec.lm) .. "|" .. rec.seq
+    local had = D.db.log[key]
+    if had and had.undone and not rec.undone then return end
+    D.db.log[key] = rec
+end
+function D.UndoLogged(lm, seq)
+    local rec = D.db.log[(C.Key(lm) or "") .. "|" .. tostring(seq)]
+    if rec then rec.undone = true end
+end
+
+-- Every award this addon knows about, newest first: { lm, seq, at, itemId, itemName, winner, person, price, kind, undone, mine }
+function D.AllAwards()
+    local out, me = {}, C.PlayerName()
+    for _, r in ipairs(D.db.results) do
+        if not r.test then
+            out[#out + 1] = { lm = me, seq = r.seq, at = r.at, itemId = r.itemId, itemName = r.itemName, winner = r.winner,
+                              person = r.person, price = r.price, kind = r.kind, undone = r.undone, mine = true }
+        end
+    end
+    for _, r in pairs(D.db.log) do local c = {}; for k, v in pairs(r) do c[k] = v end; out[#out + 1] = c end
+    table.sort(out, function(a, b) return (a.at or 0) > (b.at or 0) end)
+    return out
 end
 
 -- Record an award. Returns the result row.

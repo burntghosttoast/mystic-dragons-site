@@ -114,6 +114,8 @@ local function buildLM()
     lm.replies = lm:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); lm.replies:SetPoint("BOTTOMLEFT", 16, 46)
     lm.send = button(lm, "Send replies", 110, function() UI.Refresh() end); lm.send:SetPoint("BOTTOMLEFT", 14, 14)
     lm.endb = button(lm, "End bidding", 110, function() A.End() end); lm.endb:SetPoint("BOTTOMRIGHT", -14, 14)
+    lm.hist = button(lm, "History", 80, function() UI.ShowHistory() end); lm.hist:SetPoint("RIGHT", lm.endb, "LEFT", -6, 0)
+    lm.bals = button(lm, "Balances", 80, function() UI.ShowBalances() end); lm.bals:SetPoint("RIGHT", lm.hist, "LEFT", -6, 0)
     lm.note = lm:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall"); lm.note:SetPoint("BOTTOM", 0, 18)
     lm.note:SetText("Live auction sets an item aside. When the rest is done, press it again to run that auction.")
     local t = 0
@@ -307,4 +309,148 @@ end
 function UI.TextError(msg) if tw then tw.err:SetText(msg) end end
 function UI.HideText() if tw then tw:Hide() end end
 
-function UI.Refresh() drawLM(); drawBW(); drawLive() end
+------------------------------------------------------------------------
+-- List windows: DKP history and balances. Search box, clickable column headers, mouse-wheel scrolling.
+------------------------------------------------------------------------
+local LIST_ROWS = 16
+local function listWindow(name, title, w, cols)
+    local f = window(name, title, w, 150 + LIST_ROWS * 22)
+    f.search = CreateFrame("EditBox", nil, f, "InputBoxTemplate"); f.search:SetSize(200, 22); f.search:SetPoint("TOPRIGHT", -40, -10); f.search:SetAutoFocus(false)
+    f.search:SetScript("OnTextChanged", function() f.offset = 0; UI.Refresh() end)
+    f.searchHint = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall"); f.searchHint:SetPoint("RIGHT", f.search, "LEFT", -8, 0); f.searchHint:SetText("Search")
+    f.cols, f.sortKey, f.sortDesc, f.offset = cols, cols.defaultSort, cols.defaultDesc, 0
+    f.heads = {}
+    local x = 14
+    for i, c in ipairs(cols) do
+        local h = CreateFrame("Button", nil, f)
+        h:SetSize(c.w, 18); h:SetPoint("TOPLEFT", x, -58)
+        h.text = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); h.text:SetAllPoints(); h.text:SetJustifyH(c.right and "RIGHT" or "LEFT")
+        h:SetScript("OnClick", function()
+            if not c.sort then return end
+            if f.sortKey == c.sort then f.sortDesc = not f.sortDesc else f.sortKey, f.sortDesc = c.sort, c.desc or false end
+            UI.Refresh()
+        end)
+        f.heads[i] = h; c.x = x; x = x + c.w + 8
+    end
+    f.rows = {}
+    for r = 1, LIST_ROWS do
+        local row = CreateFrame("Frame", nil, f); row:SetSize(w - 28, 20); row:SetPoint("TOPLEFT", 14, -80 - (r - 1) * 22)
+        row.cells = {}
+        for i, c in ipairs(cols) do
+            if c.item then
+                local ic = itemIcon(row); ic:SetSize(18, 18); ic:SetPoint("LEFT", c.x - 14, 0)
+                local t = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); t:SetPoint("LEFT", ic, "RIGHT", 4, 0); t:SetWidth(c.w - 22); t:SetJustifyH("LEFT"); t:SetWordWrap(false)
+                row.cells[i] = t; row.icon = ic
+            else
+                local t = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); t:SetPoint("LEFT", c.x - 14, 0); t:SetWidth(c.w); t:SetJustifyH(c.right and "RIGHT" or "LEFT"); t:SetWordWrap(false)
+                row.cells[i] = t
+            end
+        end
+        row:Hide(); f.rows[r] = row
+    end
+    f:EnableMouseWheel(true)
+    f:SetScript("OnMouseWheel", function(_, d) f.offset = math.max(0, (f.offset or 0) - d * 3); UI.Refresh() end)
+    f.foot = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall"); f.foot:SetPoint("BOTTOMLEFT", 16, 18); f.foot:SetWidth(w - 32); f.foot:SetJustifyH("LEFT")
+    return f
+end
+
+local function drawList(f, items, cell)
+    for i, c in ipairs(f.cols) do f.heads[i].text:SetText(c.title .. (f.sortKey == c.sort and (f.sortDesc and " v" or " ^") or "")) end
+    local q = (f.search:GetText() or ""):lower()
+    local shown = {}
+    for _, it in ipairs(items) do if q == "" or (it._search or ""):find(q, 1, true) then shown[#shown + 1] = it end end
+    local k, desc = f.sortKey, f.sortDesc
+    table.sort(shown, function(a, b)
+        local x, y = a[k], b[k]
+        if x == y then return (a._tie or "") < (b._tie or "") end
+        if type(x) ~= type(y) then x, y = tostring(x), tostring(y) end
+        if desc then return x > y else return x < y end
+    end)
+    f.offset = math.min(f.offset or 0, math.max(0, #shown - LIST_ROWS))
+    for r, row in ipairs(f.rows) do
+        local it = shown[r + f.offset]
+        if it then row:Show(); cell(row, it) else row:Hide() end
+    end
+    return shown
+end
+
+local KIND = { bid = "bid", live = "live auction", roll = "rolled off" }
+local hw
+function UI.ShowHistory()
+    if not hw then
+        hw = listWindow("MDBidsHistoryFrame", GOLD .. "DKP|r history", 760, {
+            { title = "Date", w = 92, sort = "at", desc = true }, { title = "Item", w = 230, item = true, sort = "itemSort" },
+            { title = "Winner", w = 130, sort = "winner" }, { title = "DKP", w = 40, right = true, sort = "price", desc = true },
+            { title = "How", w = 80, sort = "kind" }, { title = "Loot master", w = 110, sort = "lm" },
+            defaultSort = "at", defaultDesc = true })
+    end
+    hw:place(0, 40); hw:Show(); UI.Refresh()
+end
+local function drawHistory()
+    if not (hw and hw:IsShown()) then return end
+    local all, mine = D.CanSeeAll(), D.PersonOf(C.PlayerName())
+    local items = {}
+    for _, r in ipairs(D.AllAwards()) do
+        if all or r.person == mine then
+            local name = r.itemName or (r.itemId and C.ItemInfo(r.itemId)) or ("Item " .. tostring(r.itemId or "?"))
+            r.itemSort = tostring(name):gsub("|c%x+|H.-|h%[?(.-)%]?|h|r", "%1"):lower()
+            r._search = (r.itemSort .. " " .. tostring(r.winner) .. " " .. tostring(r.lm) .. " " .. (KIND[r.kind] or "")):lower()
+            r._tie = tostring(r.lm) .. r.seq
+            items[#items + 1] = r
+        end
+    end
+    hw.sub:SetText(all and ("Every award this addon knows about, from every loot master with the addon (kept " .. (D.db.opts.keepDays or 120) .. " days). The site has the full ledger.")
+        or "Your awards. Officers and loot masters see everyone's.")
+    local shown = drawList(hw, items, function(row, r)
+        local name, link, _, icon = C.ItemInfo(r.itemId or r.itemName)
+        if not link and r.itemId and C_Item and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(r.itemId) end
+        row.icon.link, row.icon.itemId = link, r.itemId
+        row.icon.tex:SetTexture(icon or C.ItemIcon(r.itemId) or "Interface\\Icons\\INV_Misc_QuestionMark")
+        local d = date("%b %d %H:%M", r.at or 0)
+        local dim = r.undone and GREY or ""
+        row.cells[1]:SetText(dim .. d)
+        row.cells[2]:SetText(r.undone and (GREY .. (name or r.itemName or "?") .. " (undone)|r") or (link or r.itemName or name or "?"))
+        row.cells[3]:SetText(dim .. tostring(r.winner))
+        row.cells[4]:SetText(dim .. tostring(r.price or 0))
+        row.cells[5]:SetText(GREY .. (KIND[r.kind] or r.kind or "") .. "|r")
+        row.cells[6]:SetText(GREY .. tostring(r.lm) .. "|r")
+    end)
+    local total = 0; for _, r in ipairs(shown) do if not r.undone then total = total + (r.price or 0) end end
+    hw.foot:SetText(#shown .. " award" .. (#shown == 1 and "" or "s") .. ", " .. total .. " DKP. Scroll with the mouse wheel. Click a column to sort.")
+end
+
+local bal
+function UI.ShowBalances()
+    if not bal then
+        bal = listWindow("MDBidsBalanceFrame", GOLD .. "DKP|r balances", 560, {
+            { title = "Name", w = 200, sort = "name" }, { title = "On the sheet", w = 80, right = true, sort = "sheet", desc = true },
+            { title = "Spent since", w = 80, right = true, sort = "spent", desc = true }, { title = "Can spend", w = 80, right = true, sort = "can", desc = true },
+            defaultSort = "can", defaultDesc = true })
+    end
+    bal:place(0, 40); bal:Show(); UI.Refresh()
+end
+local function drawBalances()
+    if not (bal and bal:IsShown()) then return end
+    local s = D.db.sheet
+    if not s then bal.sub:SetText(RED .. "No sheet loaded yet.|r"); for _, r in ipairs(bal.rows) do r:Hide() end; bal.foot:SetText(""); return end
+    local all, mine = D.CanSeeAll(), D.PersonOf(C.PlayerName())
+    local items = {}
+    for person, n in pairs(s.bal) do
+        if all or person == mine then
+            local can = D.Spendable(s.display[person] or person)
+            local alts = s.alts[person] or {}
+            items[#items + 1] = { name = s.display[person] or person, alts = alts, sheet = n, spent = n - can, can = can,
+                                  _search = ((s.display[person] or person) .. " " .. table.concat(alts, " ")):lower(), _tie = person }
+        end
+    end
+    bal.sub:SetText("Sheet approved " .. ns.When(s.at) .. (s.by ~= "" and (" by " .. s.by) or "") .. ". Can spend = the sheet minus awards since it was approved." .. (all and "" or " Officers and loot masters see everyone."))
+    local shown = drawList(bal, items, function(row, it)
+        row.cells[1]:SetText(it.name .. (#it.alts > 0 and (GREY .. "  " .. table.concat(it.alts, ", ") .. "|r") or ""))
+        row.cells[2]:SetText(tostring(it.sheet))
+        row.cells[3]:SetText(it.spent > 0 and ("-" .. it.spent) or (GREY .. "0|r"))
+        row.cells[4]:SetText(GOLD .. it.can .. "|r")
+    end)
+    bal.foot:SetText(#shown .. " " .. (#shown == 1 and "person" or "people") .. ". Scroll with the mouse wheel. Click a column to sort.")
+end
+
+function UI.Refresh() drawLM(); drawBW(); drawLive(); drawHistory(); drawBalances() end

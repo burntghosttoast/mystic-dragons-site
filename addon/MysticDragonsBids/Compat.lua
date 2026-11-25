@@ -14,7 +14,7 @@ local _, ns = ...
 local C = {}
 ns.C = C
 
-C.VERSION = "0.2.3"
+C.VERSION = "0.3.0"
 C.PREFIX = "MDBids"
 
 local function has(f) return type(f) == "function" end
