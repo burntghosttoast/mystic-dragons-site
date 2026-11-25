@@ -193,8 +193,9 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <button type="button" id="dkFill" class="rs-btn">TICK SIGNED-UP YES / PROBABLY</button>
 <button type="button" id="dkClear" class="rs-btn">CLEAR</button>
 </div>
+<p id="dkNightMode" hidden style="font-size: 15px; color: #CDB07C; border: 1px solid #CDB07C; border-radius: 6px; padding: 10px 12px"></p>
 <div class="rs-wrap" style="max-height: 420px; overflow: auto"><table class="rs-table"><thead><tr><th>Character</th><th>Signup</th><th class="n">Start</th><th class="n">End</th><th class="n">Bench</th></tr></thead><tbody id="dkRows"></tbody></table></div>
-<div><button type="submit" class="rs-btn rs-btn-p">SAVE RAID NIGHT</button></div>
+<div><button type="submit" id="dkNightGo" class="rs-btn rs-btn-p">SAVE RAID NIGHT</button></div>
 </form>
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px">
@@ -238,7 +239,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div class="md-card" style="gap: 10px">
 <span class="md-lab">PAPER TRAIL</span>
 <p style="font-size: 15px; color: #CFC7BE">Every DKP action on the site, who did it and when: raid nights entered, awards, adjustments, removed drafts (with what was removed), approvals (with everyone’s balances at that moment), alt links, settings changes, weekly decay and Start over. Nothing can edit or delete it, including Start over.</p>
-<div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" id="dkCsvAudit" class="rs-btn">DOWNLOAD PAPER TRAIL</button></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" id="dkCsvAudit" class="rs-btn">DOWNLOAD PAPER TRAIL</button><button type="button" id="dkGit" class="rs-btn">BACK UP TO GITHUB NOW</button></div>
+<p style="font-size: 14px; color: #8F857C">Balances, the full ledger and this paper trail also go to a private GitHub repo automatically: every time a sheet is approved, plus Tuesday and Thursday at 3pm ET as a safety net.</p>
 <div class="rs-wrap" style="max-height: 360px; overflow: auto"><table class="rs-table"><thead><tr><th>When</th><th>Who</th><th>What happened</th></tr></thead><tbody id="dkAudit"></tbody></table></div>
 <span class="md-lab" style="margin-top: 6px">BACKUPS</span>
 <p style="font-size: 14px; color: #8F857C">A full copy of all DKP data is saved automatically right before anything wipes it. Each one downloads as a ledger spreadsheet.</p>
@@ -376,7 +378,7 @@ function drawDkViews(){
  document.querySelectorAll('[data-dv]').forEach(el=>{el.hidden=el.dataset.dv!==dkView});
  if(dkView==='overview')drawOverview();if(dkView==='people')drawPeople();if(dkView==='person')drawPerson();if(dkView==='nights')drawNights();if(dkView==='loot')drawLoot();
 }
-$('dkViews').addEventListener('click',e=>{const b=e.target.closest('[data-dv-go]');if(!b)return;dkView=b.dataset.dvGo;drawDkViews()});
+$('dkViews').addEventListener('click',e=>{const b=e.target.closest('[data-dv-go]');if(!b)return;dkView=b.dataset.dvGo;drawDkViews();if(dkView==='enter')syncNightForm()});
 function drawOverview(){
  const ps=Object.values(S.P),cap=dk.settings.cap,tot=ps.reduce((a,p)=>a+p.draft,0),items=dk.tx.filter(t=>t.kind==='award').length;
  $('dkTally').innerHTML=[['People',ps.length],['DKP in the guild',tot],['Average',ps.length?Math.round(tot/ps.length):0],['At the cap',ps.filter(p=>p.draft>=cap).length],['Raid nights',S.nights.length],['Items awarded',items]].map(([l,n])=>`<div class="md-card"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(26px,3.6vw,36px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong></div>`).join('');
@@ -506,9 +508,25 @@ $('dkArch').addEventListener('click',async e=>{const b=e.target.closest('[data-a
  try{const a=await oapi('dkp-archives',{at:b.dataset.arch});const nb=Object.fromEntries(a.nights.map(n=>[n.id,n])),nm=k=>(data?.characters||[]).find(c=>c.key===k)?.name||k;
   csvDl(`mystic-dragons-dkp-backup-${a.at.slice(0,16).replace(':','')}.csv`,[['When (UTC)','Raid night','Group','Person','Character','Type','Item','Note','Change','Status','Entered by'],
    ...a.tx.sort((x,y)=>x.at.localeCompare(y.at)||(x.ord||0)-(y.ord||0)).map(t=>[t.at,nb[t.night]?.date||'',nb[t.night]?.group||'',nm(t.person),nm(t.char||''),KIND[t.kind]||t.kind,t.item||'',['start','decay','bench'].includes(t.kind)?'':(t.note||''),t.delta,t.status==='draft'?'Draft':'Approved',t.by||''])])}catch(err){$('msg').textContent=err.message}});
+$('dkGit').addEventListener('click',()=>dkDo('dkp-backup',{},d=>d.unchanged?'Nothing changed since the last backup.':'Backed up to GitHub.'));
 let dkBusy=false;
 const dkDo=async(path,body,done,after)=>{if(dkBusy)return;dkBusy=true;$('msg').textContent='Working…';try{const d=await oapi(path,body);$('msg').textContent=typeof done==='function'?done(d):done;if(after)after();await loadDkp()}catch(e){$('msg').textContent=e.message}finally{dkBusy=false}};
-$('dkNight').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-night',{date:$('dkDate').value,group:$('dkGroup').value,start:[...tick.start],end:[...tick.end],bench:[...tick.bench]},d=>`Raid night saved for ${d.people} ${d.people===1?'person':'people'}. It’s a draft until you approve the sheet.`,()=>{Object.values(tick).forEach(x=>x.clear());$('dkGroup').value=''})});
+// Picking a date that's already entered loads that night into the boxes, and saving edits it.
+let dkFormNight='';
+function syncNightForm(){
+ if(!S)return;const d=$('dkDate').value,g=$('dkGroup').value.trim().toLowerCase();
+ const n=S.nights.find(x=>x.date===d&&(x.group||'').toLowerCase()===g);
+ if(!n){if(dkFormNight){Object.values(tick).forEach(x=>x.clear())}dkFormNight='';$('dkNightMode').hidden=true;$('dkNightGo').textContent='SAVE RAID NIGHT';drawDkRows();return}
+ dkFormNight=n.id;Object.values(tick).forEach(x=>x.clear());
+ const c={};dk.tx.filter(t=>t.n===n.id&&['attend-start','attend-end','bench','attend-fix'].includes(t.kind)).forEach(t=>{const k=t.kind==='attend-fix'?t.undo:t.kind,e=(c[t.person]=c[t.person]||{char:t.char||t.person});e[k]=(e[k]||0)+(t.kind==='attend-fix'?-1:1)});
+ for(const e of Object.values(c)){if(e['attend-start']>0)tick.start.add(e.char);if(e['attend-end']>0)tick.end.add(e.char);if(e.bench>0)tick.bench.add(e.char)}
+ $('dkNightMode').hidden=false;$('dkNightMode').textContent=`${dayL(n.date)}${n.group?' · '+n.group:''} is already entered, so the boxes show what’s recorded for it. Saving changes that night (the same as Edit attendance under Raid nights), and anything you change is marked as changed later. For a second raid on the same date, type a group name.`;
+ $('dkNightGo').textContent='SAVE CHANGES TO THIS NIGHT';drawDkRows();
+}
+['dkDate','dkGroup'].forEach(id=>$(id).addEventListener('input',syncNightForm));
+$('dkNight').addEventListener('submit',e=>{e.preventDefault();
+ if(dkFormNight)return dkDo('dkp-night-edit',{night:dkFormNight,start:[...tick.start],end:[...tick.end],bench:[...tick.bench]},d=>d.changes?`Saved ${d.changes} change${d.changes===1?'':'s'} to that night as drafts.`:'Nothing changed.',()=>{dkFormNight='';syncNightForm()});
+ dkDo('dkp-night',{date:$('dkDate').value,group:$('dkGroup').value,start:[...tick.start],end:[...tick.end],bench:[...tick.bench]},d=>`Raid night saved for ${d.people} ${d.people===1?'person':'people'}. It’s a draft until you approve the sheet.`,()=>{Object.values(tick).forEach(x=>x.clear());$('dkGroup').value=''})});
 $('dkAward').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-award',{char:charKey($('dkAChar').value),item:$('dkAItem').value,amount:$('dkAAmt').value},'Award added as a draft.',()=>{['dkAChar','dkAItem','dkAAmt'].forEach(i=>$(i).value='')})});
 $('dkAdj').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-adjust',{char:charKey($('dkJChar').value),amount:$('dkJAmt').value,note:$('dkJNote').value},'Adjustment added as a draft.',()=>{['dkJChar','dkJAmt','dkJNote'].forEach(i=>$(i).value='')})});
 $('dkLink').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-link',{alt:charKey($('dkLAlt').value),main:charKey($('dkLMain').value)||'x'},'Linked. That alt now shares its main’s DKP.',()=>{$('dkLAlt').value='';$('dkLMain').value=''})});
@@ -518,7 +536,7 @@ $('dkDrafts').addEventListener('click',e=>{const b=e.target.closest('[data-dk-rm
 $('dkReset').addEventListener('click',e=>confirmBtn(e.target,'REALLY DELETE EVERYTHING?',()=>dkDo('dkp-reset',{confirm:$('dkResetTxt').value.trim()},d=>`All DKP data deleted (${d.removed} records).`,()=>{$('dkResetTxt').value=''})));
 $('dkDemoRow').hidden=!/^dev--|localhost/.test(location.hostname);
 $('dkDemo').addEventListener('click',e=>confirmBtn(e.target,'REPLACE ALL DKP WITH EXAMPLES?',()=>dkDo('dkp-demo',{},d=>`Example data added: ${d.nights} raid nights for ${d.raiders} raiders. The last night is still a draft to review.`)));
-$('dkApprove').addEventListener('click',e=>confirmBtn(e.target,'APPROVE? THIS MAKES IT OFFICIAL',()=>dkDo('dkp-approve',{},d=>`Sheet approved: ${d.changes} changes, ${d.people} people.`)));
+$('dkApprove').addEventListener('click',e=>confirmBtn(e.target,'APPROVE? THIS MAKES IT OFFICIAL',()=>dkDo('dkp-approve',{},d=>`Sheet approved: ${d.changes} changes, ${d.people} people. `+(d.backup?.ok||d.backup?.unchanged?'Backed up to GitHub.':d.backup?.error?'GitHub backup failed: '+d.backup.error:'GitHub backups aren’t set up yet.'))));
 
 function drawSignups(){
  const all=data.characters.filter(c=>c.signup), D=['Yes','Probably','Not sure yet','No'];

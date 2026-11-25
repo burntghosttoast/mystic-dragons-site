@@ -5,6 +5,7 @@
 import { getStore } from '@netlify/blobs';
 import { postSummary, DEFAULT_CODES } from '../lib/summary.mjs';
 import { handleDiscord, refreshBoard, registerCommands } from '../lib/discordbot.mjs';
+import { backup as dkpBackup } from '../lib/dkpbackup.mjs';
 import * as DKP from '../lib/dkp.mjs';
 import { makeLock, checkLock, tooMany, failed } from '../lib/lock.mjs';
 import { blizzToken, bget, iconFor, recipeDetail, RECIPE_V } from '../lib/gamedata.mjs';
@@ -525,7 +526,8 @@ async function officerRoute(s, route, body, reqUrl = '') {
       if (!r.changes) return json({ error: 'Nothing new to approve.' }, 400);
       await DKP.audit(s, 'approve', who, `Approved the sheet (${r.changes} changes)`, { changes: r.changes, balances: Object.fromEntries(Object.entries(r.balances || {}).map(([k, v]) => [byKey[k]?.name || k, v])) });
       await log(s, 'dkp-approve', `${r.changes} changes`, 'officer', { by: who });
-      return json({ ok: true, ...r });
+      let saved = null; try { saved = await dkpBackup(s, `sheet approved by ${who}`); } catch (e) { saved = { error: String(e.message || e) }; }
+      return json({ ok: true, ...r, balances: undefined, backup: saved });
     }
     if (route === 'officer/dkp-link') {
       const alt = byKey[clean(body.alt, 40)];
@@ -567,6 +569,11 @@ async function officerRoute(s, route, body, reqUrl = '') {
       await DKP.audit(s, 'demo', who, `Filled with example data (${r.nights} nights)`);
       await log(s, 'dkp-demo', `${r.nights} example nights`, 'officer', { by: who });
       return json({ ok: true, ...r });
+    }
+    if (route === 'officer/dkp-backup') {
+      const r = await dkpBackup(s, `by hand by ${who}`);
+      if (r.skipped || r.error) return json({ error: r.skipped || r.error }, 400);
+      return json(r);
     }
     if (route === 'officer/dkp-audit') return json({ entries: await DKP.auditAll(s) });
     if (route === 'officer/dkp-archives') {
