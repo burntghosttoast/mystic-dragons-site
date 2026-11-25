@@ -75,14 +75,14 @@ function D.SetSheet(sheet, force)
     return true
 end
 
--- Results older than the current sheet are already counted on the site. Keep them a week as a safety net
--- (in case one never got uploaded), then drop them, so the saved file and the export stay small.
+-- Results older than the current sheet are already counted on the site. Keep about three months of them
+-- (a few hundred lines, nothing the game notices), then drop the oldest so the saved file can't grow forever.
 function D.Prune()
     local cut = D.IsoToUnix(D.db.sheet and D.db.sheet.at)
     if cut == 0 then return 0 end
-    local kept, week = {}, 7 * 86400
+    local kept, keep = {}, 90 * 86400
     for _, r in ipairs(D.db.results) do
-        if (r.at or 0) > cut - week then kept[#kept + 1] = r end
+        if (r.at or 0) > cut - keep then kept[#kept + 1] = r end
     end
     local dropped = #D.db.results - #kept
     D.db.results = kept
@@ -156,9 +156,10 @@ end
 -- Results not yet confirmed as imported by the site (all of them, until /mdkp clear).
 local function clean(s) return (tostring(s or ""):gsub("[=;#,\n|]", " ")) end
 function D.ExportString()
-    local rows = {}
+    -- Only the last 30 days go in the export: older ones are on the site already, and this keeps uploads small.
+    local rows, since = {}, C.Now() - 30 * 86400
     for _, r in ipairs(D.db.results) do
-        if not r.undone and not r.test then
+        if not r.undone and not r.test and (r.at or 0) > since then
             rows[#rows + 1] = table.concat({ r.seq, r.at, r.itemId or 0, clean(r.itemName), clean(r.winner), r.price or 0, r.kind or "bid" }, "=")
         end
     end
