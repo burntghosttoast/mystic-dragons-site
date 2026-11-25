@@ -138,7 +138,9 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Ends (ET)<input class="md-in" id="evEnd" type="time" value="23:00"></label>
 </div>
 <label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Note (optional, shows on the signup page and in Discord)<textarea class="md-in" id="evNote" rows="2" maxlength="600" placeholder="Invites go out 15 minutes before. Bring fire resistance."></textarea></label>
+<p style="font-size: 13px; color: #8F857C; margin-bottom: -4px">Discord event: the entry in the server’s Events list. People click Interested and Discord reminds them when it starts.</p>
 <label style="display: flex; align-items: center; gap: 8px; font-size: 15px; color: #CFC7BE"><input type="checkbox" id="evDiscord" checked style="width: 18px; height: 18px; accent-color: #A3BC6E"> Discord event, in <select class="md-in" id="evWhere" style="max-width: 280px"><option value="">the signup page (no voice channel)</option></select></label>
+<p style="font-size: 13px; color: #8F857C; margin-bottom: -4px">Signup message: the bot’s post in a text channel listing who’s coming by role, with a Sign up button. It updates itself.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><button type="button" id="evSave" class="rs-btn rs-btn-p">SAVE EVENT</button>
 <span style="margin-left: 10px; font-size: 14px; color: #AEA49A">Signup message in</span><select class="md-in" id="evPostCh" style="max-width: 220px"><option value="">pick a channel</option></select><button type="button" id="evPost" class="rs-btn">POST IT</button>
 <button type="button" id="evDel" class="rs-btn" style="margin-left: auto; border-color: #5A2A27; color: #D96A5F">DELETE EVENT</button></div>
