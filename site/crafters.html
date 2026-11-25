@@ -251,6 +251,7 @@ $('profs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(
  try{
   const [d,x]=await Promise.all([fetch('/api/crafting',{cache:'no-store'}).then(r=>r.json()),fetch('/api/recipe-index').then(r=>r.ok?r.json():null).catch(()=>null)]);
   data=d;idx=x&&x.total?x:null;
+  if(idx)for(const n of Object.keys(idx.catalog))if(/\[DNT\]|^test profession/i.test(n))delete idx.catalog[n];
   $('loading').hidden=true;$('body').hidden=false;
   const notes=[data.scanned<data.total?`Still collecting recipes: ${data.scanned} of ${data.total} guild members checked so far.`:`Recipes from all ${data.total} guild members.`];
   if(!idx)notes.push('Stat search and recipes nobody knows are still being set up.');

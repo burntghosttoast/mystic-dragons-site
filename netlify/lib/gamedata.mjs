@@ -117,7 +117,7 @@ export function compact(d, prof) {
 export async function buildCatalog(token) {
   const idx = (await bget(token, '/data/wow/profession/index', STATIC)).body;
   const profs = {};
-  for (const p of idx?.professions || []) {
+  for (const p of (idx?.professions || []).filter(p => !/\[DNT\]|^test profession/i.test(p.name || ''))) {
     const pr = (await bget(token, `/data/wow/profession/${p.id}`, STATIC)).body;
     const recipes = [];
     for (const t of pr?.skill_tiers || []) {
