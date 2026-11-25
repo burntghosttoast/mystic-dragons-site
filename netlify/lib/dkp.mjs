@@ -1,6 +1,6 @@
 // DKP: one balance per person (a main plus its alts), kept as a ledger of changes.
 // Officers enter raid nights, awards and adjustments as drafts; approving the sheet
-// makes them official. Weekly decay is added as a draft each Sunday night.
+// makes them official. Weekly decay is added as a draft early each Tuesday.
 //
 //   dkp/settings     { cap, start, attendStart, attendEnd, decay }
 //   dkp/state        { approved: {person: balance}, approvedAt, approvedBy, started: {person: true} }
@@ -86,7 +86,7 @@ export async function approve(s, by) {
   return { at, changes: drafts.length, people: Object.keys(balances).length };
 }
 
-// Weekly decay as draft lines, for everyone holding DKP. Runs Sunday night.
+// Weekly decay as draft lines, for everyone holding DKP. Runs early Tuesday.
 export async function addDecay(s, by = 'Weekly decay', force = false) {
   const { cfg, balances } = await draftSheet(s);
   const week = stamp().slice(0, 10);
