@@ -1,9 +1,9 @@
-// Scheduled every minute: fills in the recipe search index a little at a time.
+// Scheduled hourly: fills in the recipe search index a little at a time.
 // 1. The catalog of every recipe per profession (rebuilt weekly).
 // 2. Short details for each recipe (stats line, icon, how it's learned, rep needed),
 //    recipes guildies already know first. Each recipe is looked up once.
 // 3. Guildies' reputations, refreshed every 12 hours, for rep-gated recipes.
-// Once everything is filled in, a run does almost nothing.
+// New recipes guildies learn show up within the hour.
 import { getStore } from '@netlify/blobs';
 import { blizzToken, bget, recipeDetail, compact, buildCatalog, RECIPE_V, COMPACT_V } from '../lib/gamedata.mjs';
 
@@ -86,4 +86,4 @@ export default async () => {
   return new Response(`recipes +${added}, ${todo.length - added} to go; reps ${repTodo.length} stale`);
 };
 
-export const config = { schedule: '* * * * *' };
+export const config = { schedule: '17 * * * *' }; // once an hour (Netlify bills compute per run)
