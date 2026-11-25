@@ -538,7 +538,7 @@ async function officerRoute(s, route, body, reqUrl = '') {
         body.rows = m[2] ? m[2].split(';').map(r => { const [seq, at, itemId, item, winner, price, kind] = r.split('='); return { seq, at, itemId, item, winner, price, kind }; }) : [];
       }
       const lm = clean(body.lm, 40) || 'addon';
-      const rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 200);
+      const rows = (Array.isArray(body.rows) ? body.rows : []).slice(-500);
       const all = await DKP.allTx(s);
       const have = new Set(all.filter(t => t.ext).map(t => t.ext));
       const { blobs: nb } = await s.list({ prefix: 'dkp/nights/' });

@@ -71,7 +71,23 @@ function D.SetSheet(sheet, force)
     local cur = D.db.sheet
     if cur and not force and (cur.at or "") >= (sheet.at or "") then return false end
     D.db.sheet = sheet
+    D.Prune()
     return true
+end
+
+-- Results older than the current sheet are already counted on the site. Keep them a week as a safety net
+-- (in case one never got uploaded), then drop them, so the saved file and the export stay small.
+function D.Prune()
+    local cut = D.IsoToUnix(D.db.sheet and D.db.sheet.at)
+    if cut == 0 then return 0 end
+    local kept, week = {}, 7 * 86400
+    for _, r in ipairs(D.db.results) do
+        if (r.at or 0) > cut - week then kept[#kept + 1] = r end
+    end
+    local dropped = #D.db.results - #kept
+    D.db.results = kept
+    if D.RefreshExport then D.RefreshExport() end
+    return dropped
 end
 
 -- The person a character belongs to (main + alts share one balance).
