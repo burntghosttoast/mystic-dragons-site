@@ -519,6 +519,17 @@ async function officerRoute(s, route, body) {
       }
       return json({ ok: true });
     }
+    if (route === 'officer/dkp-decay') {
+      const n = await DKP.addDecay(s, who, true);
+      await log(s, 'dkp-decay', `${n} people`, 'officer', { by: who });
+      return json({ ok: true, people: n });
+    }
+    if (route === 'officer/dkp-reset') {
+      if (body.confirm !== 'RESET') return json({ error: 'Type RESET to confirm.' }, 400);
+      const n = await DKP.resetAll(s);
+      await log(s, 'dkp-reset', `${n} records`, 'officer', { by: who });
+      return json({ ok: true, removed: n });
+    }
     if (route === 'officer/dkp-settings') {
       const cur = await DKP.settings(s), next = { ...cur };
       for (const [k, lo, hi] of [['cap', 1, 10000], ['start', 0, 1000], ['attendStart', 0, 100], ['attendEnd', 0, 100], ['decay', 0, 100]]) {

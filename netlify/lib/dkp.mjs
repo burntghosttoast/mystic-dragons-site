@@ -87,13 +87,24 @@ export async function approve(s, by) {
 }
 
 // Weekly decay as draft lines, for everyone holding DKP. Runs Sunday night.
-export async function addDecay(s, by = 'Weekly decay') {
+export async function addDecay(s, by = 'Weekly decay', force = false) {
   const { cfg, balances } = await draftSheet(s);
   const week = stamp().slice(0, 10);
   const st = await state(s);
-  if (st.lastDecay === week) return 0;
+  if (st.lastDecay === week && !force) return 0;
   let n = 0;
   for (const [person, bal] of Object.entries(balances)) if (bal > 0) { await addTx(s, { person, delta: -cfg.decay, kind: 'decay', note: 'Weekly decay', by }); n++; }
   await s.setJSON('dkp/state', { ...st, lastDecay: week });
+  return n;
+}
+
+// Wipes all DKP history and balances (settings and alt links stay). For clearing test data.
+export async function resetAll(s) {
+  let n = 0;
+  for (const prefix of ['dkp/tx/', 'dkp/nights/', 'dkp/sheets/']) {
+    const { blobs } = await s.list({ prefix });
+    for (const b of blobs) { await s.delete(b.key); n++; }
+  }
+  await s.delete('dkp/state');
   return n;
 }

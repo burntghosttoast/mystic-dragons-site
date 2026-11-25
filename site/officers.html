@@ -139,7 +139,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div class="md-card" style="gap: 10px; border-color: #CDB07C">
 <span class="md-lab" style="color: #CDB07C">THIS WEEK’S SHEET</span>
 <p id="dkStatus" style="font-size: 16px; color: #CFC7BE"></p>
-<div><button type="button" id="dkApprove" class="rs-btn rs-btn-p">APPROVE SHEET</button></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" id="dkApprove" class="rs-btn rs-btn-p">APPROVE SHEET</button><button type="button" id="dkDecay" class="rs-btn">ADD WEEKLY DECAY NOW</button></div>
+<p style="font-size: 14px; color: #8F857C">Decay adds itself every Sunday night on the live site. Use the button to add it by hand, for catching up or testing.</p>
 </div>
 
 <form id="dkNight" class="md-card" novalidate style="gap: 10px">
@@ -192,6 +193,11 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div id="dkSetRows" style="display: grid; grid-template-columns: 1fr 90px; gap: 6px 10px; align-items: center; font-size: 15px"></div>
 <div><button type="submit" class="rs-btn">SAVE SETTINGS</button></div>
 </form>
+</div>
+<div class="md-card" style="gap: 8px; border-color: #5A2A27">
+<span class="md-lab" style="color: #D96A5F">START OVER</span>
+<p style="font-size: 15px; color: #CFC7BE">Deletes every raid night, award, adjustment, sheet and balance. Settings and alt links stay. Use it to clear test data before raids start.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><input class="md-in" id="dkResetTxt" placeholder="Type RESET" style="max-width: 200px"><button type="button" id="dkReset" class="rs-btn">DELETE ALL DKP DATA</button></div>
 </div>
 </div>
 
@@ -293,6 +299,8 @@ $('dkLink').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-link',{al
 $('dkLinks').addEventListener('click',e=>{const b=e.target.closest('[data-dk-unlink]');if(b)dkDo('dkp-link',{alt:b.dataset.dkUnlink},'Unlinked.')});
 $('dkSet').addEventListener('submit',e=>{e.preventDefault();const body={};document.querySelectorAll('[data-set]').forEach(i=>{body[i.dataset.set]=i.value});dkDo('dkp-settings',body,'Settings saved. They apply to changes added from now on.')});
 $('dkDrafts').addEventListener('click',e=>{const b=e.target.closest('[data-dk-rm]');if(b)confirmBtn(b,'Sure?',()=>dkDo('dkp-tx-delete',{id:b.dataset.dkRm},'Draft change removed.'))});
+$('dkDecay').addEventListener('click',e=>confirmBtn(e.target,'ADD −DECAY TO EVERYONE?',()=>dkDo('dkp-decay',{},d=>`Weekly decay added for ${d.people} ${d.people===1?'person':'people'} as draft lines.`)));
+$('dkReset').addEventListener('click',e=>confirmBtn(e.target,'REALLY DELETE EVERYTHING?',()=>dkDo('dkp-reset',{confirm:$('dkResetTxt').value.trim()},d=>`All DKP data deleted (${d.removed} records).`,()=>{$('dkResetTxt').value=''})));
 $('dkApprove').addEventListener('click',e=>confirmBtn(e.target,'APPROVE? THIS MAKES IT OFFICIAL',()=>dkDo('dkp-approve',{},d=>`Sheet approved: ${d.changes} changes, ${d.people} people.`)));
 
 function drawSignups(){
