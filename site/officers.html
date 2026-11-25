@@ -140,7 +140,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div class="md-card" style="gap: 10px; border-color: #CDB07C">
 <span class="md-lab" style="color: #CDB07C">THIS WEEK’S SHEET</span>
 <p id="dkStatus" style="font-size: 16px; color: #CFC7BE"></p>
-<div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" id="dkApprove" class="rs-btn rs-btn-p">APPROVE SHEET</button></div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" id="dkApprove" class="rs-btn rs-btn-p">APPROVE SHEET</button><button type="button" id="dkCsvBal" class="rs-btn">DOWNLOAD BALANCES</button><button type="button" id="dkCsvTx" class="rs-btn">DOWNLOAD FULL LEDGER</button></div>
+<p style="font-size: 14px; color: #8F857C">Downloads are spreadsheet files (.csv) that open in Excel or Google Sheets.</p>
 <p style="font-size: 14px; color: #8F857C">Weekly decay adds itself early every Tuesday on the live site, so it shows up in that day’s sheet.</p>
 </div>
 
@@ -159,7 +160,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div data-dv="people" hidden style="display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><input class="md-in" type="search" id="dkPQ" placeholder="Search people" style="max-width: 260px"><div id="dkPCls" style="display: flex; flex-wrap: wrap; gap: 6px"></div></div>
 <div class="rs-wrap"><table class="rs-table"><thead><tr id="dkPHead"></tr></thead><tbody id="dkPRows"></tbody></table></div>
-<p style="font-size: 14px; color: #8F857C">Click a name to see everything for that person. Balances include draft changes. Attendance counts nights held since the first one on record.</p>
+<p style="font-size: 14px; color: #8F857C">Click a name to see everything for that person. Balances include changes that haven’t been approved yet; the small “+5 waiting” under a balance is how much of it is still waiting for the sheet to be approved. Attendance counts raid nights since that person’s first one.</p>
 </div>
 
 <!-- DKP: one person -->
@@ -340,18 +341,19 @@ let S=null;
 function dkCompute(){
  const nights=dk.nights.slice().sort((a,b)=>a.at.localeCompare(b.at));
  const nightOf=t=>{if(t.night)return t.night;if(t.kind==='decay')return '';const d=ymd(t.at);let best='';for(const n of nights){if(n.at<=t.at&&(new Date(t.at)-new Date(n.at))<30*3600e3)best=n.id;if(n.date===d&&!best)best=n.id}return best};
+ const nkey={};nights.forEach(n=>{nkey[n.id]=n.date+'|'+(n.group||'')});const nk=id=>nkey[id]||id;
  const P={},cap=dk.settings.cap;
- dk.people.forEach(p=>{P[p.person]={...p,earned:0,spent:0,decay:0,items:[],present:new Set(),full:new Set(),line:[],bal:0,first:''}});
+ dk.people.forEach(p=>{P[p.person]={...p,earned:0,spent:0,decay:0,items:[],nids:new Set(),present:new Set(),full:new Set(),line:[],bal:0,first:''}});
  for(const t of dk.tx){
   const p=P[t.person];if(!p)continue;
   t.n=nightOf(t);
   p.bal=t.delta>=0?Math.min(cap,p.bal+t.delta):Math.max(0,p.bal+t.delta);p.line.push([t.at,p.bal,t.status]);
   if(t.kind==='award'){p.spent-=t.delta;p.items.push(t)}else if(t.kind==='decay')p.decay-=t.delta;else if(t.delta>0)p.earned+=t.delta;
-  if(['attend-start','bench'].includes(t.kind)&&t.n){p.present.add(t.n);if(!p.first)p.first=t.n}
-  if(['attend-end','bench'].includes(t.kind)&&t.n)p.full.add(t.n);
+  if(['attend-start','bench'].includes(t.kind)&&t.n){p.present.add(nk(t.n));if(!p.first)p.first=nk(t.n);p.nids.add(t.n)}
+  if(['attend-end','bench'].includes(t.kind)&&t.n)p.full.add(nk(t.n));
  }
- const order=nights.map(n=>n.id);
- Object.values(P).forEach(p=>{const i=order.indexOf(p.first);p.held=i<0?0:order.length-i;p.att=p.held?p.present.size/p.held:0;p.last=[...p.present].sort((a,b)=>order.indexOf(b)-order.indexOf(a))[0]||''});
+ const order=[...new Set(nights.map(n=>nk(n.id)))],idOrder=nights.map(n=>n.id);
+ Object.values(P).forEach(p=>{const i=order.indexOf(p.first);p.held=i<0?0:order.length-i;p.att=p.held?Math.min(1,p.present.size/p.held):0;p.last=[...p.nids].sort((a,b)=>idOrder.indexOf(b)-idOrder.indexOf(a))[0]||''});
  S={P,nights,byNight:Object.fromEntries(nights.map(n=>[n.id,n]))};
 }
 const nLabel=id=>{const n=S.byNight[id];return n?dayL(n.date)+(n.group?' · '+n.group:''):''};
@@ -382,7 +384,7 @@ function drawPeople(){
  const list=Object.values(S.P).filter(p=>(!q||low(p.name).includes(q)||p.alts.some(a=>low(a).includes(q)))&&(!dkPClass||p.cls===dkPClass))
   .sort((a,b)=>{const x=val(a,dkPSort[0]),y=val(b,dkPSort[0]);return (typeof x==='string'?String(x).localeCompare(y):x-y)*dkPSort[1]||a.name.localeCompare(b.name)});
  const cap=dk.settings.cap;
- $('dkPRows').innerHTML=list.map(p=>`<tr><td data-l="Person"><button type="button" class="link-btn" data-person="${esc(p.person)}" style="color:#F1ECE6;font-weight:600">${esc(p.name)}</button>${p.alts.length?`<span style="color:#8F857C;font-size:13px"> +${p.alts.length} alt${p.alts.length>1?'s':''}</span>`:''}</td><td data-l="Class">${p.cls?G.dot(p.cls)+esc(p.cls):'—'}</td><td data-l="Balance" class="n" style="color:${p.draft>=cap?'#CDB07C':'#F1ECE6'};font-weight:600">${p.draft}${p.draft!==p.approved?` <span style="color:#8F857C;font-weight:400;font-size:13px">(${p.approved})</span>`:''}</td><td data-l="Earned" class="n">${p.earned}</td><td data-l="Spent" class="n">${p.spent}</td><td data-l="Items" class="n">${p.items.length}</td><td data-l="Attendance" class="n">${p.held?`${pct(p.att)} <span style="color:#8F857C;font-size:13px">${p.present.size}/${p.held}</span>`:'—'}</td><td data-l="Last raid" style="color:#AEA49A;white-space:nowrap">${esc(p.last?nLabel(p.last):'—')}</td></tr>`).join('')||'<tr><td colspan="8" style="color:#8F857C">Nobody matches.</td></tr>';
+ $('dkPRows').innerHTML=list.map(p=>`<tr><td data-l="Person"><button type="button" class="link-btn" data-person="${esc(p.person)}" style="color:#F1ECE6;font-weight:600">${esc(p.name)}</button>${p.alts.length?`<span style="color:#8F857C;font-size:13px"> +${p.alts.length} alt${p.alts.length>1?'s':''}</span>`:''}</td><td data-l="Class">${p.cls?G.dot(p.cls)+esc(p.cls):'—'}</td><td data-l="Balance" class="n" style="color:${p.draft>=cap?'#CDB07C':'#F1ECE6'};font-weight:600">${p.draft}${p.draft!==p.approved?`<span style="display:block;color:#CDB07C;font-weight:400;font-size:12px">${p.draft-p.approved>0?'+':''}${p.draft-p.approved} waiting</span>`:''}</td><td data-l="Earned" class="n">${p.earned}</td><td data-l="Spent" class="n">${p.spent}</td><td data-l="Items" class="n">${p.items.length}</td><td data-l="Attendance" class="n">${p.held?`${pct(p.att)} <span style="color:#8F857C;font-size:13px">${p.present.size}/${p.held}</span>`:'—'}</td><td data-l="Last raid" style="color:#AEA49A;white-space:nowrap">${esc(p.last?nLabel(p.last):'—')}</td></tr>`).join('')||'<tr><td colspan="8" style="color:#8F857C">Nobody matches.</td></tr>';
 }
 $('dkPQ').addEventListener('input',drawPeople);
 $('dkPCls').addEventListener('click',e=>{const b=e.target.closest('[data-pc]');if(b){dkPClass=b.dataset.pc;drawPeople()}});
@@ -444,7 +446,21 @@ $('dkQ').addEventListener('input',drawDkRows);
 $('dkRows').addEventListener('change',e=>{const b=e.target.closest('[data-tk]');if(!b)return;const set=tick[b.dataset.tk];b.checked?set.add(b.dataset.k):set.delete(b.dataset.k)});
 $('dkFill').addEventListener('click',()=>{data.characters.filter(c=>c.signup&&(c.signup.dec9==='Yes'||c.signup.dec9==='Probably')).forEach(c=>{tick.start.add(c.key);tick.end.add(c.key)});drawDkRows()});
 $('dkClear').addEventListener('click',()=>{Object.values(tick).forEach(x=>x.clear());drawDkRows()});
-const dkDo=async(path,body,done,after)=>{try{const d=await oapi(path,body);$('msg').textContent=typeof done==='function'?done(d):done;if(after)after();await loadDkp()}catch(e){$('msg').textContent=e.message}};
+
+function csvDl(name,rows){
+ const cell=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+ const blob=new Blob(['﻿'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+const today=()=>new Date().toISOString().slice(0,10);
+$('dkCsvBal').addEventListener('click',()=>{if(!S)return;
+ csvDl(`mystic-dragons-dkp-balances-${today()}.csv`,[['Person','Alts','Class','Approved balance','Balance with drafts','Earned','Spent','Decay','Items','Raid nights attended','Raid nights since first','Attendance %','Last raid'],
+  ...Object.values(S.P).sort((a,b)=>b.draft-a.draft).map(p=>[p.name,p.alts.join('; '),p.cls||'',p.approved,p.draft,p.earned,p.spent,p.decay,p.items.length,p.present.size,p.held,p.held?Math.round(p.att*100):'',p.last?(S.byNight[p.last]?.date||''):''])])});
+$('dkCsvTx').addEventListener('click',()=>{if(!S)return;
+ csvDl(`mystic-dragons-dkp-ledger-${today()}.csv`,[['When (UTC)','Raid night','Group','Person','Character','Type','Item','Note','Change','Status','Entered by'],
+  ...dk.tx.map(t=>{const n=S.byNight[t.n];return [t.at,n?n.date:'',n?.group||'',S.P[t.person]?.name||t.person,t.charName||'',KIND[t.kind]||t.kind,t.item||'',['start','decay','bench'].includes(t.kind)?'':(t.note||''),t.delta,t.status==='draft'?'Draft':'Approved',t.by||'']})])});
+let dkBusy=false;
+const dkDo=async(path,body,done,after)=>{if(dkBusy)return;dkBusy=true;$('msg').textContent='Working…';try{const d=await oapi(path,body);$('msg').textContent=typeof done==='function'?done(d):done;if(after)after();await loadDkp()}catch(e){$('msg').textContent=e.message}finally{dkBusy=false}};
 $('dkNight').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-night',{date:$('dkDate').value,group:$('dkGroup').value,start:[...tick.start],end:[...tick.end],bench:[...tick.bench]},d=>`Raid night saved for ${d.people} ${d.people===1?'person':'people'}. It’s a draft until you approve the sheet.`,()=>{Object.values(tick).forEach(x=>x.clear());$('dkGroup').value=''})});
 $('dkAward').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-award',{char:charKey($('dkAChar').value),item:$('dkAItem').value,amount:$('dkAAmt').value},'Award added as a draft.',()=>{['dkAChar','dkAItem','dkAAmt'].forEach(i=>$(i).value='')})});
 $('dkAdj').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-adjust',{char:charKey($('dkJChar').value),amount:$('dkJAmt').value,note:$('dkJNote').value},'Adjustment added as a draft.',()=>{['dkJChar','dkJAmt','dkJNote'].forEach(i=>$(i).value='')})});

@@ -476,6 +476,7 @@ async function officerRoute(s, route, body, reqUrl = '') {
       const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date || '') ? body.date : new Date().toISOString().slice(0, 10);
       const list = k => (Array.isArray(body[k]) ? body[k] : []).map(x => clean(x, 40)).filter(x => byKey[x]);
       const r = await DKP.recordNight(s, { date, group: clean(body.group, 40), start: list('start'), end: list('end'), bench: list('bench'), by: who }, byKey);
+      if (r.duplicate) return json({ error: `That night (${date}${r.duplicate.group ? ', ' + r.duplicate.group : ''}) is already entered. Fix it from Raid nights, or give this one a different group name.` }, 409);
       if (!r.people) return json({ error: 'Tick at least one person.' }, 400);
       await log(s, 'dkp-night', `${date}${r.night.group ? ' ' + r.night.group : ''}`, 'officer', { by: who, people: r.people });
       return json({ ok: true, people: r.people });
@@ -542,7 +543,12 @@ async function officerRoute(s, route, body, reqUrl = '') {
       const signs = await Promise.all(chars.map(x => s.get(`signup/dec9/${x.key}`, { type: 'json' })));
       const raiders = chars.filter((x, i) => signs[i] && signs[i].dec9 !== 'No');
       if (raiders.length < 3) return json({ error: 'Need at least 3 people signed up for Dec 9 to build examples from.' }, 400);
-      const r = await DKP.seedDemo(s, raiders, byKey, who);
+      // One build at a time: a second click while the first is running doubled everything.
+      const busy = await s.get('dkp/demo-lock', { type: 'json' });
+      if (busy && Date.now() - busy.at < 180e3) return json({ error: 'Example data is already being built. Give it a minute, then hit Refresh.' }, 409);
+      await s.setJSON('dkp/demo-lock', { at: Date.now() });
+      let r;
+      try { r = await DKP.seedDemo(s, raiders, byKey, who); } finally { await s.delete('dkp/demo-lock'); }
       await log(s, 'dkp-demo', `${r.nights} example nights`, 'officer', { by: who });
       return json({ ok: true, ...r });
     }

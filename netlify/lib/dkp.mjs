@@ -52,6 +52,9 @@ export async function recordNight(s, { date, group, start = [], end = [], bench 
   const cfg = await settings(s), st = await state(s);
   const drafts = await allTx(s, 'draft');
   const startedDraft = new Set(drafts.filter(t => t.kind === 'start').map(t => t.person));
+  // Same date and group already entered: refuse rather than double-count.
+  const { blobs: existing } = await s.list({ prefix: `dkp/nights/${date}-` });
+  for (const b of existing) { const n = await s.get(b.key, { type: 'json' }); if (n && (n.group || '') === (group || '')) return { duplicate: n }; }
   const night = { id: `${date}-${rid()}`, date, group: group || '', by, at: when || stamp() };
   await s.setJSON(`dkp/nights/${night.id}`, night);
   const people = new Map();
