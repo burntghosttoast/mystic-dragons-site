@@ -455,6 +455,25 @@ export default async (req, context) => {
   try {
     await migrateKeys(s);
 
+    if (req.method === 'GET' && route === 'probe-gamedata') {
+      // Temporary: checks which Blizzard endpoints Forever answers, for the crafting search work.
+      const token = await blizzToken(s);
+      const out = {};
+      const peek = (b) => JSON.stringify(b).slice(0, 1500);
+      const tryp = async (label, path, ns) => { const r = await bget(token, path, ns); out[label] = { status: r.status, body: r.body ? peek(r.body) : null }; return r.body; };
+      for (const ns of ['static-forever-us', 'static-classic1x-us']) await tryp('profIndex ' + ns, '/data/wow/profession/index', ns);
+      const tailor = await tryp('prof197', '/data/wow/profession/197', 'static-forever-us');
+      const tier = tailor?.skill_tiers?.[0]?.id;
+      if (tier) await tryp('tier', `/data/wow/profession/197/skill-tier/${tier}`, 'static-forever-us');
+      await tryp('searchItem', '/data/wow/search/item?name.en_US=Azure%20Silk&_pageSize=10', 'static-forever-us');
+      const k = (await allChars(s)).find(c => c.bslug && c.synced);
+      if (k) {
+        const pr = await tryp('charProf', `/profile/wow/character/${encodeURIComponent(k.bslug)}/professions`);
+        await tryp('charRep', `/profile/wow/character/${encodeURIComponent(k.bslug)}/reputations`);
+      }
+      return json(out);
+    }
+
     if (req.method === 'GET' && route === 'roster') {
       await seedFromForms(s, context);
       const force = url.searchParams.get('sync') === '1';
