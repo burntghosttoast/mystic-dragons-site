@@ -88,13 +88,13 @@ export async function handleDiscord(req, s, ctx, d) {
     const a = { ...(sign || {}), ...(draft && draft.key === c.key ? draft : {}) };
     const specs = d.SPECS[c.cls] || [];
     const rows = [
-      select('su:spec', 'Your main spec', specs.map(([n, r]) => ({ label: n, description: r, value: n, default: c.main_spec === n }))),
-      select('su:dec9', 'Looking to raid on December 9?', d.DEC9.map(v => ({ label: v, value: v, default: a.dec9 === v })))
+      select('su:spec', 'Your main spec', specs.map(([n, r]) => ({ label: `Main spec: ${n}`, description: r, value: n, default: c.main_spec === n }))),
+      select('su:dec9', 'Looking to raid on December 9?', d.DEC9.map(v => ({ label: `Raiding Dec 9: ${v}`, value: v, default: a.dec9 === v })))
     ];
-    if (a.dec9 === 'Yes' || a.dec9 === 'Probably') rows.push(select('su:attune', 'What about your attunement for the 40-man?', d.ATTUNE.map(v => ({ label: v, value: v, default: a.attune === v }))));
+    if (a.dec9 === 'Yes' || a.dec9 === 'Probably') rows.push(select('su:attune', 'What about your attunement for the 40-man?', d.ATTUNE.map(v => ({ label: `40-man attunement: ${v}`, value: v, default: a.attune === v }))));
     if (a.dec9 === 'No') {
-      rows.push(select('su:later', 'Raiding with us after that?', d.LATER.map(v => ({ label: v, value: v, default: a.later === v }))));
-      if (a.later && a.later !== 'Not planning to raid' && c.level < 60) rows.push(select('su:eta', 'Roughly when do you expect to hit 60?', d.ETA.map(v => ({ label: v, value: v, default: a.eta === v }))));
+      rows.push(select('su:later', 'Raiding with us after that?', d.LATER.map(v => ({ label: `Raiding with us after that: ${v}`, value: v, default: a.later === v }))));
+      if (a.later && a.later !== 'Not planning to raid' && c.level < 60) rows.push(select('su:eta', 'Roughly when do you expect to hit 60?', d.ETA.map(v => ({ label: `Hitting 60: ${v}`, value: v, default: a.eta === v }))));
     }
     rows.push({ type: 1, components: [btn('su:notes', a.notes ? 'Edit notes' : 'Add notes'), btn('su:switch', 'Not this character?'), ...(sign ? [btn('su:withdraw', 'Remove my signup', 4)] : [])] });
     const pending = draft && draft.key === c.key;
