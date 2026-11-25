@@ -5,7 +5,7 @@
 //   ddraft/<discord user id>  answers not finished yet (saved as a signup once complete)
 //   meta/discord-board        the live signup message { channel, message }
 import crypto from 'node:crypto';
-import { buildSummary } from './summary.mjs';
+import { buildSummary, emojiCodes, specIcon } from './summary.mjs';
 
 const API = 'https://discord.com/api/v10';
 const EPHEMERAL = 64;
@@ -13,6 +13,10 @@ export const INVITE_PERMISSIONS = 1024 + 2048 + 16384 + 65536 + 262144; // view,
 
 const COMMANDS = [
   { name: 'signup', description: 'Sign up or change your answer for the December 9 raid', type: 1, dm_permission: false },
+  { name: 'craft', description: 'Who in the guild can make an item', type: 1, dm_permission: false,
+    options: [{ type: 3, name: 'item', description: 'Item or recipe name', required: true, autocomplete: true }] },
+  { name: 'who', description: 'Look up a guild member', type: 1, dm_permission: false,
+    options: [{ type: 3, name: 'character', description: 'Character name', required: true, autocomplete: true }] },
   { name: 'signup-post', description: 'Post the raid signup message in this channel (officers)', type: 1, dm_permission: false, default_member_permissions: String(32) }
 ];
 
@@ -128,9 +132,36 @@ export async function handleDiscord(req, s, ctx, d) {
 
   const showFor = async c => { const [content, rows] = await panel(c); return respond(i, content, rows); };
 
+  /* ---------- autocomplete for /craft and /who ---------- */
+  const opt = n => (i.data?.options || []).find(o => o.name === n);
+  if (i.type === 4) {
+    const o = (i.data?.options || []).find(x => x.focused) || {};
+    const q = d.slug(o.value || '');
+    let choices = [];
+    if (i.data.name === 'craft') {
+      const [known, idx] = await Promise.all([s.get('meta/craft-known', { type: 'json' }), s.get('meta/recipe-index', { type: 'json' })]);
+      const seen = new Set(), list = [];
+      for (const r of Object.values(known?.r || {})) { seen.add(r.n); list.push({ n: r.n, v: r.id ? 'i:' + r.id : 'n:' + r.n, k: 1 }); }
+      for (const [id, e] of Object.entries(idx?.e || {})) if (!seen.has(e.n) && !e.b) { seen.add(e.n); list.push({ n: e.n, v: 'i:' + id, k: 0 }); }
+      choices = list.filter(x => !q || d.slug(x.n).includes(q))
+        .sort((a, b) => (d.slug(b.n).startsWith(q) - d.slug(a.n).startsWith(q)) || (b.k - a.k) || a.n.localeCompare(b.n))
+        .slice(0, 25).map(x => ({ name: (x.k ? x.n : `${x.n} (nobody yet)`).slice(0, 100), value: x.v.slice(0, 100) }));
+    } else if (i.data.name === 'who') {
+      const known = await s.get('meta/craft-known', { type: 'json' });
+      const chars = Object.entries(known?.c || {}).map(([key, c]) => ({ key, ...c }));
+      const list = chars.length ? chars : (await d.allChars(s)).filter(c => c.key && c.in_guild !== false);
+      choices = list.filter(c => !q || d.slug(c.name).includes(q))
+        .sort((a, b) => (d.slug(b.name).startsWith(q) - d.slug(a.name).startsWith(q)) || a.name.localeCompare(b.name))
+        .slice(0, 25).map(c => ({ name: `${c.name} · ${c.level} ${c.cls}`.slice(0, 100), value: c.key }));
+    }
+    return json({ type: 8, data: { choices } });
+  }
+
   /* ---------- commands ---------- */
   if (i.type === 2) {
     const name = i.data?.name;
+    if (name === 'craft') return craftReply(String(opt('item')?.value || ''));
+    if (name === 'who') return whoReply(String(opt('character')?.value || ''));
     if (name === 'signup-post') {
       const r = await dapi(`/channels/${i.channel_id}/messages`, 'POST', { embeds: [await buildSummary(s)], components: boardButtons() });
       if (!r.ok) return reply(`I couldn’t post here (Discord said ${r.status}). Make sure I can view and send messages in this channel.`);
@@ -141,6 +172,68 @@ export async function handleDiscord(req, s, ctx, d) {
     }
     if (name === 'signup') { const c = await linked(); return c ? showFor(c) : nameModal(); }
     return reply('I don’t know that command.');
+  }
+
+  /* ---------- /craft ---------- */
+  async function craftReply(v) {
+    const QCOL = { POOR: 0x9d9d9d, COMMON: 0xffffff, UNCOMMON: 0x1eff00, RARE: 0x0070dd, EPIC: 0xa335ee, LEGENDARY: 0xff8000 };
+    const STAND = ['Hated', 'Hostile', 'Unfriendly', 'Neutral', 'Friendly', 'Honored', 'Revered', 'Exalted'];
+    const [known, idx, codes] = await Promise.all([s.get('meta/craft-known', { type: 'json' }), s.get('meta/recipe-index', { type: 'json' }), emojiCodes(s)]);
+    const K = known?.r || {}, E = idx?.e || {};
+    // A picked suggestion carries an id; typed text is matched by name.
+    let id = /^i:\d+$/.test(v) ? Number(v.slice(2)) : null, rname = v.startsWith('n:') ? v.slice(2) : v;
+    if (!id) {
+      const q = d.slug(rname);
+      const names = [...Object.values(K).map(r => [r.n, r.id]), ...Object.entries(E).map(([k, e]) => [e.n, Number(k)])];
+      const hit = names.find(([n]) => d.slug(n) === q) || names.find(([n]) => d.slug(n).startsWith(q)) || names.find(([n]) => d.slug(n).includes(q));
+      if (!hit) return reply(`I couldn’t find a recipe called **${d.clean(rname, 60)}**. Try picking one from the suggestions as you type.`);
+      [rname, id] = hit;
+    }
+    const e = id ? E[id] : null;
+    const k = (id && K['i' + id]) || Object.values(K).find(r => r.n === (e?.n || rname));
+    const title = e?.n || k?.n || rname;
+    const who = (k?.k || []).map(([key, skill]) => ({ c: known.c[key], skill })).filter(x => x.c).sort((a, b) => (b.skill || 0) - (a.skill || 0));
+    const embed = { title, url: `https://mysticdragons.org/crafters?q=${encodeURIComponent(title)}`, color: QCOL[e?.q] ?? 0xA3BC6E, fields: [] };
+    if (e?.l) embed.description = e.l.slice(0, 400);
+    if (e?.ic) embed.thumbnail = { url: e.ic };
+    if (who.length) {
+      const lines = who.map(x => `${specIcon(codes, x.c)} ${x.c.name}${x.skill ? ` · ${x.skill}` : ''}`.trim());
+      let val = ''; for (const l of lines) { if ((val + l).length > 1000) { val += `\n…and ${lines.length - val.split('\n').length} more`; break; } val += (val ? '\n' : '') + l; }
+      embed.fields.push({ name: `Can make it · ${who.length}`, value: val });
+    } else {
+      embed.fields.push({ name: 'Can make it', value: 'Nobody in the guild knows this one yet.' });
+      if (e?.src) embed.fields.push({ name: 'How to get it', value: `Learned from [${e.src.name}](https://www.wowhead.com/classic/item=${e.src.id})${e.rep ? `, which needs **${e.rep.faction} – ${STAND[e.rep.level] || ''}**` : ''}.` });
+      else if (e) embed.fields.push({ name: 'How to get it', value: 'Most likely taught by a trainer.' });
+    }
+    embed.footer = { text: `${e?.p || k?.p || ''}${e?.p || k?.p ? ' · ' : ''}Full details at mysticdragons.org/crafters` };
+    return json({ type: 4, data: { embeds: [embed], allowed_mentions: { parse: [] } } });
+  }
+
+  /* ---------- /who ---------- */
+  async function whoReply(v) {
+    let c = await s.get(`char/${d.clean(v, 40)}`, { type: 'json' });
+    if (!c) {
+      const q = d.slug(v), all = (await d.allChars(s)).filter(x => x.key && x.in_guild !== false);
+      c = all.find(x => d.slug(x.name) === q) || all.find(x => d.slug(x.name).startsWith(q)) || all.find(x => d.slug(x.name).includes(q));
+    }
+    if (!c) return reply(`I couldn’t find **${d.clean(v, 40)}** in the guild roster.`);
+    const [info, prof, sign, codes] = await Promise.all([s.get(`info/${c.key}`, { type: 'json' }), s.get(`prof/${c.key}`, { type: 'json' }), s.get(`signup/dec9/${c.key}`, { type: 'json' }), emojiCodes(s)]);
+    const RANK = r => r === 0 ? 'Guild Master' : r === 1 ? 'Officer' : 'Member';
+    const spec = c.main_spec ? `${specIcon(codes, c)} ${c.main_spec} (${c.main_role})${(c.also_specs || []).length ? `\nAlso plays ${c.also_specs.join(', ')}` : ''}` : (c.main_role || 'Not picked yet');
+    const profs = (prof || []).filter(p => p.name).map(p => `${p.name}${p.skill ? ` ${p.skill}${p.max ? '/' + p.max : ''}` : ''}`).join('\n');
+    const embed = {
+      title: c.name, url: `https://mysticdragons.org/character?c=${encodeURIComponent(c.key)}`, color: 0xA3BC6E,
+      description: `Level ${c.level}${c.race ? ' ' + c.race : ''} ${c.cls} · ${RANK(c.rank)}${info?.profile?.item_level ? ` · item level ${info.profile.item_level}` : ''}`,
+      fields: [
+        { name: 'Spec', value: spec.slice(0, 1000), inline: true },
+        { name: 'Professions', value: profs || 'None found', inline: true },
+        { name: 'December 9', value: sign ? `${sign.dec9}${sign.attune ? `\nAttunement: ${sign.attune}` : ''}` : 'Not signed up', inline: true }
+      ],
+      footer: { text: 'More on their character page at mysticdragons.org' }
+    };
+    const avatar = (info?.media || []).find(m => m.key === 'avatar')?.url;
+    if (avatar) embed.thumbnail = { url: avatar };
+    return json({ type: 4, data: { embeds: [embed], allowed_mentions: { parse: [] } } });
   }
 
   /* ---------- buttons, dropdowns, forms ---------- */

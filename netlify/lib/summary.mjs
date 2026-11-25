@@ -1,14 +1,14 @@
 // Builds and posts the raid signup summary to Discord (DISCORD_WEBHOOK_URL).
 const ORDER = ['Tank', 'Healer', 'Melee DPS', 'Ranged DPS'];
 // Our server's emoji names. Older saves have only a role: a spec icon where class + role tells us the spec, else the class icon.
-const SPEC = {
+export const SPEC = {
   'Warrior|Tank': 'warrior_prot', 'Paladin|Tank': 'paladin_protection', 'Paladin|Healer': 'paladin_holy', 'Paladin|Melee DPS': 'paladin_ret',
   'Priest|Healer': 'priest_holy', 'Priest|Ranged DPS': 'priest_shadow',
   'Shaman|Healer': 'shaman_resto', 'Shaman|Melee DPS': 'shaman_enhancement', 'Shaman|Ranged DPS': 'shaman_elem',
   'Druid|Tank': 'druid_guardian', 'Druid|Healer': 'druid_resto', 'Druid|Melee DPS': 'druid_feral', 'Druid|Ranged DPS': 'druid_balance'
 };
 // Picked specs to emoji names.
-const SPEC_PICKED = {
+export const SPEC_PICKED = {
   'Warrior|Arms': 'warrior_arms', 'Warrior|Fury': 'warrior_fury', 'Warrior|Protection': 'warrior_prot',
   'Paladin|Holy': 'paladin_holy', 'Paladin|Protection': 'paladin_protection', 'Paladin|Retribution': 'paladin_ret',
   'Hunter|Beast Mastery': 'hunter_bm', 'Hunter|Marksmanship': 'hunter_mm', 'Hunter|Survival': 'hunter_survival',
@@ -19,7 +19,7 @@ const SPEC_PICKED = {
   'Warlock|Affliction': 'warlock_affli', 'Warlock|Demonology': 'warlock_demono', 'Warlock|Destruction': 'warlock_destru',
   'Druid|Balance': 'druid_balance', 'Druid|Feral (Cat)': 'druid_feral', 'Druid|Feral (Bear)': 'druid_guardian', 'Druid|Restoration': 'druid_resto'
 };
-const CLASS_EMOJI = { Warrior: '777528warrior', Paladin: '338425paladin', Hunter: 'kindpng_5733924', Rogue: '992310rogue', Priest: '424450priest',
+export const CLASS_EMOJI = { Warrior: '777528warrior', Paladin: '338425paladin', Hunter: 'kindpng_5733924', Rogue: '992310rogue', Priest: '424450priest',
   Shaman: '962470shaman', Mage: '934773mage', Warlock: '412823warlock', Druid: '831785druid' };
 // Our server's emoji IDs. Officers can add or replace codes on the officer page.
 export const DEFAULT_CODES = {
@@ -116,4 +116,12 @@ export async function buildSummary(s) {
     footer: { text: 'Bold = yes, italic = probably. Icons after “also” are other specs they’ll play; (+N) is how many more could fill that role. Sign up or change your answer at mysticdragons.org/signup' }
   };
   return embed;
+}
+
+// Our server's emoji codes (built in, plus any officers pasted on the officer page).
+export async function emojiCodes(s) {
+  return { ...DEFAULT_CODES, ...((await s.get('meta/emoji-codes', { type: 'json' })) || {}) };
+}
+export function specIcon(codes, c) {
+  return codes[SPEC_PICKED[`${c.cls}|${c.main_spec}`]] || codes[SPEC[`${c.cls}|${c.main_role}`]] || codes[CLASS_EMOJI[c.cls]] || '';
 }

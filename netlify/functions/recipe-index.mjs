@@ -32,6 +32,17 @@ export default async () => {
   for (const [name, p] of Object.entries(cat?.profs || {})) for (const [id] of p.recipes) profOf.set(id, name);
   profDocs.forEach(list => (list || []).forEach(p => p.recipes.forEach(r => { if (r?.id) { known.add(r.id); if (!profOf.has(r.id)) profOf.set(r.id, p.name); } })));
 
+  // Who knows what, in one small file the Discord bot can search quickly.
+  const knownBy = {};
+  chars.forEach((c, n) => (profDocs[n] || []).forEach(p => p.recipes.forEach(r => {
+    const name = typeof r === 'string' ? r : r.name;
+    const k = r?.id ? 'i' + r.id : 'n' + name;
+    const e = knownBy[k] || (knownBy[k] = { id: r?.id || null, n: name, p: p.name, k: [] });
+    e.k.push([c.key, p.skill]);
+  })));
+  await s.setJSON('meta/craft-known', { at: Date.now(), r: knownBy,
+    c: Object.fromEntries(chars.map(c => [c.key, { name: c.name, cls: c.cls, level: c.level, main_spec: c.main_spec || '', main_role: c.main_role || '' }])) });
+
   const idx = (await s.get('meta/recipe-index', { type: 'json' })) || { v: RECIPE_V, e: {}, miss: {} };
   if (idx.v !== RECIPE_V) { idx.v = RECIPE_V; idx.e = {}; idx.miss = {}; }
   idx.miss = idx.miss || {};
