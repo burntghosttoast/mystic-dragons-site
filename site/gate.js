@@ -9,7 +9,28 @@
   var path = location.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
   var root = document.documentElement;
   root.classList.add(claimed ? 'md-guildie' : 'md-visitor');
-  if (claimed) return;
+  // The guild pages live in their own GUILD bar now, so they come out of the Forever menu for everyone.
+  var base = GUILD.map(function (p) { return 'nav[aria-label="Forever pages"] a[href="' + p + '"]'; }).join(',') + '{display:none!important}'
+    + '.md-visitor header a[href="/characters"]{display:none!important}';
+  var st0 = document.createElement('style'); st0.textContent = base; document.head.appendChild(st0);
+  if (claimed) {
+    document.addEventListener('DOMContentLoaded', function () {
+      var sub = document.querySelector('nav[aria-label="Forever pages"]');
+      var bar = sub && sub.closest('header + div');
+      if (!bar) return;
+      var L = [['/signup', 'Sign Up'], ['/roster', 'Roster'], ['/crafters', 'Crafters'], ['/dkp', 'Your DKP']];
+      var g = document.createElement('div'); g.className = 'md-guildbar';
+      g.style.cssText = 'background:#1F1A14;border-bottom:1px solid #4A3F2C';
+      g.innerHTML = '<div style="max-width:1160px;margin:0 auto;padding:0 24px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 20px">'
+        + '<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:600;font-size:14px;letter-spacing:.2em;color:#CDB07C">GUILD</span>'
+        + '<nav aria-label="Guild pages" style="display:flex;flex-wrap:wrap;font-size:16px">'
+        + L.map(function (l) { var on = path === l[0] || (l[0] === '/roster' && path === '/character');
+            return '<a href="' + l[0] + '"' + (on ? ' aria-current="page"' : '') + ' style="color:' + (on ? '#F1ECE6' : '#CFC7BE') + ';text-decoration:none;padding:12px 16px;border-bottom:2px solid ' + (on ? '#CDB07C' : 'transparent') + (on ? ';font-weight:600' : '') + '">' + l[1] + '</a>'; }).join('')
+        + '</nav><span style="margin-left:auto;font-size:13px;color:#8F857C">Members only</span></div>';
+      bar.after(g);
+    });
+    return;
+  }
 
   var locked = GUILD.indexOf(path) !== -1 && path !== '/dkp'; // /dkp has its own claim prompt
   if (locked) root.classList.add('md-lock');
@@ -33,7 +54,8 @@
       if (bar) bar.after(box); else (document.querySelector('header') || document.body.firstChild).after(box);
       return;
     }
-    if (bar && !nudgeOff) {
+    var anchor = bar || (path === '/' && document.querySelector('header'));
+    if (anchor && !nudgeOff) {
       var n = document.createElement('div');
       n.style.cssText = 'background:#1B1716;border-bottom:1px solid #362D2A';
       n.innerHTML = '<div style="max-width:1160px;margin:0 auto;padding:12px 24px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;font-size:15px;color:#CFC7BE">'
@@ -41,7 +63,7 @@
         + '<a href="/claim?next=' + next + '" style="color:#A3BC6E;font-weight:600;text-decoration:none">Claim your character →</a>'
         + '<button type="button" aria-label="Hide this" style="margin-left:auto;background:none;border:0;color:#8F857C;font-size:20px;line-height:1;cursor:pointer;padding:4px 8px">×</button></div>';
       n.querySelector('button').addEventListener('click', function () { n.remove(); try { localStorage.setItem('md-nudge-off', '1'); } catch (_) {} });
-      bar.after(n);
+      anchor.after(n);
     }
   });
 })();
