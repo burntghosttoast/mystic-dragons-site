@@ -3,13 +3,14 @@
 // https://mysticdragons.org/api/discord). Nothing runs in between; all state is in Netlify Blobs.
 //   dlink/<discord user id>   which character a Discord user signs up as
 //   ddraft/<discord user id>  answers not finished yet (saved as a signup once complete)
-//   meta/discord-board        the live signup message { channel, message }
-//   meta/discord-guild        the server's id (looked up from the board's channel)
-//   meta/discord-events       raid events the bot made: [{ id, date, title }]
+//   dev/<discord user id>     which event that user is signing up for right now
+//   meta/discord-guild        the server's id (looked up from a signup message's channel)
+// Each event's signup message and Discord event live on the event itself (see events.mjs).
 import crypto from 'node:crypto';
 import { buildSummary, emojiCodes, specIcon } from './summary.mjs';
 import * as DKP from './dkp.mjs';
 import { checkLock, tooMany, failed } from './lock.mjs';
+import * as EV from './events.mjs';
 
 const API = 'https://discord.com/api/v10';
 const EPHEMERAL = 64;
@@ -18,13 +19,14 @@ const EPHEMERAL = 64;
 export const INVITE_PERMISSIONS = 1024 + 2048 + 16384 + 65536 + 262144 + 1048576 + 8589934592 + 17592186044416;
 
 const COMMANDS = [
-  { name: 'signup', description: 'Sign up or change your answer for the December 9 raid', type: 1, dm_permission: false },
+  { name: 'signup', description: 'Sign up or change your answer for a guild event', type: 1, dm_permission: false },
+  { name: 'event', description: 'Make a guild event: a raid night or anything else (officers)', type: 1, dm_permission: false, default_member_permissions: String(8589934592) },
   { name: 'crafter', description: 'Who in Mystic Dragons (Forever) can make an item', type: 1, dm_permission: false,
     options: [{ type: 3, name: 'item', description: 'Item or recipe name', required: true, autocomplete: true }] },
   { name: 'who', description: 'Look up a guild member', type: 1, dm_permission: false,
     options: [{ type: 3, name: 'character', description: 'Character name', required: true, autocomplete: true }] },
   { name: 'dkp', description: 'Your DKP balance (only you see it)', type: 1, dm_permission: false },
-  { name: 'signup-post', description: 'Post the raid signup message in this channel (officers)', type: 1, dm_permission: false, default_member_permissions: String(32) }
+  { name: 'signup-post', description: 'Post an event’s signup message in this channel (officers)', type: 1, dm_permission: false, default_member_permissions: String(32) }
 ];
 
 export function verifyDiscord(publicKey, signature, timestamp, body) {
@@ -51,17 +53,29 @@ export async function registerCommands() {
   return { ok: true, invite: `https://discord.com/oauth2/authorize?client_id=${app}&scope=bot%20applications.commands&permissions=${INVITE_PERMISSIONS}` };
 }
 
-const boardButtons = () => [{ type: 1, components: [
-  { type: 2, style: 3, custom_id: 'su:start', label: 'Sign up / change my answer' },
-  { type: 2, style: 5, url: 'https://mysticdragons.org/signup', label: 'Sign up on the website' }
+const boardButtons = ev => [{ type: 1, components: [
+  { type: 2, style: 3, custom_id: 'su:start:' + ev.id, label: 'Sign up / change my answer' },
+  { type: 2, style: 5, url: 'https://mysticdragons.org/signup?event=' + encodeURIComponent(ev.id), label: 'Sign up on the website' },
+  ...(ev.discord?.id ? [{ type: 2, style: 5, url: `https://discord.com/events/${ev.discord.guild}/${ev.discord.id}`, label: 'Discord event' }] : [])
 ] }];
+
+// Post an event's signup message in a channel; it keeps itself up to date from then on.
+export async function postBoard(s, ev, channel) {
+  const r = await dapi(`/channels/${channel}/messages`, 'POST', { embeds: [await buildSummary(s, ev)], components: boardButtons(ev) });
+  if (!r.ok) return { error: `I couldn’t post there (Discord said ${r.status}). Make sure I can view and send messages in that channel.` };
+  const m = await r.json();
+  ev.board = { channel, message: m.id, at: new Date().toISOString() };
+  await EV.saveEvent(s, ev);
+  if (!(await s.get('meta/discord-guild', { type: 'json' }))) await guildId(s, channel);
+  return { ok: true };
+}
 
 /* ---------- raid nights as Discord events ---------- */
 // Which server the bot is in: read from the channel the signup board lives in.
-async function guildId(s) {
+async function guildId(s, channel) {
   const g = await s.get('meta/discord-guild', { type: 'json' });
   if (g?.id) return g.id;
-  const b = await s.get('meta/discord-board', { type: 'json' });
+  const b = channel ? { channel } : ((await EV.allEvents(s)).find(e => e.board) || {}).board || await s.get('meta/discord-board', { type: 'json' });
   if (!b) return null;
   const r = await dapi(`/channels/${b.channel}`);
   if (!r.ok) return null;
@@ -80,59 +94,67 @@ function easternIso(date, time) {
   return new Date(`${date}T${time}:00-05:00`).toISOString();
 }
 
-async function signupLine(s) {
-  const d = (await buildSummary(s)).description || '';
-  const m = d.match(/\*\*(\d+)\*\* yes · \*\*(\d+)\*\* probably/);
-  return m ? `${m[1]} signed up, ${m[2]} probably.` : '';
+async function signupLine(s, ev) {
+  const d = (await buildSummary(s, ev)).description || '';
+  const m = d.match(/\*\*(\d+)\*\* [^·]+ · \*\*(\d+)\*\* /);
+  return m ? `${m[1]} signed up, ${m[2]} ${EV.label(ev, 'Probably').toLowerCase()}.` : '';
 }
-const eventText = (note, line) => [note, 'Sign up or change your answer: https://mysticdragons.org/signup (or /signup here).', line].filter(Boolean).join('\n\n').slice(0, 1000);
+const eventText = (ev, line) => [ev.note, ev.type === 'raid' ? '' : 'Not a raid night (no DKP).',
+  `Sign up or change your answer: https://mysticdragons.org/signup?event=${encodeURIComponent(ev.id)} (or /signup here).`, line].filter(Boolean).join('\n\n').slice(0, 1000);
 
 export async function voiceChannels(s) {
   const id = await guildId(s);
-  if (!id) return { error: 'Post the signup board in Discord first (/signup-post), so I know which server to use.' };
+  if (!id) return { error: 'I don’t know your Discord server yet. Use any bot command there once (like /dkp), then try again.' };
   const r = await dapi(`/guilds/${id}/channels`);
   if (!r.ok) return { error: `Discord said ${r.status} when listing channels.` };
   return { channels: (await r.json()).filter(c => c.type === 2 || c.type === 13).sort((a, b) => a.position - b.position).map(c => ({ id: c.id, name: c.name })) };
 }
 
-// Make a Discord event for a raid night. where: a voice channel id, or '' for "Somewhere else" (the signup page).
-export async function createEvent(s, { date, start = '21:00', end = '23:00', title, channel, note }) {
+export async function textChannels(s) {
   const id = await guildId(s);
-  if (!id) return { error: 'Post the signup board in Discord first (/signup-post), so I know which server to use.' };
+  if (!id) return { error: 'I don’t know your Discord server yet. Use any bot command there once (like /dkp), then try again.' };
+  const r = await dapi(`/guilds/${id}/channels`);
+  if (!r.ok) return { error: `Discord said ${r.status} when listing channels.` };
+  return { channels: (await r.json()).filter(c => c.type === 0 || c.type === 5).sort((a, b) => a.position - b.position).map(c => ({ id: c.id, name: c.name })) };
+}
+
+// Make (or update) the Discord event for one of our events. channel: a voice channel id, or '' for the signup page.
+export async function syncDiscordEvent(s, ev, channel) {
+  const id = await guildId(s);
+  if (!id) return { error: 'I don’t know your Discord server yet. Use any bot command there once (like /dkp), then try again.' };
+  if (channel !== undefined) ev.channel = channel || '';
   const body = {
-    name: (title || 'Mystic Dragons raid night').slice(0, 100), privacy_level: 2,
-    scheduled_start_time: easternIso(date, start), scheduled_end_time: easternIso(date, end),
-    description: eventText(note, await signupLine(s)),
-    ...(channel ? { entity_type: 2, channel_id: channel } : { entity_type: 3, entity_metadata: { location: 'mysticdragons.org/signup' } })
+    name: ev.title.slice(0, 100), privacy_level: 2,
+    scheduled_start_time: easternIso(ev.date, ev.start), scheduled_end_time: easternIso(ev.date, ev.end),
+    description: eventText(ev, await signupLine(s, ev)),
+    ...(ev.channel ? { entity_type: 2, channel_id: ev.channel, entity_metadata: null } : { entity_type: 3, channel_id: null, entity_metadata: { location: 'mysticdragons.org/signup' } })
   };
-  const r = await dapi(`/guilds/${id}/scheduled-events`, 'POST', body);
-  if (r.status === 403 || r.status === 50013) return { error: 'The bot isn’t allowed to make events. In Discord: Server Settings → Roles → the bot’s role → turn on Create Events and Manage Events (and Connect, for a voice channel).' };
+  let r = ev.discord?.id ? await dapi(`/guilds/${ev.discord.guild}/scheduled-events/${ev.discord.id}`, 'PATCH', body) : null;
+  if (!r || r.status === 404) r = await dapi(`/guilds/${id}/scheduled-events`, 'POST', body);
+  if (r.status === 403) return { error: 'The bot isn’t allowed to make events. In Discord: Server Settings → Roles → the bot’s role → turn on Create Events and Manage Events (and Connect, for a voice channel).' };
   if (!r.ok) { const e = await r.json().catch(() => ({})); return { error: `Discord said ${r.status}${e.message ? ': ' + e.message : ''}.` }; }
-  const ev = await r.json();
-  const list = (await s.get('meta/discord-events', { type: 'json' })) || [];
-  list.push({ id: ev.id, guild: id, date, title: body.name, note: note || '' });
-  await s.setJSON('meta/discord-events', list.slice(-20));
-  return { ok: true, id: ev.id, url: `https://discord.com/events/${id}/${ev.id}` };
+  const de = await r.json();
+  ev.discord = { guild: de.guild_id || id, id: de.id };
+  await EV.saveEvent(s, ev);
+  if (ev.board) await dapi(`/channels/${ev.board.channel}/messages/${ev.board.message}`, 'PATCH', { components: boardButtons(ev) }).catch(() => {});
+  return { ok: true, url: `https://discord.com/events/${ev.discord.guild}/${ev.discord.id}` };
+}
+export async function deleteDiscordEvent(s, ev) {
+  if (ev.discord?.id) await dapi(`/guilds/${ev.discord.guild}/scheduled-events/${ev.discord.id}`, 'DELETE').catch(() => {});
+  if (ev.board) await dapi(`/channels/${ev.board.channel}/messages/${ev.board.message}`, 'DELETE').catch(() => {});
 }
 
-// Keep upcoming events' signup counts current (called alongside the board refresh).
-async function refreshEvents(s) {
-  const list = (await s.get('meta/discord-events', { type: 'json' })) || [];
-  const today = new Date(Date.now() - 5 * 3600e3).toISOString().slice(0, 10);
-  const up = list.filter(e => e.date >= today);
-  if (!up.length) return;
-  const line = await signupLine(s);
-  for (const e of up) await dapi(`/guilds/${e.guild}/scheduled-events/${e.id}`, 'PATCH', { description: eventText(e.note, line) });
-}
-
-// Keeps the live signup message current. Safe to call after any signup change.
-export async function refreshBoard(s) {
-  if (process.env.DISCORD_BOT_TOKEN) await refreshEvents(s).catch(() => {});
-  const b = await s.get('meta/discord-board', { type: 'json' });
-  if (!b || !process.env.DISCORD_BOT_TOKEN) return;
-  const embed = await buildSummary(s);
-  const r = await dapi(`/channels/${b.channel}/messages/${b.message}`, 'PATCH', { embeds: [embed], components: boardButtons() });
-  if (r.status === 404) await s.delete('meta/discord-board');
+// Keeps an event's signup message and Discord event current (or every upcoming event's, with no id).
+// Safe to call after any signup change.
+export async function refreshBoard(s, evId) {
+  if (!process.env.DISCORD_BOT_TOKEN) return;
+  const list = evId ? [await EV.getEvent(s, evId)].filter(Boolean) : await EV.upcoming(s);
+  for (const ev of list) {
+    if (ev.discord?.id) await dapi(`/guilds/${ev.discord.guild}/scheduled-events/${ev.discord.id}`, 'PATCH', { description: eventText(ev, await signupLine(s, ev)) }).catch(() => {});
+    if (!ev.board) continue;
+    const r = await dapi(`/channels/${ev.board.channel}/messages/${ev.board.message}`, 'PATCH', { embeds: [await buildSummary(s, ev)], components: boardButtons(ev) });
+    if (r.status === 404) { ev.board = null; await EV.saveEvent(s, ev); if (ev.id === 'dec9') await s.delete('meta/discord-board'); }
+  }
 }
 
 /* ---------- responses ---------- */
@@ -149,6 +171,37 @@ const nameModal = () => json({ type: 9, data: { custom_id: 'su:who', title: 'Whi
 const pwModal = (key, name) => json({ type: 9, data: { custom_id: 'su:pw:' + key, title: `${name} is locked`.slice(0, 45), components: [
   { type: 1, components: [{ type: 4, custom_id: 'pw', label: 'Character password', style: 1, max_length: 100, required: true }] }
 ] } });
+// /event: a short form. Times are US Eastern.
+const eventModal = () => json({ type: 9, data: { custom_id: 'ev:new', title: 'New guild event', components: [
+  { type: 1, components: [{ type: 4, custom_id: 'title', label: 'Title', style: 1, max_length: 100, required: true, placeholder: 'MC raid night / Guild meeting / Awards night' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'date', label: 'Date', style: 1, max_length: 20, required: true, placeholder: '12/16' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'start', label: 'Start and end (Eastern)', style: 1, max_length: 30, required: false, placeholder: '9pm-11pm' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'type', label: 'Type: raid (counts for DKP) or other', style: 1, max_length: 10, required: true, value: 'raid' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'note', label: 'Note (optional)', style: 2, max_length: 600, required: false }] }
+] } });
+function parseDate(v) {
+  v = String(v || '').trim();
+  let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+  m = v.match(/^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?$/);
+  if (!m) return '';
+  const today = EV.todayISO(), y0 = Number(today.slice(0, 4));
+  let y = m[3] ? Number(m[3].length === 2 ? '20' + m[3] : m[3]) : y0;
+  let iso = `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+  if (!m[3] && iso < today) iso = `${y + 1}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`; // "1/5" in December means next year
+  return iso;
+}
+function parseTime(v) {
+  const m = String(v || '').trim().toLowerCase().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)?/);
+  if (!m) return '';
+  let h = Number(m[1]); const min = m[2] || '00';
+  if (m[3]?.startsWith('p') && h < 12) h += 12;
+  if (m[3]?.startsWith('a') && h === 12) h = 0;
+  if (!m[3] && h >= 1 && h <= 11) h += 12; // "9" means 9 PM for guild events
+  return h > 23 ? '' : `${String(h).padStart(2, '0')}:${min}`;
+}
+const addHours = (t, n) => { const [h, m] = t.split(':').map(Number); return `${String(Math.min(23, h + n)).padStart(2, '0')}:${String(m).padStart(2, '0')}`; };
+
 const select = (id, placeholder, options) => ({ type: 1, components: [{ type: 3, custom_id: id, placeholder, min_values: 1, max_values: 1, options: options.slice(0, 25) }] });
 const btn = (id, label, style = 2) => ({ type: 2, style, custom_id: id, label });
 
@@ -159,6 +212,8 @@ export async function handleDiscord(req, s, ctx, d) {
   const i = JSON.parse(raw);
   if (i.type === 1) return json({ type: 1 }); // Discord checking the endpoint
 
+  // Remember which server we're in (needed to make Discord events from the site).
+  if (i.guild_id && !(await s.get('meta/discord-guild', { type: 'json' }))) await s.setJSON('meta/discord-guild', { id: i.guild_id });
   const user = i.member?.user || i.user || {};
   const uid = String(user.id || '');
   const handle = d.clean(user.username || user.global_name || '', 40);
@@ -171,47 +226,64 @@ export async function handleDiscord(req, s, ctx, d) {
     return c && c.in_guild !== false ? c : null;
   };
 
+  // Which event this person is signing up for (picked on a signup message, or from /signup).
+  const curEv = async () => EV.pickEvent(s, (await s.get(`dev/${uid}`, { type: 'json' }))?.ev);
+  const setEv = id => s.setJSON(`dev/${uid}`, { ev: id });
+  const evPicker = (list, customId = 'su:ev', text = 'Which event?') => respond(i, text,
+    [select(customId, 'Pick an event', list.slice(0, 25).map(e => ({ label: e.title.slice(0, 100), description: `${EV.whenLabel(e)}${e.type === 'raid' ? '' : ' · not a raid'}`.slice(0, 100), value: e.id })))]);
+  const readA = (sign, draft, c, ev) => {
+    const a = { ...(sign || {}), ...(draft && draft.key === c.key && draft.ev === ev.id ? draft : {}) };
+    a.answer = a.answer || a.dec9 || '';
+    return a;
+  };
+
   // The private signup panel for one character.
   const panel = async (c, note = '') => {
-    const [sign, draft] = await Promise.all([s.get(`signup/dec9/${c.key}`, { type: 'json' }), s.get(`ddraft/${uid}`, { type: 'json' })]);
-    const a = { ...(sign || {}), ...(draft && draft.key === c.key ? draft : {}) };
+    const ev = await curEv();
+    const [sign, draft, up] = await Promise.all([s.get(`signup/${ev.id}/${c.key}`, { type: 'json' }), s.get(`ddraft/${uid}`, { type: 'json' }), EV.upcoming(s)]);
+    const a = readA(sign, draft, c, ev);
     const specs = d.SPECS[c.cls] || [];
+    const q = ev.type === 'raid' ? `Raiding ${EV.dayLabel(ev)}` : `${ev.title.slice(0, 40)}`;
     const rows = [
       select('su:spec', 'Your main spec', specs.map(([n, r]) => ({ label: `Main spec: ${n}`, description: r, value: n, default: c.main_spec === n }))),
-      select('su:dec9', 'Looking to raid on December 9?', d.DEC9.map(v => ({ label: `Raiding Dec 9: ${v}`, value: v, default: a.dec9 === v })))
+      select('su:ans', `${q}?`, EV.ANSWERS.map(v => ({ label: `${q}: ${EV.label(ev, v)}`.slice(0, 100), value: v, default: a.answer === v })))
     ];
-    if (a.dec9 === 'Yes' || a.dec9 === 'Probably') rows.push(select('su:attune', 'What about your attunement for the 40-man?', d.ATTUNE.map(v => ({ label: `40-man attunement: ${v}`, value: v, default: a.attune === v }))));
-    if (a.dec9 === 'No') {
+    if (ev.extras && (a.answer === 'Yes' || a.answer === 'Probably')) rows.push(select('su:attune', 'What about your attunement for the 40-man?', d.ATTUNE.map(v => ({ label: `40-man attunement: ${v}`, value: v, default: a.attune === v }))));
+    if (ev.extras && a.answer === 'No') {
       rows.push(select('su:later', 'Raiding with us after that?', d.LATER.map(v => ({ label: `Raiding with us after that: ${v}`, value: v, default: a.later === v }))));
       if (a.later && a.later !== 'Not planning to raid' && c.level < 60) rows.push(select('su:eta', 'Roughly when do you expect to hit 60?', d.ETA.map(v => ({ label: `Hitting 60: ${v}`, value: v, default: a.eta === v }))));
     }
-    rows.push({ type: 1, components: [btn('su:specs', 'Other specs I’ll play'), btn('su:notes', a.notes ? 'Edit notes' : 'Add notes'), btn('su:switch', 'Not this character?'), ...(sign ? [btn('su:withdraw', 'Remove my signup', 4)] : [])] });
-    const pending = draft && draft.key === c.key;
+    rows.push({ type: 1, components: [btn('su:specs', 'Other specs I’ll play'), btn('su:notes', a.notes ? 'Edit notes' : 'Add notes'), btn('su:switch', 'Not this character?'),
+      ...(up.length > 1 ? [btn('su:evs', 'Other events')] : []), ...(sign ? [btn('su:withdraw', 'Remove my signup', 4)] : [])].slice(0, 5) });
+    const pending = draft && draft.key === c.key && draft.ev === ev.id;
     const status = !c.main_spec ? 'Pick your main spec and answer below. It saves as soon as everything’s answered.'
-      : pending ? `Almost there: ${missing(c, a)}.`
-      : sign ? `You’re signed up: **${sign.dec9}**. Change anything below and it saves right away.`
+      : pending ? `Almost there: ${missing(c, a, ev)}.`
+      : sign ? `You’re signed up: **${EV.label(ev, EV.answerOf(sign))}**. Change anything below and it saves right away.`
       : 'Answer below. It saves as soon as everything’s answered.';
-    return [`**Signing up as ${c.name}** · Level ${c.level} ${c.cls}${c.main_spec ? ` · ${c.main_spec}` : ''}${(c.also_specs || []).length ? ` (also ${c.also_specs.join(', ')})` : ''}\n${note ? note + '\n' : ''}${status}`, rows];
+    return [`**${ev.title}** · ${EV.whenLabel(ev)}${ev.type === 'raid' ? '' : ' · not a raid night'}\n**Signing up as ${c.name}** · Level ${c.level} ${c.cls}${c.main_spec ? ` · ${c.main_spec}` : ''}${(c.also_specs || []).length ? ` (also ${c.also_specs.join(', ')})` : ''}\n${note ? note + '\n' : ''}${status}`, rows];
   };
-  const missing = (c, a) => !a.dec9 ? 'answer the December 9 question' : (a.dec9 === 'Yes' || a.dec9 === 'Probably') && !a.attune ? 'answer the attunement question to save'
-    : a.dec9 === 'No' && !a.later ? 'answer whether you’re raiding with us after that to save' : !c.main_spec ? 'pick your main spec to save' : 'nearly done';
-  const complete = (c, a) => !!c.main_spec && !!a.dec9 && ((a.dec9 === 'Yes' || a.dec9 === 'Probably') ? !!a.attune : a.dec9 === 'No' ? !!a.later : true);
+  const missing = (c, a, ev) => !a.answer ? 'answer whether you’re coming' : ev.extras && (a.answer === 'Yes' || a.answer === 'Probably') && !a.attune ? 'answer the attunement question to save'
+    : ev.extras && a.answer === 'No' && !a.later ? 'answer whether you’re raiding with us after that to save' : !c.main_spec ? 'pick your main spec to save' : 'nearly done';
+  const complete = (c, a, ev) => !!c.main_spec && !!a.answer && (!ev.extras || ((a.answer === 'Yes' || a.answer === 'Probably') ? !!a.attune : a.answer === 'No' ? !!a.later : true));
 
   // Merge a change into the answers; save the signup once everything needed is there.
   const change = async (c, patch) => {
-    const [sign, draft] = await Promise.all([s.get(`signup/dec9/${c.key}`, { type: 'json' }), s.get(`ddraft/${uid}`, { type: 'json' })]);
-    const a = { ...(sign || {}), ...(draft && draft.key === c.key ? draft : {}), ...patch };
-    if (a.dec9 === 'Yes' || a.dec9 === 'Probably') { a.later = ''; a.eta = ''; } else if (a.dec9 === 'No') a.attune = ''; else { a.attune = ''; a.later = ''; a.eta = ''; }
+    const ev = await curEv();
+    const [sign, draft] = await Promise.all([s.get(`signup/${ev.id}/${c.key}`, { type: 'json' }), s.get(`ddraft/${uid}`, { type: 'json' })]);
+    const a = { ...readA(sign, draft, c, ev), ...patch };
+    if (!ev.extras) { a.attune = ''; a.later = ''; a.eta = ''; }
+    else if (a.answer === 'Yes' || a.answer === 'Probably') { a.later = ''; a.eta = ''; } else if (a.answer === 'No') a.attune = ''; else { a.attune = ''; a.later = ''; a.eta = ''; }
     if (a.later === 'Not planning to raid' || c.level >= 60) a.eta = '';
-    if (complete(c, a)) {
-      const doc = { dec9: a.dec9, attune: a.attune || '', later: a.later || '', eta: a.eta || '', discord: handle || sign?.discord || '', notes: d.clean(a.notes, 1000), at: new Date().toISOString(), via: 'discord' };
-      await s.setJSON(`signup/dec9/${c.key}`, doc);
+    if (complete(c, a, ev)) {
+      const doc = { answer: a.answer, attune: a.attune || '', later: a.later || '', eta: a.eta || '', discord: handle || sign?.discord || '', notes: d.clean(a.notes, 1000), at: new Date().toISOString(), via: 'discord' };
+      if (ev.id === 'dec9') doc.dec9 = a.answer; // older code paths read this name
+      await s.setJSON(`signup/${ev.id}/${c.key}`, doc);
       if (draft) await s.delete(`ddraft/${uid}`);
-      if (!sign || sign.dec9 !== doc.dec9 || patch.dec9) await d.log(s, 'signup', c.name, 'discord:' + uid, { dec9: doc.dec9, discord: handle, via: 'Discord' });
-      later(refreshBoard(s));
+      if (!sign || EV.answerOf(sign) !== doc.answer || patch.answer) await d.log(s, 'signup', c.name, 'discord:' + uid, { event: ev.id, answer: doc.answer, discord: handle, via: 'Discord' });
+      later(refreshBoard(s, ev.id));
       return 'Saved.';
     }
-    await s.setJSON(`ddraft/${uid}`, { key: c.key, dec9: a.dec9 || '', attune: a.attune || '', later: a.later || '', eta: a.eta || '', notes: a.notes || '' });
+    await s.setJSON(`ddraft/${uid}`, { key: c.key, ev: ev.id, answer: a.answer || '', attune: a.attune || '', later: a.later || '', eta: a.eta || '', notes: a.notes || '' });
     return '';
   };
 
@@ -256,14 +328,20 @@ export async function handleDiscord(req, s, ctx, d) {
       return reply(`**${main?.name || c.name}: ${st.approved[person] || 0} DKP**${when ? ` (as of the sheet approved ${when})` : ''}\nHistory: https://mysticdragons.org/dkp`);
     }
     if (name === 'signup-post') {
-      const r = await dapi(`/channels/${i.channel_id}/messages`, 'POST', { embeds: [await buildSummary(s)], components: boardButtons() });
-      if (!r.ok) return reply(`I couldn’t post here (Discord said ${r.status}). Make sure I can view and send messages in this channel.`);
-      const m = await r.json();
-      const old = await s.get('meta/discord-board', { type: 'json' });
-      await s.setJSON('meta/discord-board', { channel: i.channel_id, message: m.id, at: new Date().toISOString() });
-      return reply(`Posted. It updates on its own whenever someone signs up here or on the website.${old && old.channel === i.channel_id ? '' : ''}`);
+      const up = await EV.upcoming(s);
+      if (!up.length) return reply('There are no upcoming events. Make one with /event or on the site’s officer page.');
+      if (up.length > 1) return reply('Which event’s signup message should I post here?', [select('post:ev', 'Pick an event', up.slice(0, 25).map(e => ({ label: e.title.slice(0, 100), description: EV.whenLabel(e).slice(0, 100), value: e.id })))]);
+      const r = await postBoard(s, up[0], i.channel_id);
+      return reply(r.error || `Posted the signup message for **${up[0].title}**. It updates on its own whenever someone signs up here or on the website.`);
     }
-    if (name === 'signup') { const c = await linked(); return c ? showFor(c) : nameModal(); }
+    if (name === 'event') return eventModal();
+    if (name === 'signup') {
+      const up = await EV.upcoming(s);
+      if (!up.length) return reply('There are no upcoming events to sign up for right now.');
+      if (up.length > 1) return evPicker(up, 'su:ev', 'Which event are you signing up for?');
+      await setEv(up[0].id);
+      const c = await linked(); return c ? showFor(c) : nameModal();
+    }
     return reply('I don’t know that command.');
   }
 
@@ -328,7 +406,8 @@ export async function handleDiscord(req, s, ctx, d) {
       c = all.find(x => d.slug(x.name) === q) || all.find(x => d.slug(x.name).startsWith(q)) || all.find(x => d.slug(x.name).includes(q));
     }
     if (!c) return reply(`I couldn’t find **${d.clean(v, 40)}** in the guild roster.`);
-    const [info, prof, sign, codes] = await Promise.all([s.get(`info/${c.key}`, { type: 'json' }), s.get(`prof/${c.key}`, { type: 'json' }), s.get(`signup/dec9/${c.key}`, { type: 'json' }), emojiCodes(s)]);
+    const nextEv = await EV.defaultEvent(s);
+    const [info, prof, sign, codes] = await Promise.all([s.get(`info/${c.key}`, { type: 'json' }), s.get(`prof/${c.key}`, { type: 'json' }), nextEv ? s.get(`signup/${nextEv.id}/${c.key}`, { type: 'json' }) : null, emojiCodes(s)]);
     const RANK = r => r === 0 ? 'Guild Master' : r === 1 ? 'Officer' : 'Member';
     const spec = c.main_spec ? `${specIcon(codes, c)} ${c.main_spec} (${c.main_role})${(c.also_specs || []).length ? `\nAlso plays ${c.also_specs.join(', ')}` : ''}` : (c.main_role || 'Not picked yet');
     const profs = (prof || []).filter(p => p.name).map(p => `${p.name}${p.skill ? ` ${p.skill}${p.max ? '/' + p.max : ''}` : ''}`).join('\n');
@@ -338,7 +417,7 @@ export async function handleDiscord(req, s, ctx, d) {
       fields: [
         { name: 'Spec', value: spec.slice(0, 1000), inline: true },
         { name: 'Professions', value: profs || 'None found', inline: true },
-        { name: 'December 9', value: sign ? `${sign.dec9}${sign.attune ? `\nAttunement: ${sign.attune}` : ''}` : 'Not signed up', inline: true }
+        ...(nextEv ? [{ name: nextEv.title.slice(0, 256), value: sign ? `${EV.label(nextEv, EV.answerOf(sign))}${sign.attune ? `\nAttunement: ${sign.attune}` : ''}` : 'Not signed up', inline: true }] : [])
       ],
       footer: { text: 'More on their character page at mysticdragons.org' }
     };
@@ -348,7 +427,35 @@ export async function handleDiscord(req, s, ctx, d) {
   }
 
   /* ---------- buttons, dropdowns, forms ---------- */
-  if (id === 'su:start') { const c = await linked(); return c ? showFor(c) : nameModal(); }
+  const canManage = () => { try { const p = BigInt(i.member?.permissions || '0'); return (p & 8n) || (p & 32n) || (p & 8589934592n); } catch (_) { return false; } };
+  if (id === 'su:start' || id.startsWith('su:start:')) {
+    await setEv(id.slice(9) || 'dec9'); // older Dec 9 messages have the plain su:start button
+    const c = await linked(); return c ? showFor(c) : nameModal();
+  }
+  if (id === 'su:ev') { await setEv(d.clean(i.data.values?.[0], 80)); const c = await linked(); return c ? showFor(c) : nameModal(); }
+  if (id === 'su:evs') return evPicker(await EV.upcoming(s), 'su:ev', 'Which event?');
+  if (id === 'post:ev' || id.startsWith('post:')) {
+    if (!canManage()) return reply('Only officers can post signup messages.');
+    const ev = await EV.getEvent(s, id === 'post:ev' ? d.clean(i.data.values?.[0], 80) : id.slice(5));
+    if (!ev) return reply('That event isn’t there anymore.');
+    const r = await postBoard(s, ev, i.channel_id);
+    return respond(i, r.error || `Posted the signup message for **${ev.title}** here.`);
+  }
+  if (id === 'ev:new') {
+    if (!canManage()) return reply('Only officers can make events.');
+    const val = k => d.clean((i.data.components || []).flatMap(r => r.components || []).find(x => x.custom_id === k)?.value, 200);
+    const [t1, t2] = val('start').split(/\s*(?:-|–|to)\s*/i);
+    const date = parseDate(val('date')), start = parseTime(t1) || '21:00', end = parseTime(t2) || addHours(start, 2);
+    const type = /raid/i.test(val('type')) ? 'raid' : 'other';
+    if (!val('title')) return reply('Give it a title.');
+    if (!date) return reply(`I couldn’t read the date “${val('date')}”. Try 12/16 or 2026-12-16.`);
+    const ev = { id: EV.newId(val('title'), date), title: val('title').slice(0, 100), type, date, start, end, note: val('note').slice(0, 600), created: new Date().toISOString(), by: handle + ' (Discord)' };
+    await EV.saveEvent(s, ev);
+    await d.log(s, 'event', ev.title, 'discord:' + uid, { date, type, via: 'Discord' });
+    const de = await syncDiscordEvent(s, ev, '');
+    return reply(`Made **${ev.title}** · ${EV.whenLabel(ev)}${type === 'raid' ? ' · raid night (counts for DKP)' : ' · not a raid night (no DKP)'}.\n${de.ok ? `Discord event: ${de.url}` : `Couldn’t make the Discord event: ${de.error}`}\nPost its signup message here?`,
+      [{ type: 1, components: [btn('post:' + ev.id, 'Post the signup message here', 3)] }]);
+  }
   if (id === 'su:switch') return nameModal();
 
   if (id === 'su:who') {
@@ -424,7 +531,7 @@ export async function handleDiscord(req, s, ctx, d) {
     const [content, rows] = await panel(c, note);
     return respond(i, content, rows);
   }
-  const FIELD = { 'su:dec9': ['dec9', d.DEC9], 'su:attune': ['attune', d.ATTUNE], 'su:later': ['later', d.LATER], 'su:eta': ['eta', d.ETA] };
+  const FIELD = { 'su:ans': ['answer', EV.ANSWERS], 'su:dec9': ['answer', EV.ANSWERS], 'su:attune': ['attune', d.ATTUNE], 'su:later': ['later', d.LATER], 'su:eta': ['eta', d.ETA] };
   if (FIELD[id]) {
     const [k, list] = FIELD[id], v = i.data.values?.[0];
     if (!list.includes(v)) return showFor(c);
@@ -433,8 +540,9 @@ export async function handleDiscord(req, s, ctx, d) {
     return respond(i, content, rows);
   }
   if (id === 'su:notes') {
-    const [sign, draft] = await Promise.all([s.get(`signup/dec9/${c.key}`, { type: 'json' }), s.get(`ddraft/${uid}`, { type: 'json' })]);
-    const cur = (draft && draft.key === c.key && draft.notes) || sign?.notes || '';
+    const ev = await curEv();
+    const [sign, draft] = await Promise.all([s.get(`signup/${ev.id}/${c.key}`, { type: 'json' }), s.get(`ddraft/${uid}`, { type: 'json' })]);
+    const cur = (draft && draft.key === c.key && draft.ev === ev.id && draft.notes) || sign?.notes || '';
     return json({ type: 9, data: { custom_id: 'su:notesm', title: 'Anything else we should know?', components: [
       { type: 1, components: [{ type: 4, custom_id: 'notes', label: 'Notes for the officers (optional)', style: 2, max_length: 1000, required: false, value: cur || undefined }] }
     ] } });
@@ -446,10 +554,11 @@ export async function handleDiscord(req, s, ctx, d) {
     return respond(i, content, rows);
   }
   if (id === 'su:withdraw') {
-    await s.delete(`signup/dec9/${c.key}`);
+    const ev = await curEv();
+    await s.delete(`signup/${ev.id}/${c.key}`);
     await s.delete(`ddraft/${uid}`);
-    await d.log(s, 'withdraw', c.name, 'discord:' + uid, { via: 'Discord' });
-    later(refreshBoard(s));
+    await d.log(s, 'withdraw', c.name, 'discord:' + uid, { event: ev.id, via: 'Discord' });
+    later(refreshBoard(s, ev.id));
     const [content, rows] = await panel(c, 'Removed your signup.');
     return respond(i, content, rows);
   }

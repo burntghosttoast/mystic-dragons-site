@@ -1,4 +1,5 @@
 // Builds and posts the raid signup summary to Discord (DISCORD_WEBHOOK_URL).
+import { defaultEvent, answerOf, label, whenLabel } from './events.mjs';
 const ORDER = ['Tank', 'Healer', 'Melee DPS', 'Ranged DPS'];
 // Our server's emoji names. Older saves have only a role: a spec icon where class + role tells us the spec, else the class icon.
 export const SPEC = {
@@ -54,7 +55,7 @@ const ROLE_EMOJI = { Tank: '628824tank', Healer: '673275healer', 'Melee DPS': '4
 export async function postSummary(s, { reason = '' } = {}) {
   const hook = process.env.DISCORD_WEBHOOK_URL;
   if (!hook) return { ok: false, error: 'DISCORD_WEBHOOK_URL isn’t set up yet.' };
-  const embed = await buildSummary(s);
+  const embed = await buildSummary(s, await defaultEvent(s));
   const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: 'Mystic Dragons', content: reason, embeds: [embed], allowed_mentions: { parse: [] } }) });
   if (!r.ok) return { ok: false, error: `Discord said ${r.status}` };
@@ -67,17 +68,19 @@ export function todayET() {
   return [g('year'), g('month') - 1, g('day')];
 }
 
-// The signup summary embed, used by the scheduled post and the bot's live signup message.
-export async function buildSummary(s) {
+// The signup summary embed for one event, used by the scheduled post and the bot's live signup message.
+export async function buildSummary(s, ev) {
+  ev = ev || await defaultEvent(s);
   const { blobs } = await s.list({ prefix: 'char/' });
   const chars = (await Promise.all(blobs.map(b => s.get(b.key, { type: 'json' })))).filter(c => c && c.key && c.in_guild !== false);
-  const signs = await Promise.all(chars.map(c => s.get(`signup/dec9/${c.key}`, { type: 'json' })));
-  const rows = chars.map((c, i) => ({ c, sg: signs[i] })).filter(r => r.sg);
-  const by = a => rows.filter(r => r.sg.dec9 === a);
+  const signs = await Promise.all(chars.map(c => s.get(`signup/${ev.id}/${c.key}`, { type: 'json' })));
+  const rows = chars.map((c, i) => ({ c, sg: signs[i], a: answerOf(signs[i]) })).filter(r => r.sg);
+  const by = a => rows.filter(r => r.a === a);
   const yes = by('Yes'), maybe = by('Probably'), unsure = by('Not sure yet');
   const going = yes.concat(maybe);
   const at60 = chars.filter(c => c.level >= 60).length;
-  const days = Math.round((Date.UTC(2026, 11, 9) - Date.UTC(...todayET())) / 86400000);
+  const [ey, em, ed] = ev.date.split('-').map(Number);
+  const days = Math.round((Date.UTC(ey, em - 1, ed) - Date.UTC(...todayET())) / 86400000);
   const when = days > 1 ? `${days} days to go` : days === 1 ? 'Tomorrow!' : days === 0 ? 'Tonight!' : '';
   // Icons are our server's emojis; officers paste their codes in on the officer page.
   const codes = { ...DEFAULT_CODES, ...((await s.get('meta/emoji-codes', { type: 'json' })) || {}) };
@@ -90,10 +93,10 @@ export async function buildSummary(s) {
     // Other specs they'll play, as icons (or names where there's no emoji).
     const also = (r.c.also_specs || []).map(sp => codes[SPEC_PICKED[`${r.c.cls}|${sp}`]] || sp).join(' ');
     const extra = also ? ` · also ${also}` : '';
-    return r.sg.dec9 === 'Yes' ? `${ic} **${md(r.c.name)}**${tag}${lvl}${extra}`.trim() : `${ic} *${md(r.c.name)}*${tag}${lvl}${extra}`.trim();
+    return r.a === 'Yes' ? `${ic} **${md(r.c.name)}**${tag}${lvl}${extra}`.trim() : `${ic} *${md(r.c.name)}*${tag}${lvl}${extra}`.trim();
   };
   const fit = (lines) => { let out = ''; for (let i = 0; i < lines.length; i++) { const next = (out ? out + '\n' : '') + lines[i]; if (next.length > 990) return out + `\n…and ${lines.length - i} more`; out = next; } return out || '—'; };
-  const sortR = (a, b) => (a.sg.dec9 === 'Yes' ? 0 : 1) - (b.sg.dec9 === 'Yes' ? 0 : 1) || String(a.c.cls).localeCompare(String(b.c.cls)) || String(a.c.name).localeCompare(String(b.c.name));
+  const sortR = (a, b) => (a.a === 'Yes' ? 0 : 1) - (b.a === 'Yes' ? 0 : 1) || String(a.c.cls).localeCompare(String(b.c.cls)) || String(a.c.name).localeCompare(String(b.c.name));
   const groups = ORDER.map(k => [k, going.filter(r => r.c.main_role === k)]);
   const noRole = going.filter(r => !ORDER.includes(r.c.main_role));
   const roleName = { Tank: 'Tanks', Healer: 'Healers', 'Melee DPS': 'Melee DPS', 'Ranged DPS': 'Ranged DPS' };
@@ -108,12 +111,12 @@ export async function buildSummary(s) {
   if (noRole.length) fields.push({ name: `No role picked · ${noRole.length}`, value: fit(noRole.sort(sortR).map(line)), inline: false });
   if (unsure.length) fields.push({ name: `Not sure yet · ${unsure.length}`, value: fit([unsure.sort(sortR).map(r => md(r.c.name)).join(', ')]), inline: false });
   const embed = {
-    title: 'December 9 raid signups' + (when ? ` · ${when}` : ''),
-    url: 'https://mysticdragons.org/signup',
+    title: `${ev.title} signups` + (when ? ` · ${when}` : ''),
+    url: `https://mysticdragons.org/signup?event=${encodeURIComponent(ev.id)}`,
     color: 0xA3BC6E,
-    description: `**${yes.length}** yes · **${maybe.length}** probably · **${unsure.length}** not sure\n${chars.length - rows.length} of ${chars.length} members haven’t signed up · ${at60} are level 60`,
+    description: `${whenLabel(ev)}${ev.type === 'raid' ? '' : ' · not a raid night, no DKP'}\n**${yes.length}** ${label(ev, 'Yes').toLowerCase()} · **${maybe.length}** ${label(ev, 'Probably').toLowerCase()} · **${unsure.length}** not sure\n${chars.length - rows.length} of ${chars.length} members haven’t signed up${ev.type === 'raid' ? ` · ${at60} are level 60` : ''}`,
     fields,
-    footer: { text: 'Bold = yes, italic = probably. Icons after “also” are other specs they’ll play; (+N) is how many more could fill that role. Sign up or change your answer at mysticdragons.org/signup' }
+    footer: { text: `Bold = ${label(ev, 'Yes').toLowerCase()}, italic = ${label(ev, 'Probably').toLowerCase()}. Icons after “also” are other specs they’ll play; (+N) is how many more could fill that role. Sign up or change your answer at mysticdragons.org/signup` }
   };
   return embed;
 }

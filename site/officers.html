@@ -124,21 +124,29 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div class="rs-tally" id="tally"></div>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><div style="display: flex; flex-wrap: wrap; gap: 8px" id="sFilter"></div><button type="button" id="botSetup" class="rs-btn" style="margin-left: auto">SET UP DISCORD BOT</button><button type="button" id="postNow" class="rs-btn">POST SUMMARY TO DISCORD NOW</button></div>
 <p id="botOut" hidden style="font-size: 15px; color: #CFC7BE"></p>
-<details class="md-card" id="evCard" style="gap: 10px">
-<summary style="cursor: pointer; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; letter-spacing: .14em; color: #CDB07C">DISCORD EVENT FOR A RAID NIGHT</summary>
-<p style="font-size: 15px; color: #CFC7BE; margin-top: 8px">The bot makes a Discord event that links to the signup page. People click Interested to get a reminder, and the event's description keeps the signup count current on its own.</p>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px">
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Title<input class="md-in" id="evTitle" value="Raid night: December 9" maxlength="100"></label>
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Date<input class="md-in" id="evDate" type="date" value="2026-12-09"></label>
+<div class="md-card" style="gap: 12px; border-color: #4A3F2C">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><span class="md-lab" style="color: #CDB07C; margin-right: 6px">EVENTS</span><div id="evSel" style="display: flex; flex-wrap: wrap; gap: 8px"></div><button type="button" id="evNew" class="rs-btn" style="margin-left: auto">+ NEW EVENT</button></div>
+<p style="font-size: 14px; color: #8F857C">Pick an event to see its signups below. Raid events count as DKP raid nights; other events don’t touch DKP. Everyone picks their spec either way.</p>
+<details id="evEdit">
+<summary style="cursor: pointer; font-size: 15px; color: #CDB07C">Edit this event, its Discord event and signup message</summary>
+<div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px">
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A; grid-column: span 2">Title<input class="md-in" id="evTitle" maxlength="100"></label>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Type<select class="md-in" id="evType"><option value="raid">Raid night (DKP)</option><option value="other">Other (no DKP)</option></select></label>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Date<input class="md-in" id="evDate" type="date"></label>
 <label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Starts (ET)<input class="md-in" id="evStart" type="time" value="21:00"></label>
 <label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Ends (ET)<input class="md-in" id="evEnd" type="time" value="23:00"></label>
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Where<select class="md-in" id="evWhere"><option value="">The signup page (not a voice channel)</option></select></label>
 </div>
-<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Note (optional)<textarea class="md-in" id="evNote" rows="2" maxlength="600" placeholder="Invites go out 15 minutes before. Bring flasks and fire resistance."></textarea></label>
-<div><button type="button" id="evGo" class="rs-btn rs-btn-p">CREATE DISCORD EVENT</button></div>
-<p id="evOut" hidden style="font-size: 15px; color: #CFC7BE"></p>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Note (optional, shows on the signup page and in Discord)<textarea class="md-in" id="evNote" rows="2" maxlength="600" placeholder="Invites go out 15 minutes before. Bring fire resistance."></textarea></label>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 15px; color: #CFC7BE"><input type="checkbox" id="evDiscord" checked style="width: 18px; height: 18px; accent-color: #A3BC6E"> Discord event, in <select class="md-in" id="evWhere" style="max-width: 280px"><option value="">the signup page (no voice channel)</option></select></label>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><button type="button" id="evSave" class="rs-btn rs-btn-p">SAVE EVENT</button>
+<span style="margin-left: 10px; font-size: 14px; color: #AEA49A">Signup message in</span><select class="md-in" id="evPostCh" style="max-width: 220px"><option value="">pick a channel</option></select><button type="button" id="evPost" class="rs-btn">POST IT</button>
+<button type="button" id="evDel" class="rs-btn" style="margin-left: auto; border-color: #5A2A27; color: #D96A5F">DELETE EVENT</button></div>
+<p id="evOut" style="font-size: 15px; color: #CFC7BE; min-height: 20px"></p>
+</div>
 </details>
-<div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Discord</th><th>Class</th><th class="n">Lvl</th><th>Dec 9</th><th>Attunement / later</th><th>Notes</th><th>Saved</th><th></th></tr></thead><tbody id="sRows"></tbody></table></div>
+</div>
+<div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Discord</th><th>Class</th><th class="n">Lvl</th><th id="ansHead">Answer</th><th>Attunement / later</th><th>Notes</th><th>Saved</th><th></th></tr></thead><tbody id="sRows"></tbody></table></div>
 </div>
 
 <!-- CHARACTERS -->
@@ -334,6 +342,7 @@ function confirmBtn(btn,label,fn){
  if(!btn.dataset.sure){btn.dataset.sure='1';const old=btn.textContent;btn.textContent=label;setTimeout(()=>{delete btn.dataset.sure;btn.textContent=old},4000);return}
  delete btn.dataset.sure;fn();
 }
+async function actEv(path,key,done){try{await oapi(path,{key,event:evCur});$('msg').textContent=done;await load()}catch(e){$('msg').textContent=e.message}}
 async function act(path,key,done){try{await oapi(path,{key});$('msg').textContent=done;await load()}catch(e){$('msg').textContent=e.message}}
 
 
@@ -504,7 +513,13 @@ $('dkLHead').addEventListener('click',e=>{const b=e.target.closest('[data-ls]');
 
 $('dkQ').addEventListener('input',drawDkRows);
 $('dkRows').addEventListener('change',e=>{const b=e.target.closest('[data-tk]');if(!b)return;const set=tick[b.dataset.tk];b.checked?set.add(b.dataset.k):set.delete(b.dataset.k)});
-$('dkFill').addEventListener('click',()=>{data.characters.filter(c=>c.signup&&(c.signup.dec9==='Yes'||c.signup.dec9==='Probably')).forEach(c=>{tick.start.add(c.key);tick.end.add(c.key)});drawDkRows()});
+$('dkFill').addEventListener('click',async()=>{
+ // Use the raid event on the night's date; fall back to the event picked on the Signups tab.
+ const d=$('dkDate').value, ev=(data.events||[]).find(e=>e.date===d&&e.type==='raid');
+ let chars=data.characters;
+ if(ev&&ev.id!==data.event?.id){try{chars=(await oapi('data',{event:ev.id})).characters}catch(_){}}
+ $('msg').textContent=ev?`Ticked from the signups for ${ev.title}.`:`No raid event on that date, so this used the signups for ${data.event?.title||'the selected event'}.`;
+ chars.filter(c=>c.signup&&(c.signup.dec9==='Yes'||c.signup.dec9==='Probably')).forEach(c=>{tick.start.add(c.key);tick.end.add(c.key)});drawDkRows()});
 $('dkClear').addEventListener('click',()=>{Object.values(tick).forEach(x=>x.clear());drawDkRows()});
 
 function csvDl(name,rows){
@@ -555,16 +570,6 @@ $('dkAddonText').addEventListener('input',()=>{
  $('dkAddonGo').hidden=!addonRows.length});
 $('dkAddonGo').addEventListener('click',()=>{if(!addonRows)return;dkDo('dkp-addon-import',{lm:addonLm,rows:addonRows},d=>`Added ${d.added} award${d.added===1?'':'s'} as drafts${d.skipped?`, skipped ${d.skipped} already on the site`:''}.`+(d.problems.length?' '+d.problems.join(' '):''),()=>{$('dkAddonText').value='';$('dkAddonPrev').innerHTML='';$('dkAddonGo').hidden=true;addonRows=null})});
 
-// Discord event: load voice channels the first time the card opens.
-let evLoaded=false;
-$('evCard').addEventListener('toggle',async()=>{if(!$('evCard').open||evLoaded)return;evLoaded=true;
- try{const d=await oapi('discord-voice');if(d.error){$('evOut').hidden=false;$('evOut').textContent=d.error;return}
-  (d.channels||[]).forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent='Voice: '+c.name;$('evWhere').appendChild(o)})}catch(e){$('evOut').hidden=false;$('evOut').textContent=e.message}});
-$('evGo').addEventListener('click',async()=>{
- const b=$('evGo');b.disabled=true;$('evOut').hidden=false;$('evOut').textContent='Making the event…';
- try{const d=await oapi('discord-event',{title:$('evTitle').value,date:$('evDate').value,start:$('evStart').value,end:$('evEnd').value,channel:$('evWhere').value,note:$('evNote').value});
-  $('evOut').innerHTML='Event made. <a href="'+esc(d.url)+'" target="_blank" rel="noopener" style="color:#A3BC6E">Open it in Discord</a> to share the link or add a cover image.'}
- catch(e){$('evOut').textContent=e.message}finally{b.disabled=false}});
 let dkBusy=false;
 const dkDo=async(path,body,done,after)=>{if(dkBusy)return;dkBusy=true;$('msg').textContent='Working…';try{const d=await oapi(path,body);$('msg').textContent=typeof done==='function'?done(d):done;if(after)after();await loadDkp()}catch(e){$('msg').textContent=e.message}finally{dkBusy=false}};
 // Picking a date that's already entered loads that night into the boxes, and saving edits it.
@@ -594,15 +599,56 @@ $('dkDemoRow').hidden=!/^dev--|localhost/.test(location.hostname);
 $('dkDemo').addEventListener('click',e=>confirmBtn(e.target,'REPLACE ALL DKP WITH EXAMPLES?',()=>dkDo('dkp-demo',{},d=>`Example data added: ${d.nights} raid nights for ${d.raiders} raiders. The last night is still a draft to review.`)));
 $('dkApprove').addEventListener('click',e=>confirmBtn(e.target,'APPROVE? THIS MAKES IT OFFICIAL',()=>dkDo('dkp-approve',{},d=>`Sheet approved: ${d.changes} changes, ${d.people} people. `+(d.backup?.ok||d.backup?.unchanged?'Backed up to GitHub.':d.backup?.error?'GitHub backup failed: '+d.backup.error:'GitHub backups aren’t set up yet.'))));
 
+/* ---------- events ---------- */
+let evCur='', evIsNew=false, chLoaded=false;
+const EVL={raid:{Yes:'Yes',Probably:'Probably','Not sure yet':'Not sure yet',No:'No'},other:{Yes:'Going',Probably:'Maybe','Not sure yet':'Not sure yet',No:'Can’t make it'}};
+const evNow=()=>data?.event||null, evLab=v=>(EVL[evNow()?.type]||EVL.raid)[v]||v;
+function drawEvents(){
+ const all=data.events||[], today=new Date().toLocaleDateString('en-CA',{timeZone:'America/New_York'});
+ const shown=all.filter(e=>e.date>=today).concat(all.filter(e=>e.date<today).slice(-3));
+ $('evSel').innerHTML=shown.sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start)).map(e=>`<button type="button" data-evs="${esc(e.id)}" style='${G.chipStyle(!evIsNew&&evNow()&&e.id===evNow().id)};text-transform:none;letter-spacing:.02em;font-size:14px;min-height:36px${e.date<today?';opacity:.6':''}'>${esc(e.title)} · ${esc(e.when.split(',').slice(0,2).join(','))}${e.type==='raid'?'':' · other'}</button>`).join('')||'<span style="color:#8F857C">No events yet.</span>';
+ const e=evIsNew?{title:'',type:'raid',date:'',start:'21:00',end:'23:00',note:'',channel:'',discord:''}:evNow();
+ if(!e)return;
+ $('evTitle').value=e.title;$('evType').value=e.type;$('evDate').value=e.date;$('evStart').value=e.start;$('evEnd').value=e.end;$('evNote').value=e.note||'';
+ $('evDiscord').checked=evIsNew||!!e.discord;if(chLoaded)$('evWhere').value=e.channel||'';
+ $('evDel').hidden=evIsNew;$('evPost').disabled=evIsNew;$('evPostCh').disabled=evIsNew;
+ $('evOut').innerHTML=evIsNew?'New event: fill it in and save.':[e.discord?`<a href="${esc(e.discord)}" target="_blank" rel="noopener" style="color:#A3BC6E">Discord event</a>`:'No Discord event yet.',e.board?'Signup message posted in Discord.':'No signup message in Discord yet.'].join(' · ');
+ $('ansHead').textContent=evIsNew?'Answer':(e.type==='raid'?'Raiding?':'Coming?');
+}
+async function loadChannels(){
+ if(chLoaded)return;chLoaded=true;
+ try{const d=await oapi('discord-channels');if(d.error){$('evOut').textContent=d.error;return}
+  (d.voice||[]).forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent='voice: '+c.name;$('evWhere').appendChild(o)});
+  (d.text||[]).forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent='#'+c.name;$('evPostCh').appendChild(o)});
+  if(evNow()&&!evIsNew)$('evWhere').value=evNow().channel||''}catch(e){$('evOut').textContent=e.message}
+}
+$('evEdit').addEventListener('toggle',()=>{if($('evEdit').open)loadChannels()});
+$('evSel').addEventListener('click',async e=>{const b=e.target.closest('[data-evs]');if(!b)return;evCur=b.dataset.evs;evIsNew=false;await load()});
+$('evNew').addEventListener('click',()=>{evIsNew=true;$('evEdit').open=true;loadChannels();drawEvents();$('evTitle').focus()});
+$('evSave').addEventListener('click',async()=>{
+ const b=$('evSave');b.disabled=true;$('evOut').textContent='Saving…';
+ try{const d=await oapi('event-save',{id:evIsNew?'':evNow().id,title:$('evTitle').value,type:$('evType').value,date:$('evDate').value,start:$('evStart').value,end:$('evEnd').value,note:$('evNote').value,discord:$('evDiscord').checked,channel:$('evDiscord').checked?$('evWhere').value:undefined});
+  evCur=d.event.id;evIsNew=false;await load();$('evEdit').open=true;
+  $('evOut').innerHTML=(d.discordError?`<span style="color:#D96A5F">Saved, but the Discord event didn’t work: ${esc(d.discordError)}</span>`:'Saved.')+(d.event.discord?` <a href="${esc(d.event.discord)}" target="_blank" rel="noopener" style="color:#A3BC6E">Open the Discord event</a>`:'')}
+ catch(e){$('evOut').textContent=e.message}finally{b.disabled=false}});
+$('evPost').addEventListener('click',async()=>{
+ if(!$('evPostCh').value){$('evOut').textContent='Pick a channel first.';return}
+ try{await oapi('event-post',{id:evNow().id,channel:$('evPostCh').value});await load();$('evEdit').open=true;$('evOut').textContent='Posted. It keeps itself up to date.'}catch(e){$('evOut').textContent=e.message}});
+$('evDel').addEventListener('click',async()=>{
+ const t=prompt(`Delete “${evNow().title}”, its signups, its Discord event and signup message? Type DELETE to confirm.`);
+ if(t!=='DELETE')return;
+ try{await oapi('event-delete',{id:evNow().id,confirm:'DELETE'});evCur='';await load();$('msg').textContent='Event deleted.'}catch(e){$('msg').textContent=e.message}});
+
 function drawSignups(){
  const all=data.characters.filter(c=>c.signup), D=['Yes','Probably','Not sure yet','No'];
- $('tally').innerHTML=[...D.map(d=>[d,all.filter(c=>c.signup.dec9===d).length]),['Total',all.length]].map(([l,n])=>`<div class="md-card"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(26px,3.6vw,36px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong></div>`).join('');
- $('sFilter').innerHTML=['all',...D].map(d=>`<button type="button" data-f="${d}" style='${G.chipStyle(sF===d)};min-height:38px'>${d==='all'?'ALL':d.toUpperCase()}</button>`).join('');
+ drawEvents();
+ $('tally').innerHTML=[...D.map(d=>[evLab(d),all.filter(c=>c.signup.dec9===d).length]),['Total',all.length]].map(([l,n])=>`<div class="md-card"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(26px,3.6vw,36px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong></div>`).join('');
+ $('sFilter').innerHTML=['all',...D].map(d=>`<button type="button" data-f="${d}" style='${G.chipStyle(sF===d)};min-height:38px'>${d==='all'?'ALL':esc(evLab(d)).toUpperCase()}</button>`).join('');
  const list=all.filter(c=>sF==='all'||c.signup.dec9===sF).sort((a,b)=>D.indexOf(a.signup.dec9)-D.indexOf(b.signup.dec9)||a.name.localeCompare(b.name));
- $('sRows').innerHTML=list.map(c=>{const sg=c.signup;return `<tr><td data-l="Character"><strong>${esc(c.name)}</strong></td><td data-l="Discord">${esc(sg.discord||'—')}</td><td data-l="Class">${G.dot(c.cls)}${esc(c.cls)}</td><td data-l="Lvl" class="n">${esc(c.level)}</td><td data-l="Dec 9">${esc(sg.dec9)}</td><td data-l="Attunement / later">${esc(sg.attune||[sg.later,sg.eta].filter(Boolean).join(' · ')||'—')}</td><td data-l="Notes" style="max-width:280px;white-space:pre-wrap">${esc(sg.notes||'')}</td><td data-l="Saved" style="white-space:nowrap;color:#8F857C">${esc(when(sg.at))}</td><td><button type="button" class="link-btn" data-rm="${esc(c.key)}">Remove</button></td></tr>`}).join('')||'<tr><td colspan="9" style="color:#8F857C">No signups.</td></tr>';
+ $('sRows').innerHTML=list.map(c=>{const sg=c.signup;return `<tr><td data-l="Character"><strong>${esc(c.name)}</strong></td><td data-l="Discord">${esc(sg.discord||'—')}</td><td data-l="Class">${G.dot(c.cls)}${esc(c.cls)}</td><td data-l="Lvl" class="n">${esc(c.level)}</td><td data-l="Answer">${esc(evLab(sg.dec9))}</td><td data-l="Attunement / later">${esc(sg.attune||[sg.later,sg.eta].filter(Boolean).join(' · ')||'—')}</td><td data-l="Notes" style="max-width:280px;white-space:pre-wrap">${esc(sg.notes||'')}</td><td data-l="Saved" style="white-space:nowrap;color:#8F857C">${esc(when(sg.at))}</td><td><button type="button" class="link-btn" data-rm="${esc(c.key)}">Remove</button></td></tr>`}).join('')||'<tr><td colspan="9" style="color:#8F857C">No signups.</td></tr>';
 }
 $('sFilter').addEventListener('click',e=>{const b=e.target.closest('[data-f]');if(!b)return;sF=b.dataset.f;drawSignups()});
-$('sRows').addEventListener('click',e=>{const b=e.target.closest('[data-rm]');if(!b)return;confirmBtn(b,'Sure?',()=>act('remove-signup',b.dataset.rm,'Signup removed.'))});
+$('sRows').addEventListener('click',e=>{const b=e.target.closest('[data-rm]');if(!b)return;confirmBtn(b,'Sure?',()=>actEv('remove-signup',b.dataset.rm,'Signup removed.'))});
 
 function drawChars(){
  const q=low($('cQ').value);
@@ -617,7 +663,7 @@ $('cRows').addEventListener('click',e=>{
 });
 
 function drawLog(){
- const label={claim:'Claimed','claim-again':'Claimed (another device)',create:'Added by hand',update:'Edited',signup:'Signed up',withdraw:'Removed signup',unclaim:'Unclaimed',merge:'Merged duplicate',verify:'Passed guild check',discord:'Changed Discord name',import:'Imported old signups','officer-login':'Officer logged in','officer-release':'Officer released claims','officer-delete':'Officer deleted','officer-remove-signup':'Officer removed signup','officer-post-summary':'Posted summary to Discord','discord-link':'Linked Discord to character',lock:'Set a character password',unlock:'Removed a character password','officer-clear-lock':'Officer removed a character password'};
+ const label={event:'Made an event','event-edit':'Edited an event','event-delete':'Deleted an event','event-post':'Posted a signup message','discord-event':'Made a Discord event',claim:'Claimed','claim-again':'Claimed (another device)',create:'Added by hand',update:'Edited',signup:'Signed up',withdraw:'Removed signup',unclaim:'Unclaimed',merge:'Merged duplicate',verify:'Passed guild check',discord:'Changed Discord name',import:'Imported old signups','officer-login':'Officer logged in','officer-release':'Officer released claims','officer-delete':'Officer deleted','officer-remove-signup':'Officer removed signup','officer-post-summary':'Posted summary to Discord','discord-link':'Linked Discord to character',lock:'Set a character password',unlock:'Removed a character password','officer-clear-lock':'Officer removed a character password'};
  $('gRows').innerHTML=data.log.map(l=>{const extra=[l.by&&('by '+l.by),l.discord&&('Discord: '+l.discord),l.dec9&&('Dec 9: '+l.dec9),l.from&&('from '+l.from),l.changed&&('changed '+l.changed.join(', ')),'device '+l.device].filter(Boolean).join(' · ');return `<tr><td data-l="When" style="white-space:nowrap;color:#8F857C">${esc(when(l.at))}</td><td data-l="What">${esc(label[l.action]||l.action)}</td><td data-l="Character">${esc(l.character)}</td><td data-l="Details" style="color:#AEA49A;font-size:14px">${esc(extra)}</td></tr>`}).join('');
 }
 
@@ -646,7 +692,7 @@ $('botSetup').addEventListener('click',async()=>{
 });
 $('postNow').addEventListener('click',()=>confirmBtn($('postNow'),'POST IT?',async()=>{try{await oapi('post-summary');$('msg').textContent='Posted to Discord.'}catch(e){$('msg').textContent=e.message}}));
 async function load(){
- try{data=await oapi('data');$('app').hidden=false;$('whoLine').textContent='Logged in as '+(sess.who||'Officer')+'.';drawTabs();drawSignups();drawChars();drawLog();if(tab==='board')loadBoard();if(tab==='dkp')loadDkp()}
+ try{data=await oapi('data',{event:evCur});evCur=data.event?.id||evCur;$('app').hidden=false;$('whoLine').textContent='Logged in as '+(sess.who||'Officer')+'.';drawTabs();drawSignups();drawChars();drawLog();if(tab==='board')loadBoard();if(tab==='dkp')loadDkp()}
  catch(e){if(!$('login').hidden)return;$('msg').textContent=e.message}
 }
 if(sess&&sess.token)load();else showLogin();

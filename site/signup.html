@@ -100,7 +100,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div style="max-width: 1160px; margin: 0 auto; padding: clamp(48px, 7vw, 72px) 24px clamp(40px, 5vw, 52px); display: flex; flex-direction: column; gap: 20px">
 <div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">WOW FOREVER</div>
 <h1 style="font-size: clamp(40px, 7vw, 64px); line-height: 1">roster check</h1>
-<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Raid day is almost upon us. Let us know if you’re in so we can plan the first raid nights.</p>
+<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Let us know if you’re in so we can plan. Pick the event below.</p>
+<div id="evBar" style="display: flex; flex-wrap: wrap; gap: 8px"></div>
 </div>
 </section>
 
@@ -124,8 +125,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div id="altBox" hidden style="display: flex; flex-wrap: wrap; gap: 8px"></div>
 <p id="rolesNeeded" hidden style="font-size: 15px; color: #D96A5F">Pick your spec on <a href="/characters">My characters</a> first.</p>
 
-<div style="border-top: 1px solid #362D2A; padding-top: 16px"><h3 style="font-size: 21px; line-height: 1.25">Looking to raid on December 9?</h3>
-<p style="font-size: 15px; color: #AEA49A; margin: 4px 0 10px">Release night. Change your answer any time.</p>
+<div style="border-top: 1px solid #362D2A; padding-top: 16px"><h3 id="qTitle" style="font-size: 21px; line-height: 1.25">Coming?</h3>
+<p id="qSub" style="font-size: 15px; color: #AEA49A; margin: 4px 0 10px">Change your answer any time.</p>
 <div class="md-chips" id="dec9"></div></div>
 <div id="attuneBox" hidden><h3 style="font-size: 21px; line-height: 1.25; margin-bottom: 10px">What about your attunement for the 40-man?</h3><div class="md-chips" id="attune"></div></div>
 <div id="laterBox" hidden><h3 style="font-size: 21px; line-height: 1.25">Raiding with us after that?</h3>
@@ -144,7 +145,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 
 <!-- ROSTER -->
 <div id="rosterView" hidden style="display: flex; flex-direction: column; gap: 24px; margin-top: 16px">
-<div><h2 style="font-size: clamp(30px, 4vw, 40px)">Who’s in for December 9</h2><p id="syncedAt" style="font-size: 14px; color: #8F857C; margin-top: 4px"></p></div>
+<div><h2 id="rTitle" style="font-size: clamp(30px, 4vw, 40px)">Who’s in</h2><p id="syncedAt" style="font-size: 14px; color: #8F857C; margin-top: 4px"></p></div>
 <div class="rs-tally" id="tally"></div>
 <div class="rs-two">
 <div class="md-card"><span class="md-lab">ROLES · YES + PROBABLY</span><div id="cover" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div>
@@ -172,6 +173,22 @@ const MAIN='#E9E2D9',WILL='#6E625C';
 const ATT=['I’ve done it','I’ll try to do it','I’ll need help','What attunement?','Probably won’t have time'];
 let as='', sign={dec9:'',attune:'',later:'',eta:''};
 const cur=()=>G.byKey(as);
+// Which event: ?event= in the address, else the next one coming up.
+let evId=new URLSearchParams(location.search).get('event')||'';
+const EVL={raid:{Yes:'Yes',Probably:'Probably','Not sure yet':'Not sure yet',No:'No'},other:{Yes:'Going',Probably:'Maybe','Not sure yet':'Not sure yet',No:'Can’t make it'}};
+const ev=()=>G.event()||{id:'',title:'',type:'raid',when:'',extras:false};
+const lab=v=>(EVL[ev().type]||EVL.raid)[v]||v;
+function drawEvent(){
+ const e=ev(),list=G.events();
+ $('evBar').innerHTML=list.map(x=>`<button type="button" data-ev="${esc(x.id)}" aria-pressed="${x.id===e.id}" style='${G.chipStyle(x.id===e.id)};text-transform:none;letter-spacing:.02em;font-size:15px'>${esc(x.title)} · ${esc(x.when.split(',')[0])}${x.type==='raid'?'':' · not a raid'}</button>`).join('');
+ $('evBar').hidden=list.length<2;
+ $('qTitle').textContent=e.type==='raid'?`Raiding: ${e.title}?`:`Coming to ${e.title}?`;
+ $('qSub').textContent=`${e.when}.${e.type==='raid'?'':' Not a raid night, so no DKP.'} ${e.note?e.note.replace(/[^.!?]$/,'$&.')+' ':''}Change your answer any time.`;
+ $('rTitle').textContent=`Who’s in: ${e.title}`;
+}
+$('evBar').addEventListener('click',async e=>{const b=e.target.closest('[data-ev]');if(!b)return;evId=b.dataset.ev;
+ history.replaceState(null,'','/signup?event='+encodeURIComponent(evId));
+ await G.loadRoster(evId);drawEvent();drawRoster();if(as)loadSign()});
 
 function drawAs(){
  const c=cur();
@@ -191,31 +208,32 @@ $('altLink').addEventListener('click',()=>{
 $('altBox').addEventListener('click',e=>{const b=e.target.closest('[data-as]');if(!b)return;as=b.dataset.as;$('altBox').hidden=true;drawAs();loadSign()});
 
 function drawSign(){
- const chips=(id,key,list)=>{$(id).innerHTML=list.map(v=>`<button type="button" data-k="${key}" data-val="${v}" aria-pressed="${sign[key]===v}" style='${G.chipStyle(sign[key]===v)}'>${v.toUpperCase()}</button>`).join('')};
- chips('dec9','dec9',['Yes','Probably','Not sure yet','No']);chips('attune','attune',ATT);
+ const chips=(id,key,list,l=v=>v)=>{$(id).innerHTML=list.map(v=>`<button type="button" data-k="${key}" data-val="${v}" aria-pressed="${sign[key]===v}" style='${G.chipStyle(sign[key]===v)}'>${esc(l(v)).toUpperCase()}</button>`).join('')};
+ chips('dec9','dec9',['Yes','Probably','Not sure yet','No'],lab);chips('attune','attune',ATT);
  chips('later','later',['Yes','Probably','Not sure yet','Not planning to raid']);chips('eta','eta',['Sometime in December','After the holidays','No idea yet']);
- const c=cur();
- $('attuneBox').hidden=!['Yes','Probably'].includes(sign.dec9);
- $('laterBox').hidden=sign.dec9!=='No';
- $('etaBox').hidden=!(sign.dec9==='No'&&sign.later&&sign.later!=='Not planning to raid'&&!(c&&c.level>=60));
+ const c=cur(),x=ev().extras; // the first raid's extra questions
+ $('attuneBox').hidden=!x||!['Yes','Probably'].includes(sign.dec9);
+ $('laterBox').hidden=!x||sign.dec9!=='No';
+ $('etaBox').hidden=!x||!(sign.dec9==='No'&&sign.later&&sign.later!=='Not planning to raid'&&!(c&&c.level>=60));
 }
 $('signForm').addEventListener('click',e=>{const b=e.target.closest('[data-k]');if(!b)return;sign[b.dataset.k]=b.dataset.val;if(b.dataset.k==='dec9'){if(b.dataset.val!=='No'){sign.later='';sign.eta=''}if(!['Yes','Probably'].includes(b.dataset.val))sign.attune=''}$('sMsg').textContent='';drawSign()});
 let hasSign=false;
 async function loadSign(){
  sign={dec9:'',attune:'',later:'',eta:''};$('sNotes').value='';$('sMsg').textContent='';hasSign=false;$('wBtn').hidden=true;
- try{const d=await G.api('mine',{key:as});if(d.signup){hasSign=true;$('wBtn').hidden=false;sign={dec9:d.signup.dec9||'',attune:d.signup.attune||'',later:d.signup.later||'',eta:d.signup.eta||''};if(d.signup.discord)$('sDiscord').value=d.signup.discord;$('sNotes').value=d.signup.notes||''}}catch(_){}
+ try{const d=await G.api('mine',{key:as,event:ev().id});if(d.signup){hasSign=true;$('wBtn').hidden=false;sign={dec9:d.signup.dec9||'',attune:d.signup.attune||'',later:d.signup.later||'',eta:d.signup.eta||''};if(d.signup.discord)$('sDiscord').value=d.signup.discord;$('sNotes').value=d.signup.notes||''}}catch(_){}
  drawSign();
 }
 $('signForm').addEventListener('submit',async e=>{
  e.preventDefault();const c=cur();
- const err=!c.main_spec?'Pick your spec on My characters first.':!sign.dec9?'Let us know about December 9.':(['Yes','Probably'].includes(sign.dec9)&&!sign.attune)?'Let us know about your 40-man attunement.':(sign.dec9==='No'&&!sign.later)?'Let us know if you plan to raid with us at 60.':(!G.me().discord&&!$('sDiscord').value.trim())?'Add your Discord name.':'';
+ const x=ev().extras;
+ const err=!c.main_spec?'Pick your spec on My characters first.':!sign.dec9?`Let us know about ${ev().title}.`:(x&&['Yes','Probably'].includes(sign.dec9)&&!sign.attune)?'Let us know about your 40-man attunement.':(x&&sign.dec9==='No'&&!sign.later)?'Let us know if you plan to raid with us at 60.':(!G.me().discord&&!$('sDiscord').value.trim())?'Add your Discord name.':'';
  $('sMsg').style.color='#D96A5F';$('sMsg').textContent=err;if(err)return;
  $('sGo').disabled=true;$('sGo').textContent='SAVING…';
  try{
   const discord=G.me().discord||$('sDiscord').value.trim();
-  await G.api('signup',{key:c.key,...sign,discord,notes:$('sNotes').value});
-  fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({'form-name':'raid-signup',signup_id:'char:'+c.key,discord,character:c.name,level:String(c.level),'class':c.cls,main_role:c.main_role,also_play:(c.also_play||[]).join(', '),dec9:sign.dec9,raid_after:sign.later,ready_by:c.level>=60?'Already 60':sign.eta,attunement:sign.attune,notes:$('sNotes').value}).toString()}).catch(()=>{});
-  await G.loadRoster();drawRoster();hasSign=true;$('wBtn').hidden=false;$('sMsg').style.color='#A3BC6E';$('sMsg').textContent='Saved. See you in there!';
+  await G.api('signup',{key:c.key,event:ev().id,answer:sign.dec9,...sign,discord,notes:$('sNotes').value});
+  if(ev().id==='dec9')fetch('/',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({'form-name':'raid-signup',signup_id:'char:'+c.key,discord,character:c.name,level:String(c.level),'class':c.cls,main_role:c.main_role,also_play:(c.also_play||[]).join(', '),dec9:sign.dec9,raid_after:sign.later,ready_by:c.level>=60?'Already 60':sign.eta,attunement:sign.attune,notes:$('sNotes').value}).toString()}).catch(()=>{});
+  await G.loadRoster(ev().id);drawRoster();hasSign=true;$('wBtn').hidden=false;$('sMsg').style.color='#A3BC6E';$('sMsg').textContent='Saved. See you in there!';
  }catch(x){$('sMsg').textContent=x.message}
  finally{$('sGo').disabled=false;$('sGo').textContent='SAVE MY SIGNUP'}
 });
@@ -224,7 +242,7 @@ $('wBtn').addEventListener('click',async()=>{
  const b=$('wBtn');
  if(!b.dataset.sure){b.dataset.sure='1';b.textContent='Tap again to remove '+cur().name+'’s signup';setTimeout(()=>{delete b.dataset.sure;b.textContent='Remove this character’s signup'},4000);return}
  delete b.dataset.sure;b.textContent='Remove this character’s signup';
- try{await G.api('withdraw',{key:as});await G.loadRoster();drawRoster();await loadSign();$('sMsg').style.color='#AEA49A';$('sMsg').textContent='Signup removed.'}
+ try{await G.api('withdraw',{key:as,event:ev().id});await G.loadRoster(ev().id);drawRoster();await loadSign();$('sMsg').style.color='#AEA49A';$('sMsg').textContent='Signup removed.'}
  catch(x){$('sMsg').style.color='#D96A5F';$('sMsg').textContent=x.message}
 });
 const bar=(label,parts,max,note)=>`<div><div style="display:flex;justify-content:space-between;gap:10px;font-size:15px;margin-bottom:5px"><b style="font-weight:600">${esc(label)}</b><span style="color:#AEA49A;white-space:nowrap">${esc(note)}</span></div><div style="height:10px;background:#241E1C;border-radius:999px;overflow:hidden;display:flex">${parts.map(([v,c])=>`<i style="display:block;height:100%;width:${max?v/max*100:0}%;background:${c}"></i>`).join('')}</div></div>`;
@@ -233,7 +251,7 @@ function drawRoster(){
  const yes=by('Yes'),maybe=by('Probably'),unsure=by('Not sure yet'),none=all.filter(r=>!r.signup);
  const going=yes.concat(maybe), at60=all.filter(r=>r.level>=60).length;
  $('syncedAt').textContent=G.syncLine();
- $('tally').innerHTML=[['Yes',yes.length,''],['Probably',maybe.length,''],['Not sure yet',unsure.length,''],['Full roster',all.length,`${at60} at level 60`]]
+ $('tally').innerHTML=[[lab('Yes'),yes.length,''],[lab('Probably'),maybe.length,''],['Not sure yet',unsure.length,''],['Full roster',all.length,ev().type==='raid'?`${at60} at level 60`:'']]
   .map(([l,n,sub])=>`<div class="md-card"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(30px,4vw,42px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong>${sub?`<span style="font-size:14px;color:#AEA49A">${esc(sub)}</span>`:''}</div>`).join('');
  const mainN=k=>going.filter(r=>r.main_role===k).length, will=k=>going.filter(r=>(r.also_play||[]).includes(k)).length;
  const maxR=Math.max(1,...G.ORDER.map(k=>mainN(k)+will(k)));
@@ -243,16 +261,17 @@ function drawRoster(){
  $('classBars').innerHTML=cc.length?cc.map(([k,v])=>bar(k,[[v,G.COLOR[k]]],maxC,String(v))).join(''):'<p style="color:#8F857C;font-size:15px">Nobody yet.</p>';
  const mineK=new Set(G.me().keys);
  const table=(title,list)=>!list.length?'':`<div><h2 style="font-size:clamp(24px,3vw,27px);margin-bottom:12px">${esc(title)} <span style="font-family:Barlow,sans-serif;font-weight:500;font-size:16px;color:#AEA49A">${list.length}</span></h2><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Class</th><th class="n">Level</th><th>Main role</th><th>Will also play</th></tr></thead><tbody>${list.slice().sort((a,b)=>G.ORDER.indexOf(a.main_role)-G.ORDER.indexOf(b.main_role)||b.level-a.level).map(r=>`<tr${mineK.has(r.key)?' style="background:#241E1C"':''}><td data-l="Character">${r.signup&&r.signup.discord?`<span class="tip" tabindex="0" data-tip="Discord: ${esc(r.signup.discord)}"><strong>${esc(r.name)}</strong></span>`:`<strong>${esc(r.name)}</strong>`}${mineK.has(r.key)?' <span style="font-size:13px;color:#A3BC6E">(you)</span>':''}</td><td data-l="Class">${G.dot(r.cls)}${esc(r.cls)}</td><td data-l="Level" class="n">${esc(r.level)}</td><td data-l="Main role">${esc(G.specLine(r)||'—')}</td><td data-l="Will also play">${esc(((r.also_specs||[]).length?r.also_specs:(r.also_play||[])).join(', ')||'—')}</td></tr>`).join('')}</tbody></table></div></div>`;
- $('lists').innerHTML=table('Yes',yes)+table('Probably',maybe)+table('Not sure yet',unsure)+(none.length?`<p style="font-size:15px;color:#AEA49A">${none.length} more guild member${none.length===1?' hasn’t':'s haven’t'} signed up yet.</p>`:'');
+ $('lists').innerHTML=table(lab('Yes'),yes)+table(lab('Probably'),maybe)+table('Not sure yet',unsure)+(none.length?`<p style="font-size:15px;color:#AEA49A">${none.length} more guild member${none.length===1?' hasn’t':'s haven’t'} signed up yet.</p>`:'');
  const att=a=>going.filter(r=>r.signup.attune===a), unk=going.filter(r=>!ATT.includes(r.signup.attune));
  const maxA=Math.max(1,...ATT.map(a=>att(a).length),unk.length);
  const arow=(label,list)=>`<div style="display:flex;flex-direction:column;gap:6px">${bar(label,[[list.length,MAIN]],maxA,String(list.length))}${list.length?`<div style="display:flex;flex-wrap:wrap;gap:6px">${list.map(r=>`<span style="display:inline-flex;align-items:center;font-size:14px;color:#CFC7BE;background:#241E1C;border-radius:999px;padding:3px 10px">${G.dot(r.cls)}${esc(r.name)}</span>`).join('')}</div>`:''}</div>`;
  $('attRows').innerHTML=ATT.map(a=>arow(a,att(a))).join('')+(unk.length?arow('Didn’t say yet',unk):'');
- $('attTrack').hidden=!going.length;
+ $('attTrack').hidden=!going.length||!ev().extras;
 }
 (async()=>{
  try{
-  await G.loadRoster();$('loading').hidden=true;$('rosterView').hidden=false;drawRoster();
+  await G.loadRoster(evId);$('loading').hidden=true;$('rosterView').hidden=false;drawEvent();drawRoster();
+  if(!G.event()){$('rosterView').hidden=true;$('loading').hidden=false;$('loading').textContent='No events coming up right now. Check back soon.';return}
   if(!G.mainChar()){$('needClaim').hidden=false;return}
   as=G.me().main;$('signForm').hidden=false;$('discordWrap').hidden=!!G.me().discord;drawAs();loadSign();
  }catch(e){$('loading').textContent='Couldn’t load the roster right now. Try refreshing in a bit.'}

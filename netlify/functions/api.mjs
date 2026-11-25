@@ -4,7 +4,8 @@
 // - Raid signups and a change log live in Netlify Blobs (store "guild").
 import { getStore } from '@netlify/blobs';
 import { postSummary, DEFAULT_CODES } from '../lib/summary.mjs';
-import { handleDiscord, refreshBoard, registerCommands, voiceChannels, createEvent } from '../lib/discordbot.mjs';
+import { handleDiscord, refreshBoard, registerCommands, voiceChannels, syncDiscordEvent, postBoard, deleteDiscordEvent, textChannels } from '../lib/discordbot.mjs';
+import * as EV from '../lib/events.mjs';
 import { backup as dkpBackup } from '../lib/dkpbackup.mjs';
 import * as DKP from '../lib/dkp.mjs';
 import { makeLock, checkLock, tooMany, failed } from '../lib/lock.mjs';
@@ -79,10 +80,15 @@ const publicChar = c => ({
   claimed: (c.claims || []).length > 0, locked: !!c.lock, alt_of: c.alt_of || '', updated_at: c.updated_at
 });
 async function moveSignup(s, fromKey, toKey) {
-  const sign = await s.get(`signup/dec9/${fromKey}`, { type: 'json' });
-  if (sign && !(await s.get(`signup/dec9/${toKey}`))) await s.setJSON(`signup/dec9/${toKey}`, sign);
-  if (sign) await s.delete(`signup/dec9/${fromKey}`);
+  for (const ev of await EV.allEvents(s)) {
+    const sign = await s.get(`signup/${ev.id}/${fromKey}`, { type: 'json' });
+    if (sign && !(await s.get(`signup/${ev.id}/${toKey}`))) await s.setJSON(`signup/${ev.id}/${toKey}`, sign);
+    if (sign) await s.delete(`signup/${ev.id}/${fromKey}`);
+  }
 }
+const evPublic = e => ({ id: e.id, title: e.title, type: e.type, date: e.date, start: e.start, end: e.end, note: e.note || '', extras: !!e.extras,
+  when: EV.whenLabel(e), discord: e.discord?.id ? `https://discord.com/events/${e.discord.guild}/${e.discord.id}` : '', board: !!e.board, channel: e.channel || '' });
+const signPublic = sg => sg ? { answer: EV.answerOf(sg), dec9: EV.answerOf(sg), attune: sg.attune || '', later: sg.later || '', eta: sg.eta || '', discord: sg.discord || '' } : null;
 
 /* ---------- Blizzard ---------- */
 // The Forever character slug is "first-last"; take it from the roster's link when it has one.
@@ -382,22 +388,26 @@ async function officerRoute(s, route, body, reqUrl = '') {
 
   if (route === 'officer/data') {
     const chars = await allChars(s);
-    const signs = await Promise.all(chars.map(c => s.get(`signup/dec9/${c.key}`, { type: 'json' })));
+    const ev = await EV.pickEvent(s, clean(body.event, 80));
+    const signs = ev ? await EV.signupsFor(s, ev, chars) : chars.map(() => null);
     const { blobs } = await s.list({ prefix: 'log/' });
     const recent = blobs.map(b => b.key).sort().reverse().slice(0, 200);
     const logs = (await Promise.all(recent.map(k => s.get(k, { type: 'json' })))).filter(Boolean);
     return json({
       who,
-      characters: chars.filter(c => c.key).map((c, i) => ({ ...publicChar(c), claims: (c.claims || []).length, signup: signs[i] || null })),
+      characters: chars.filter(c => c.key).map((c, i) => ({ ...publicChar(c), claims: (c.claims || []).length, signup: signs[i] ? { ...signs[i], answer: EV.answerOf(signs[i]), dec9: EV.answerOf(signs[i]) } : null })),
+      event: ev ? evPublic(ev) : null,
+      events: (await EV.allEvents(s)).map(evPublic),
       log: logs
     });
   }
   const c = body.key ? await s.get(`char/${clean(body.key, 40)}`, { type: 'json' }) : null;
   if (route === 'officer/remove-signup') {
     if (!c) return json({ error: 'Character not found' }, 404);
-    await s.delete(`signup/dec9/${c.key}`);
-    await log(s, 'officer-remove-signup', c.name, 'officer', { by: who });
-    await refreshBoard(s).catch(() => {});
+    const ev = await EV.pickEvent(s, clean(body.event, 80));
+    await s.delete(`signup/${ev.id}/${c.key}`);
+    await log(s, 'officer-remove-signup', c.name, 'officer', { by: who, event: ev.id });
+    await refreshBoard(s, ev.id).catch(() => {});
     return json({ ok: true });
   }
   if (route === 'officer/clear-lock') {
@@ -417,7 +427,7 @@ async function officerRoute(s, route, body, reqUrl = '') {
     if (!c) return json({ error: 'Character not found' }, 404);
     if (c.synced && c.in_guild !== false) return json({ error: 'This character is in the guild roster, so it would come right back on the next sync. Release the claim or remove the signup instead.' }, 400);
     await s.delete(`char/${c.key}`);
-    await s.delete(`signup/dec9/${c.key}`);
+    for (const ev of await EV.allEvents(s)) await s.delete(`signup/${ev.id}/${c.key}`);
     await s.delete(`info/${c.key}`);
     await log(s, 'officer-delete', c.name, 'officer', { by: who });
     return json({ ok: true });
@@ -666,15 +676,48 @@ async function officerRoute(s, route, body, reqUrl = '') {
     }
     return json({ error: 'Not found' }, 404);
   }
-  if (route === 'officer/discord-voice') return json(await voiceChannels(s));
-  if (route === 'officer/discord-event') {
-    const date = clean(body.date, 10), start = clean(body.start, 5) || '21:00', end = clean(body.end, 5) || '23:00';
+  // Events: raid nights and everything else. Each has its own signups, Discord signup message and Discord event.
+  if (route === 'officer/discord-channels') {
+    const [v, t] = await Promise.all([voiceChannels(s), textChannels(s)]);
+    if (v.error) return json({ error: v.error });
+    return json({ voice: v.channels, text: t.channels || [] });
+  }
+  if (route === 'officer/event-save') {
+    const date = clean(body.date, 10), start = clean(body.start, 5) || '21:00', end = clean(body.end, 5) || '23:00', title = clean(body.title, 100);
+    if (!title) return json({ error: 'Give the event a title.' }, 400);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) return json({ error: 'Pick a date and times.' }, 400);
     if (end <= start) return json({ error: 'The end time has to be after the start.' }, 400);
-    const r = await createEvent(s, { date, start, end, title: clean(body.title, 100), channel: clean(body.channel, 30), note: clean(body.note, 600) });
+    const old = body.id ? await EV.getEvent(s, clean(body.id, 80)) : null;
+    const ev = { ...(old || { id: EV.newId(title, date), created: new Date().toISOString(), by: who }), title, date, start, end,
+      type: body.type === 'other' ? 'other' : 'raid', note: clean(body.note, 600) };
+    delete ev.builtIn;
+    await EV.saveEvent(s, ev);
+    await log(s, old ? 'event-edit' : 'event', ev.title, 'officer', { by: who, date, type: ev.type });
+    // Keep what's already in Discord in step with the change.
+    let discord = null;
+    if (body.discord || ev.discord?.id) discord = await syncDiscordEvent(s, ev, body.channel !== undefined ? clean(body.channel, 30) : undefined);
+    if (ev.board) await refreshBoard(s, ev.id).catch(() => {});
+    return json({ ok: true, event: evPublic(await EV.getEvent(s, ev.id)), discordError: discord?.error || null });
+  }
+  if (route === 'officer/event-post') {
+    const ev = await EV.getEvent(s, clean(body.id, 80));
+    if (!ev) return json({ error: 'That event isn’t there anymore.' }, 404);
+    const r = await postBoard(s, ev, clean(body.channel, 30));
     if (r.error) return json({ error: r.error }, 400);
-    await log(s, 'discord-event', clean(body.title, 100) || 'Raid night', 'officer', { by: who, date });
-    return json(r);
+    await log(s, 'event-post', ev.title, 'officer', { by: who });
+    return json({ ok: true });
+  }
+  if (route === 'officer/event-delete') {
+    const ev = await EV.getEvent(s, clean(body.id, 80));
+    if (!ev) return json({ error: 'That event isn’t there anymore.' }, 404);
+    if (clean(body.confirm, 10) !== 'DELETE') return json({ error: 'Type DELETE to confirm.' }, 400);
+    await deleteDiscordEvent(s, ev);
+    const { blobs } = await s.list({ prefix: `signup/${ev.id}/` });
+    for (const b of blobs) await s.delete(b.key);
+    await s.delete(`event/${ev.id}`);
+    if (ev.id === 'dec9') { await s.setJSON('meta/dec9-deleted', { at: new Date().toISOString(), by: who }); await s.delete('meta/discord-board'); }
+    await log(s, 'event-delete', ev.title, 'officer', { by: who, signups: blobs.length });
+    return json({ ok: true });
   }
   if (route === 'officer/discord-setup') {
     // Adds the bot's /signup commands to Discord and hands back the invite link.
@@ -710,13 +753,16 @@ export default async (req, context) => {
       if (!sync || !sync.ok) sync = await syncGuild(s, force); // very first sync: wait for it
       else if (syncDue(sync, force)) { const job = syncGuild(s, force); if (context?.waitUntil) context.waitUntil(job); else await job; }
       const chars = (await allChars(s)).filter(c => c.key && (c.in_guild !== false || (c.claims || []).length));
-      const sign = await Promise.all(chars.map(c => s.get(`signup/dec9/${c.key}`, { type: 'json' })));
+      const ev = await EV.pickEvent(s, url.searchParams.get('event'));
+      const sign = ev ? await EV.signupsFor(s, ev, chars) : chars.map(() => null);
       const lockedMain = new Set(chars.filter(c => c.lock).map(c => c.key));
       return json({
         characters: chars.map((c, i) => ({
           ...publicChar(c), locked: !!c.lock || lockedMain.has(c.alt_of), lock_via: !c.lock && lockedMain.has(c.alt_of) ? c.alt_of : undefined,
-          signup: sign[i] ? { dec9: sign[i].dec9, attune: sign[i].attune, later: sign[i].later, eta: sign[i].eta, discord: sign[i].discord || '' } : null
+          signup: signPublic(sign[i])
         })),
+        event: ev ? evPublic(ev) : null,
+        events: (await EV.upcoming(s)).map(evPublic),
         synced_at: sync && sync.ok ? sync.at : null,
         aliases: (await s.get('meta/aliases', { type: 'json' })) || {}
       });
@@ -825,8 +871,10 @@ export default async (req, context) => {
       if (verified) await s.setJSON(`verified/${device}`, { ...verified, discord });
       else await s.setJSON(`discord/${device}`, { discord, at: new Date().toISOString() });
       for (const c of owned) {
-        const sg = await s.get(`signup/dec9/${c.key}`, { type: 'json' });
-        if (sg) await s.setJSON(`signup/dec9/${c.key}`, { ...sg, discord });
+        for (const ev of await EV.upcoming(s)) {
+          const sg = await s.get(`signup/${ev.id}/${c.key}`, { type: 'json' });
+          if (sg) await s.setJSON(`signup/${ev.id}/${c.key}`, { ...sg, discord });
+        }
       }
       await log(s, 'discord', discord, device, { from: verified?.discord || '' });
       return json({ ok: true, discord });
@@ -918,34 +966,43 @@ export default async (req, context) => {
     }
 
     if (route === 'signup') {
-      const dec9 = pick(body.dec9, DEC9);
-      if (!dec9) return json({ error: 'Pick an answer for December 9' }, 400);
+      const ev = await EV.pickEvent(s, clean(body.event, 80));
+      if (!ev) return json({ error: 'That event isn’t there anymore.' }, 404);
+      const answer = pick(body.answer || body.dec9, DEC9);
+      if (!answer) return json({ error: `Pick an answer for ${ev.title}` }, 400);
+      const x = !!ev.extras; // the first raid's extra questions
       const doc = {
-        dec9,
-        attune: dec9 === 'Yes' || dec9 === 'Probably' ? pick(body.attune, ATTUNE) : '',
-        later: dec9 === 'No' ? pick(body.later, LATER) : '',
-        eta: dec9 === 'No' ? pick(body.eta, ETA) : '',
+        answer,
+        attune: x && (answer === 'Yes' || answer === 'Probably') ? pick(body.attune, ATTUNE) : '',
+        later: x && answer === 'No' ? pick(body.later, LATER) : '',
+        eta: x && answer === 'No' ? pick(body.eta, ETA) : '',
         discord: '', notes: clean(body.notes, 1000), at: new Date().toISOString()
       };
+      if (ev.id === 'dec9') doc.dec9 = answer; // older code paths read this name
       // Discord name comes from the one-time guild check; older browsers can still send it.
       const verified = await s.get(`verified/${device}`, { type: 'json' });
-      const prevSign = await s.get(`signup/dec9/${c.key}`, { type: 'json' });
+      const prevSign = await s.get(`signup/${ev.id}/${c.key}`, { type: 'json' });
       const named = verified ? null : await s.get(`discord/${device}`, { type: 'json' });
       doc.discord = clean(verified?.discord || named?.discord || body.discord || prevSign?.discord, 40);
-      await s.setJSON(`signup/dec9/${c.key}`, doc);
-      await log(s, 'signup', c.name, device, { dec9 });
-      if (context?.waitUntil) context.waitUntil(refreshBoard(s).catch(() => {}));
+      await s.setJSON(`signup/${ev.id}/${c.key}`, doc);
+      await log(s, 'signup', c.name, device, { event: ev.id, answer });
+      if (context?.waitUntil) context.waitUntil(refreshBoard(s, ev.id).catch(() => {}));
       return json({ ok: true });
     }
 
     if (route === 'withdraw') {
-      await s.delete(`signup/dec9/${c.key}`);
-      await log(s, 'withdraw', c.name, device);
-      if (context?.waitUntil) context.waitUntil(refreshBoard(s).catch(() => {}));
+      const ev = await EV.pickEvent(s, clean(body.event, 80));
+      await s.delete(`signup/${ev.id}/${c.key}`);
+      await log(s, 'withdraw', c.name, device, { event: ev.id });
+      if (context?.waitUntil) context.waitUntil(refreshBoard(s, ev.id).catch(() => {}));
       return json({ ok: true });
     }
 
-    if (route === 'mine') return json({ ok: true, signup: (await s.get(`signup/dec9/${c.key}`, { type: 'json' })) || null });
+    if (route === 'mine') {
+      const ev = await EV.pickEvent(s, clean(body.event, 80));
+      const sg = ev ? await s.get(`signup/${ev.id}/${c.key}`, { type: 'json' }) : null;
+      return json({ ok: true, signup: sg ? { ...sg, answer: EV.answerOf(sg), dec9: EV.answerOf(sg) } : null, event: ev ? evPublic(ev) : null });
+    }
 
     if (route === 'dkp') {
       // Approved DKP for this character's person (main plus alts), with recent history.

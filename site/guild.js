@@ -37,9 +37,11 @@ window.Guild = (() => {
   }
 
   let roster = [], syncedAt = null;
-  async function loadRoster() {
-    const d = await api('roster');
-    roster = d.characters || []; syncedAt = d.synced_at;
+  // ev: which event's signups to include (default: the next one coming up).
+  let event = null, events = [];
+  async function loadRoster(ev) {
+    const d = await api('roster' + (ev ? '?event=' + encodeURIComponent(ev) : ''));
+    roster = d.characters || []; syncedAt = d.synced_at; event = d.event || null; events = d.events || [];
     // Characters that were merged into their guild copy keep working.
     const al = d.aliases || {};
     me.keys = [...new Set(me.keys.map(k => al[k] || k))];
@@ -130,5 +132,5 @@ window.Guild = (() => {
     };
   }
 
-  return { renderInfo, CLASSES, COLOR, ORDER, ACC, $, esc, low, api, me: () => me, loadRoster, roster: () => roster, byKey, mine, mainChar, addClaim, dropClaim, setMain, setVerified, setDiscord, dot, chipStyle, editor, picksFrom, picksOut, summary, SPECS, roleOf, specLine, syncLine };
+  return { event: () => event, events: () => events, renderInfo, CLASSES, COLOR, ORDER, ACC, $, esc, low, api, me: () => me, loadRoster, roster: () => roster, byKey, mine, mainChar, addClaim, dropClaim, setMain, setVerified, setDiscord, dot, chipStyle, editor, picksFrom, picksOut, summary, SPECS, roleOf, specLine, syncLine };
 })();

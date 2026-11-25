@@ -133,7 +133,8 @@ const RANK=r=>r===0?'Guild Master':r===1?'Officer':r==null?'':'Member';
   document.title='Mystic Dragons — '+c.name;
   $('cLab').textContent=(RANK(c.rank)||'Guild member').toUpperCase();
   $('cName').textContent=c.name;$('cSum').textContent=G.summary(c);
-  $('cSign').textContent=c.signup?`December 9: ${c.signup.dec9}${c.signup.attune?' · Attunement: '+c.signup.attune:''}`:'Hasn’t signed up for December 9 yet.';
+  const nev=G.event();
+  $('cSign').textContent=!nev?'No events coming up.':c.signup?`${nev.title}: ${c.signup.dec9}${c.signup.attune?' · Attunement: '+c.signup.attune:''}`:`Hasn’t signed up for ${nev.title} yet.`;
   const mine=G.me().keys.includes(c.key);
   $('cMine').innerHTML=mine?'This is one of your characters. <a href="/characters">Manage it on My characters</a>.':(!c.claimed?'Is this you? <a href="/claim">Claim it</a>.':'');
   if(!c.synced){$('infoMsg').textContent='This character was added by hand, so there’s no game data for it.';return}
