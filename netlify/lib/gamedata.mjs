@@ -3,6 +3,7 @@ export const API = 'https://us.api.blizzard.com';
 export const NS = 'profile-forever-us';
 const STATIC = 'static-forever-us';
 export const RECIPE_V = 2; // bump to rebuild cached recipe details
+export const COMPACT_V = 2; // bump to redo the short entries from stored details (no Blizzard calls)
 export const STANDINGS = ['Hated', 'Hostile', 'Unfriendly', 'Neutral', 'Friendly', 'Honored', 'Revered', 'Exalted'];
 
 export async function blizzToken(s) {
@@ -103,7 +104,7 @@ export function compact(d, prof) {
     : [d.description];
   const line = bits.filter(Boolean).join(' · ');
   return {
-    n: d.name, p: prof, q: it?.quality || '', ic: d.icon || '', l: line.slice(0, 240),
+    cv: COMPACT_V, b: /picked up/i.test(it?.binding || '') ? 1 : 0, n: d.name, p: prof, q: it?.quality || '', ic: d.icon || '', l: line.slice(0, 240),
     // Extra words to search beyond the name and stat line: flavor text and reagents.
     t: [it?.description, it ? d.description : '', ...(d.reagents || []).map(r => r.name)].filter(Boolean).join(' | ').toLowerCase().slice(0, 300),
     sk: d.pattern?.skill ?? null,

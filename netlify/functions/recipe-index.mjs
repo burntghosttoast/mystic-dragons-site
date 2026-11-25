@@ -5,7 +5,7 @@
 // 3. Guildies' reputations, refreshed every 12 hours, for rep-gated recipes.
 // Once everything is filled in, a run does almost nothing.
 import { getStore } from '@netlify/blobs';
-import { blizzToken, bget, recipeDetail, compact, buildCatalog, RECIPE_V } from '../lib/gamedata.mjs';
+import { blizzToken, bget, recipeDetail, compact, buildCatalog, RECIPE_V, COMPACT_V } from '../lib/gamedata.mjs';
 
 const CATALOG_EVERY_MS = 7 * 24 * 3600 * 1000;
 const REP_EVERY_MS = 12 * 3600 * 1000;
@@ -38,6 +38,14 @@ export default async () => {
   const todo = [...profOf.keys()].filter(id => !idx.e[id] && !(idx.miss[id] && Date.now() - idx.miss[id] < RETRY_MS))
     .sort((a, b) => known.has(b) - known.has(a));
   let added = 0;
+  // Redo short entries saved in an older format from the stored details.
+  const stale = Object.keys(idx.e).filter(id => idx.e[id].cv !== COMPACT_V);
+  for (let i = 0; i < stale.length && left() > 12000; i += 40) {
+    await Promise.all(stale.slice(i, i + 40).map(async id => {
+      const d = await s.get(`recipe/${id}`, { type: 'json' });
+      if (d) { idx.e[id] = compact(d, idx.e[id].p); added++; } else delete idx.e[id];
+    }));
+  }
   for (let i = 0; i < todo.length && left() > 9000; i += 6) {
     await Promise.all(todo.slice(i, i + 6).map(async id => {
       try {

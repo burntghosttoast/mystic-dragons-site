@@ -229,7 +229,8 @@ function draw(){
  for(const n of names){
   if(prof&&n!==prof)continue;
   const p=P[n]||{recipes:{},ids:{}},seen=new Set();
-  const test=(r,id)=>{if(!searching)return true;const e=entry(id),hay=low(r)+' '+(e?low(e.l)+' '+e.t:'');return terms.every(t=>hay.includes(t))};
+  // Bind-on-pickup items can only be used by whoever makes them, so they’re left out.
+  const test=(r,id)=>{if(entry(id)?.b)return false;if(!searching)return true;const e=entry(id),hay=low(r)+' '+(e?low(e.l)+' '+e.t:'');return terms.every(t=>hay.includes(t))};
   for(const [r,keys] of Object.entries(p.recipes)){const id=p.ids&&p.ids[r];seen.add(r);if(test(r,id))known.push({r,n,keys,id})}
   for(const [id,r] of (C[n]?.recipes||[]).map(x=>[x[0],x[1]])){if(seen.has(r))continue;seen.add(r);if(test(r,id))unknown.push({r,n,keys:[],id})}
  }
