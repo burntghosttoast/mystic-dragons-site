@@ -139,7 +139,7 @@ details>summary::-webkit-details-marker{display:none}
 <script>
 {
 const G=Guild,$=G.$,esc=G.esc;
-const KIND={start:'Starting DKP','attend-start':'Raid start','attend-end':'Raid end',bench:'Benched',award:'Loot',adjust:'Adjustment',decay:'Weekly decay'};
+const KIND={start:'Starting DKP','attend-start':'Raid start','attend-end':'Raid end',bench:'Benched',award:'Loot',adjust:'Adjustment',decay:'Decay',fine:'Fine','attend-fix':'Attendance fix'};
 const day=t=>t?new Date(t).toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'}):'';
 (async()=>{
  try{await G.loadRoster()}catch(_){}

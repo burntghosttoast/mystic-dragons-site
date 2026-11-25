@@ -142,7 +142,6 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <p id="dkStatus" style="font-size: 16px; color: #CFC7BE"></p>
 <div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" id="dkApprove" class="rs-btn rs-btn-p">APPROVE SHEET</button><button type="button" id="dkCsvBal" class="rs-btn">DOWNLOAD BALANCES</button><button type="button" id="dkCsvTx" class="rs-btn">DOWNLOAD FULL LEDGER</button></div>
 <p style="font-size: 14px; color: #8F857C">Downloads are spreadsheet files (.csv) that open in Excel or Google Sheets.</p>
-<p style="font-size: 14px; color: #8F857C">Weekly decay adds itself early every Tuesday on the live site, so it shows up in that day’s sheet.</p>
 </div>
 
 <div role="tablist" id="dkViews" style="display: flex; flex-wrap: wrap; gap: 8px"></div>
@@ -160,7 +159,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div data-dv="people" hidden style="display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><input class="md-in" type="search" id="dkPQ" placeholder="Search people" style="max-width: 260px"><div id="dkPCls" style="display: flex; flex-wrap: wrap; gap: 6px"></div></div>
 <div class="rs-wrap"><table class="rs-table"><thead><tr id="dkPHead"></tr></thead><tbody id="dkPRows"></tbody></table></div>
-<p style="font-size: 14px; color: #8F857C">Click a name to see everything for that person. Balance = Earned + Adjusted − Spent − Decay. Earned is starting DKP plus raid and bench points; Adjusted is officer adjustments. Points that would have gone past the cap aren’t counted. Balances include changes that haven’t been approved yet; the small “+5 waiting” under a balance is how much of it is still waiting for the sheet to be approved. Attendance counts raid nights since that person’s first one.</p>
+<p style="font-size: 14px; color: #8F857C">Click a name to see everything for that person. Balance = Earned + Adjusted − Spent − Decay. Earned is starting DKP plus raid and bench points; Adjusted is officer adjustments and fines; Decay is decay officers hand out. Points that would have gone past the cap aren’t counted. Balances include changes that haven’t been approved yet; the small “+5 waiting” under a balance is how much of it is still waiting for the sheet to be approved. Attendance counts raid nights since that person’s first one.</p>
 </div>
 
 <!-- DKP: one person -->
@@ -208,11 +207,13 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div><button type="submit" class="rs-btn rs-btn-p">ADD AWARD</button></div>
 </form>
 <form id="dkAdj" class="md-card" novalidate style="gap: 8px">
-<span class="md-lab">ADJUSTMENT</span>
+<span class="md-lab">ADJUSTMENT, DECAY OR FINE</span>
+<select class="md-in" id="dkJType"><option value="adjust">Adjustment (add or take away)</option><option value="decay">Decay (went MIA, left early, etc.)</option><option value="fine">Fine</option></select>
 <input class="md-in" list="dkChars" id="dkJChar" placeholder="Character">
 <input class="md-in" type="number" id="dkJAmt" placeholder="Amount, like 5 or -10">
 <input class="md-in" id="dkJNote" maxlength="120" placeholder="Reason">
-<div><button type="submit" class="rs-btn rs-btn-p">ADD ADJUSTMENT</button></div>
+<div><button type="submit" class="rs-btn rs-btn-p">ADD IT</button></div>
+<p style="font-size: 13px; color: #8F857C">There’s no automatic decay. Decay and fines are handed out here, one person at a time, and always take DKP away.</p>
 </form>
 </div>
 
@@ -316,8 +317,8 @@ async function act(path,key,done){try{await oapi(path,{key});$('msg').textConten
 
 /* ---------- DKP ---------- */
 let dk=null;const tick={start:new Set(),end:new Set(),bench:new Set()};
-const KIND={start:'Starting DKP','attend-start':'Raid start','attend-end':'Raid end',bench:'Bench',award:'Loot',adjust:'Adjustment',decay:'Weekly decay','attend-fix':'Attendance fix'};
-const SETL=[['cap','DKP cap'],['start','Starting DKP (first raid night)'],['attendStart','Points at raid start'],['attendEnd','Points at raid end'],['decay','Weekly decay']];
+const KIND={start:'Starting DKP','attend-start':'Raid start','attend-end':'Raid end',bench:'Bench',award:'Loot',adjust:'Adjustment',decay:'Decay',fine:'Fine','attend-fix':'Attendance fix'};
+const SETL=[['cap','DKP cap'],['start','Starting DKP (first raid night)'],['attendStart','Points at raid start'],['attendEnd','Points at raid end']];
 const charKey=v=>{v=String(v||'').trim().toLowerCase();const c=data.characters.find(x=>x.name.toLowerCase()===v);return c?c.key:''};
 async function loadDkp(){
  try{dk=await oapi('dkp-data');drawDkp()}catch(e){$('msg').textContent=e.message}
@@ -362,7 +363,7 @@ function dkCompute(){
   // Count what actually moved the balance, so Balance = Earned + Adjusted − Spent − Decay.
   const was=p.bal;p.bal=t.delta>=0?Math.min(cap,p.bal+t.delta):Math.max(0,p.bal+t.delta);const got=p.bal-was;p.line.push([t.at,p.bal,t.status]);
   if(t.delta>0&&got<t.delta)p.overCap+=t.delta-got;
-  if(t.kind==='award'){p.spent-=got;p.items.push(t)}else if(t.kind==='decay')p.decay-=got;else if(t.kind==='adjust')p.adj+=got;else p.earned+=got;
+  if(t.kind==='award'){p.spent-=got;p.items.push(t)}else if(t.kind==='decay')p.decay-=got;else if(t.kind==='adjust'||t.kind==='fine')p.adj+=got;else p.earned+=got;
   if(t.n&&['attend-start','attend-end','bench','attend-fix'].includes(t.kind)){const c=(p.nc[t.n]=p.nc[t.n]||{}),k=t.kind==='attend-fix'?t.undo:t.kind;c[k]=(c[k]||0)+(t.kind==='attend-fix'?-1:1)}
  }
  Object.values(P).forEach(p=>{for(const n of nights){const c=p.nc[n.id];if(!c)continue;if(c['attend-start']>0||c.bench>0){p.present.add(nk(n.id));p.nids.add(n.id);if(!p.first)p.first=nk(n.id)}if(c['attend-end']>0||c.bench>0)p.full.add(nk(n.id))}});
@@ -405,7 +406,7 @@ $('dkPCls').addEventListener('click',e=>{const b=e.target.closest('[data-pc]');i
 $('dkPHead').addEventListener('click',e=>{const b=e.target.closest('[data-ps]');if(!b)return;const k=b.dataset.ps;dkPSort=dkPSort[0]===k?[k,-dkPSort[1]]:[k,['name','cls'].includes(k)?1:-1];drawPeople()});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-person]');if(!b||!S)return;dkSel=b.dataset.person;dkView='person';drawDkViews();window.scrollTo({top:$('dkViews').getBoundingClientRect().top+scrollY-20})});
 $('dkBack').addEventListener('click',()=>{dkView='people';drawDkViews()});
-const KLINE=t=>`${esc(KIND[t.kind]||t.kind)}${t.item?': '+esc(t.item):''}${t.note&&!['start','decay','bench'].includes(t.kind)?' · '+esc(t.note):''}`;
+const KLINE=t=>`${esc(KIND[t.kind]||t.kind)}${t.item?': '+esc(t.item):''}${t.note&&!['start','bench'].includes(t.kind)?' · '+esc(t.note):''}`;
 const SRCL={manual:'Entered by hand',edit:'Changed later',auto:'Automatic',example:'Example data',addon:'From the addon',bot:'From the Discord bot'};
 const srcTag=t=>{const s=t.source||'manual',w=`${SRCL[s]||s}${t.by&&s!=='auto'?' by '+t.by:''}${t.entered?' · '+whenL(t.entered):''}`;return `<span style="display:block;font-size:12px;color:${s==='edit'?'#CDB07C':'#8F857C'}" title="${esc(w)}">${esc(w)}</span>`};
 const txRow=(t,showWho)=>`<tr><td data-l="What">${showWho?`<button type="button" class="link-btn" data-person="${esc(t.person)}" style="color:#F1ECE6">${esc(S.P[t.person]?.name||t.person)}</button> · `:''}${KLINE(t)}${t.charName&&S.P[t.person]&&t.charName!==S.P[t.person].name?` <span style="color:#8F857C">(on ${esc(t.charName)})</span>`:''}${srcTag(t)}</td><td data-l="Change" class="n" style="color:${t.delta<0?'#D96A5F':'#A3BC6E'}">${t.delta>0?'+':''}${t.delta}</td><td data-l="Status">${t.status==='draft'?'<span style="color:#CDB07C">Draft</span>':'<span style="color:#8F857C">Approved</span>'}</td><td>${t.status==='draft'?`<button type="button" class="link-btn" data-dk-rm="${esc(t.id)}">Remove</button>`:''}</td></tr>`;
@@ -528,7 +529,7 @@ $('dkNight').addEventListener('submit',e=>{e.preventDefault();
  if(dkFormNight)return dkDo('dkp-night-edit',{night:dkFormNight,start:[...tick.start],end:[...tick.end],bench:[...tick.bench]},d=>d.changes?`Saved ${d.changes} change${d.changes===1?'':'s'} to that night as drafts.`:'Nothing changed.',()=>{dkFormNight='';syncNightForm()});
  dkDo('dkp-night',{date:$('dkDate').value,group:$('dkGroup').value,start:[...tick.start],end:[...tick.end],bench:[...tick.bench]},d=>`Raid night saved for ${d.people} ${d.people===1?'person':'people'}. It’s a draft until you approve the sheet.`,()=>{Object.values(tick).forEach(x=>x.clear());$('dkGroup').value=''})});
 $('dkAward').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-award',{char:charKey($('dkAChar').value),item:$('dkAItem').value,amount:$('dkAAmt').value},'Award added as a draft.',()=>{['dkAChar','dkAItem','dkAAmt'].forEach(i=>$(i).value='')})});
-$('dkAdj').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-adjust',{char:charKey($('dkJChar').value),amount:$('dkJAmt').value,note:$('dkJNote').value},'Adjustment added as a draft.',()=>{['dkJChar','dkJAmt','dkJNote'].forEach(i=>$(i).value='')})});
+$('dkAdj').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-adjust',{char:charKey($('dkJChar').value),amount:$('dkJAmt').value,note:$('dkJNote').value,type:$('dkJType').value},'Adjustment added as a draft.',()=>{['dkJChar','dkJAmt','dkJNote'].forEach(i=>$(i).value='')})});
 $('dkLink').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-link',{alt:charKey($('dkLAlt').value),main:charKey($('dkLMain').value)||'x'},'Linked. That alt now shares its main’s DKP.',()=>{$('dkLAlt').value='';$('dkLMain').value=''})});
 $('dkLinks').addEventListener('click',e=>{const b=e.target.closest('[data-dk-unlink]');if(b)dkDo('dkp-link',{alt:b.dataset.dkUnlink},'Unlinked.')});
 $('dkSet').addEventListener('submit',e=>{e.preventDefault();const body={};document.querySelectorAll('[data-set]').forEach(i=>{body[i.dataset.set]=i.value});dkDo('dkp-settings',body,'Settings saved. They apply to changes added from now on.')});

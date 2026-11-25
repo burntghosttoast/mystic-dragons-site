@@ -5,7 +5,7 @@
 // Set both in the Production context only, so the preview's example data never gets backed up.
 import * as DKP from './dkp.mjs';
 
-const KIND = { start: 'Starting DKP', 'attend-start': 'Raid start', 'attend-end': 'Raid end', bench: 'Bench', award: 'Loot', adjust: 'Adjustment', decay: 'Weekly decay', 'attend-fix': 'Attendance fix' };
+const KIND = { start: 'Starting DKP', 'attend-start': 'Raid start', 'attend-end': 'Raid end', bench: 'Bench', award: 'Loot', adjust: 'Adjustment', decay: 'Decay', fine: 'Fine', 'attend-fix': 'Attendance fix' };
 const SRC = { manual: 'Entered by hand', edit: 'Changed later', auto: 'Automatic', example: 'Example data', addon: 'From the addon', bot: 'From the Discord bot' };
 
 const cell = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
@@ -29,9 +29,9 @@ export async function buildFiles(s) {
   for (const t of tx) {
     const p = P[t.person] = P[t.person] || { bal: 0, approved: 0, earned: 0, adj: 0, spent: 0, decay: 0, items: 0 };
     const was = p.bal; p.bal = t.delta >= 0 ? Math.min(cfg.cap, p.bal + t.delta) : Math.max(0, p.bal + t.delta); const got = p.bal - was;
-    if (t.kind === 'award') { p.spent -= got; p.items++; } else if (t.kind === 'decay') p.decay -= got; else if (t.kind === 'adjust') p.adj += got; else p.earned += got;
+    if (t.kind === 'award') { p.spent -= got; p.items++; } else if (t.kind === 'decay') p.decay -= got; else if (t.kind === 'adjust' || t.kind === 'fine') p.adj += got; else p.earned += got;
   }
-  const balances = csv([['Person', 'Alts', 'Class', 'Approved balance', 'Balance with drafts', 'Earned', 'Adjusted', 'Spent', 'Decay', 'Items'],
+  const balances = csv([['Person', 'Alts', 'Class', 'Approved balance', 'Balance with drafts', 'Earned', 'Adjusted (incl. fines)', 'Spent', 'Decay', 'Items'],
     ...Object.entries(P).sort((a, b) => b[1].bal - a[1].bal).map(([k, p]) => [name(k), chars.filter(c => c.alt_of === k).map(c => c.name).join('; '), byKey[k]?.cls || '', st.approved[k] || 0, p.bal, p.earned, p.adj, p.spent, p.decay, p.items])]);
   const ledger = csv([['When (UTC)', 'Raid night', 'Group', 'Person', 'Character', 'Type', 'Item', 'Note', 'Change', 'Status', 'Entered by', 'Source', 'Entered at (UTC)', 'Line id'],
     ...tx.map(t => { const n = nights[t.night]; return [t.at, n?.date || '', n?.group || '', name(t.person), t.char ? name(t.char) : '', KIND[t.kind] || t.kind, t.item || '', ['start', 'decay', 'bench'].includes(t.kind) ? '' : (t.note || ''), t.delta, t.status === 'draft' ? 'Draft' : 'Approved', t.by || '', SRC[t.source || 'manual'] || t.source, t.entered || '', t.id]; })]);

@@ -506,10 +506,13 @@ async function officerRoute(s, route, body, reqUrl = '') {
         const have = DKP.apply(st.approved, drafts.filter(t => t.delta < 0 || t.kind === 'start'), cfg.cap)[DKP.personOf(ch)] || 0;
         if (amt > have) return json({ error: `${byKey[DKP.personOf(ch)]?.name || ch.name} only has ${have} DKP to spend. Points from raids since the last approved sheet don’t count yet.` }, 400);
       }
-      const t = await DKP.addTx(s, { person: DKP.personOf(ch), char: ch.key, delta: award ? -amt : amt, kind: award ? 'award' : 'adjust',
+      // Adjustment types: plain adjustment (either way), decay (for going MIA / leaving early) or a fine. Decay and fines only take away.
+      const type = award ? 'award' : ['decay', 'fine'].includes(body.type) ? body.type : 'adjust';
+      if (type !== 'adjust' && amt > 0) return json({ error: `A ${type} takes DKP away, so use a negative number, like -5.` }, 400);
+      const t = await DKP.addTx(s, { person: DKP.personOf(ch), char: ch.key, delta: award ? -amt : amt, kind: type,
         item: award ? clean(body.item, 80) : undefined, night: clean(body.night, 40) || undefined, note: clean(body.note, 120) || undefined, by: who });
       const pname = byKey[DKP.personOf(ch)]?.name || ch.name;
-      await DKP.audit(s, award ? 'award' : 'adjust', who, award ? `${pname} won ${t.item} for ${amt}${ch.name !== pname ? ' (on ' + ch.name + ')' : ''}` : `${pname} ${t.delta > 0 ? '+' : ''}${t.delta}: ${t.note}`, { tx: t });
+      await DKP.audit(s, award ? 'award' : 'adjust', who, award ? `${pname} won ${t.item} for ${amt}${ch.name !== pname ? ' (on ' + ch.name + ')' : ''}` : `${pname} ${type === 'adjust' ? '' : type + ' '}${t.delta > 0 ? '+' : ''}${t.delta}: ${t.note}`, { tx: t });
       await log(s, award ? 'dkp-award' : 'dkp-adjust', ch.name, 'officer', { by: who, delta: t.delta, item: t.item, note: t.note });
       return json({ ok: true });
     }
@@ -548,11 +551,6 @@ async function officerRoute(s, route, body, reqUrl = '') {
         await log(s, 'dkp-unlink', alt.name, 'officer', { by: who });
       }
       return json({ ok: true });
-    }
-    if (route === 'officer/dkp-decay') {
-      const n = await DKP.addDecay(s, who, true);
-      await log(s, 'dkp-decay', `${n} people`, 'officer', { by: who });
-      return json({ ok: true, people: n });
     }
     if (route === 'officer/dkp-demo') {
       // Example data, only on preview sites (never the live site).

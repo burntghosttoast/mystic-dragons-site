@@ -236,7 +236,6 @@ async function seedDemoInner(s, raiders, charsByKey, by) {
     if (n === 4) { const c = here[here.length - 1]; if (c) await addTx(s, { at: `${date}T23:50:00.000Z`, person: personOf(c), char: c.key, delta: -5, kind: 'adjust', note: 'Showed up after the first pull', by }); }
     if (n === nights.length - 1) break; // last night stays as drafts to review
     const d = new Date(date + 'T12:00:00Z'), mon = d.getUTCDay() === 1;
-    if (mon) await addDecay(s, 'Weekly decay', true, new Date(d.getTime() + 17 * 3600e3 + 5 * 60e3).toISOString());
     await approve(s, by, new Date(d.getTime() + (mon ? 29 : 29) * 3600e3).toISOString());
   }
   return { nights: nights.length, raiders: raiders.length };
