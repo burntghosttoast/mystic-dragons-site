@@ -122,6 +122,12 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div data-tab="signups" style="display: flex; flex-direction: column; gap: 14px">
 <div class="rs-tally" id="tally"></div>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><div style="display: flex; flex-wrap: wrap; gap: 8px" id="sFilter"></div><button type="button" id="postNow" class="rs-btn" style="margin-left: auto">POST SUMMARY TO DISCORD NOW</button></div>
+<details id="emo" class="md-card" style="gap:10px"><summary style="cursor:pointer;list-style:none;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;letter-spacing:.14em;color:#CFC7BE">CLASS ICONS FOR THE DISCORD POST</summary>
+<p style="font-size:15px;color:#CFC7BE">The summary can show a class icon next to each name, using emojis from our Discord server.</p>
+<ol style="font-size:15px;color:#CFC7BE;margin:0;padding-left:22px;line-height:1.7"><li>Save each icon below (right-click, Save image).</li><li>In Discord: Server Settings → Emoji → Upload Emoji, named like <b>md_mage</b>.</li><li>In any channel, type <b>\:md_mage:</b> and send it. Discord shows a code like <b>&lt;:md_mage:1234567890&gt;</b>. Copy that code into the box for that class.</li></ol>
+<div id="emoRows" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px"></div>
+<div><button type="button" id="emoSave" class="rs-btn rs-btn-p">SAVE ICONS</button></div>
+</details>
 <div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Discord</th><th>Class</th><th class="n">Lvl</th><th>Dec 9</th><th>Attunement / later</th><th>Notes</th><th>Saved</th><th></th></tr></thead><tbody id="sRows"></tbody></table></div>
 </div>
 
@@ -234,6 +240,18 @@ $('bForm').addEventListener('submit',async e=>{
  try{posts=(await oapi('board',{action:'add',text,tag:$('bTag').value,by:sess.who})).posts;$('bText').value='';bF='open';drawBoard()}catch(x){$('msg').textContent=x.message}
 });
 
+
+const CLS=['Warrior','Paladin','Hunter','Rogue','Priest','Shaman','Mage','Warlock','Druid'];
+let emoLoaded=false;
+$('emo').addEventListener('toggle',async()=>{
+ if(!$('emo').open||emoLoaded)return;emoLoaded=true;
+ const [icons,em]=await Promise.all([fetch('/api/class-icons').then(r=>r.ok?r.json():{}).catch(()=>({})),oapi('emojis').catch(()=>({emojis:{}}))]);
+ $('emoRows').innerHTML=CLS.map(c=>`<label style="display:flex;align-items:center;gap:10px">${icons[c]?`<a href="${esc(icons[c])}" target="_blank" rel="noopener" title="Open the ${c} icon"><img src="${esc(icons[c])}" alt="${c} icon" width="40" height="40" style="border-radius:4px;display:block"></a>`:'<span style="width:40px"></span>'}<span style="width:70px;font-size:15px">${c}</span><input class="md-in" data-emo="${c}" value="${esc(em.emojis[c]||'')}" placeholder="<:md_${c.toLowerCase()}:…>" style="min-height:40px;font-size:14px"></label>`).join('');
+});
+$('emoSave').addEventListener('click',async()=>{
+ const emojis={};document.querySelectorAll('[data-emo]').forEach(i=>{emojis[i.dataset.emo]=i.value.trim()});
+ try{await oapi('emojis',{emojis});$('msg').textContent='Class icons saved. They’ll show in the next Discord post.'}catch(e){$('msg').textContent=e.message}
+});
 $('postNow').addEventListener('click',()=>confirmBtn($('postNow'),'POST IT?',async()=>{try{await oapi('post-summary');$('msg').textContent='Posted to Discord.'}catch(e){$('msg').textContent=e.message}}));
 async function load(){
  try{data=await oapi('data');$('app').hidden=false;$('whoLine').textContent='Logged in as '+(sess.who||'Officer')+'.';drawTabs();drawSignups();drawChars();drawLog();if(tab==='board')loadBoard()}

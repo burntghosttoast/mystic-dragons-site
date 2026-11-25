@@ -11,22 +11,38 @@ export async function postSummary(s, { reason = '' } = {}) {
   const by = a => rows.filter(r => r.sg.dec9 === a);
   const yes = by('Yes'), maybe = by('Probably'), unsure = by('Not sure yet');
   const going = yes.concat(maybe);
-  const role = k => going.filter(r => r.c.main_role === k).length;
   const at60 = chars.filter(c => c.level >= 60).length;
   const days = Math.round((Date.UTC(2026, 11, 9) - Date.UTC(...todayET())) / 86400000);
   const when = days > 1 ? `${days} days to go` : days === 1 ? 'Tomorrow!' : days === 0 ? 'Tonight!' : '';
+  // Class icons are server emojis officers paste in on the officer page.
+  const icons = (await s.get('meta/class-emojis', { type: 'json' })) || {};
+  const md = t => String(t).replace(/([\\*_~`|>])/g, '\\$1');
+  const line = r => {
+    const ic = icons[r.c.cls] || '';
+    const lvl = r.c.level && r.c.level < 60 ? ` · ${r.c.level}` : '';
+    const tag = ic ? '' : ` · ${r.c.cls}`;
+    return r.sg.dec9 === 'Yes' ? `${ic} **${md(r.c.name)}**${tag}${lvl}`.trim() : `${ic} *${md(r.c.name)}*${tag}${lvl} · probably`.trim();
+  };
+  const fit = (lines) => { let out = ''; for (let i = 0; i < lines.length; i++) { const next = (out ? out + '\n' : '') + lines[i]; if (next.length > 990) return out + `\n…and ${lines.length - i} more`; out = next; } return out || '—'; };
+  const sortR = (a, b) => (a.sg.dec9 === 'Yes' ? 0 : 1) - (b.sg.dec9 === 'Yes' ? 0 : 1) || String(a.c.cls).localeCompare(String(b.c.cls)) || String(a.c.name).localeCompare(String(b.c.name));
+  const groups = ORDER.map(k => [k, going.filter(r => r.c.main_role === k)]);
+  const noRole = going.filter(r => !ORDER.includes(r.c.main_role));
+  const roleName = { Tank: 'Tanks', Healer: 'Healers', 'Melee DPS': 'Melee DPS', 'Ranged DPS': 'Ranged DPS' };
+  const blank = { name: '​', value: '​', inline: true };
+  const fields = [];
+  groups.forEach(([k, list], i) => {
+    fields.push({ name: `${roleName[k]} · ${list.length}`, value: fit(list.sort(sortR).map(line)), inline: true });
+    if (i % 2 === 1) fields.push(blank); // two roles per row
+  });
+  if (noRole.length) fields.push({ name: `No role picked · ${noRole.length}`, value: fit(noRole.sort(sortR).map(line)), inline: false });
+  if (unsure.length) fields.push({ name: `Not sure yet · ${unsure.length}`, value: fit([unsure.sort(sortR).map(r => md(r.c.name)).join(', ')]), inline: false });
   const embed = {
     title: 'December 9 raid signups' + (when ? ` · ${when}` : ''),
     url: 'https://mysticdragons.org/signup',
     color: 0xA3BC6E,
-    fields: [
-      { name: 'Yes', value: String(yes.length), inline: true },
-      { name: 'Probably', value: String(maybe.length), inline: true },
-      { name: 'Not sure yet', value: String(unsure.length), inline: true },
-      { name: 'Roles (yes + probably)', value: ORDER.map(k => `${k}: **${role(k)}**`).join('\n'), inline: true },
-      { name: 'Guild', value: `${chars.length} members\n${at60} at level 60\n${chars.length - rows.length} haven’t signed up`, inline: true }
-    ],
-    footer: { text: 'Sign up or change your answer at mysticdragons.org/signup' }
+    description: `**${yes.length}** yes · **${maybe.length}** probably · **${unsure.length}** not sure\n${chars.length - rows.length} of ${chars.length} members haven’t signed up · ${at60} are level 60`,
+    fields,
+    footer: { text: 'Bold = yes, italic = probably. Sign up or change your answer at mysticdragons.org/signup' }
   };
   const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: 'Mystic Dragons', content: reason, embeds: [embed], allowed_mentions: { parse: [] } }) });

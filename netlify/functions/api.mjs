@@ -388,6 +388,22 @@ async function officerRoute(s, route, body) {
     await log(s, 'officer-delete', c.name, 'officer', { by: who });
     return json({ ok: true });
   }
+  if (route === 'officer/emojis') {
+    // Class icon emojis for the Discord summary, pasted in as <:name:id>.
+    const cur = (await s.get('meta/class-emojis', { type: 'json' })) || {};
+    if (body.emojis && typeof body.emojis === 'object') {
+      const next = {};
+      for (const cls of Object.values(CLASS_IDS)) {
+        const v = String(body.emojis[cls] || '').trim();
+        if (!v) continue;
+        if (!/^<a?:\w{2,32}:\d{5,25}>$/.test(v)) return json({ error: `That ${cls} code doesn’t look right. It should look like <:md_${cls.toLowerCase()}:123456789>.` }, 400);
+        next[cls] = v;
+      }
+      await s.setJSON('meta/class-emojis', next);
+      return json({ ok: true, emojis: next });
+    }
+    return json({ emojis: cur });
+  }
   if (route === 'officer/board') {
     // Old-school bulletin board for site and officer ideas.
     const action = body.action;
@@ -451,6 +467,24 @@ export default async (req, context) => {
       if (!out) return json({ error: 'Recipe not found' }, 404);
       await s.setJSON(`recipe/${id}`, out);
       return Response.json(out, { headers: { 'Cache-Control': 'public, max-age=86400' } });
+    }
+
+    if (req.method === 'GET' && route === 'class-icons') {
+      let icons = await s.get('meta/class-icons', { type: 'json' });
+      if (!icons) {
+        const token = await blizzToken(s);
+        if (!token) return json({ error: 'Game data unavailable' }, 503);
+        icons = {};
+        await Promise.all(Object.entries(CLASS_IDS).map(async ([id, cls]) => {
+          for (const ns of ['static-forever-us', 'static-classic1x-us', 'static-us']) {
+            const r = await bget(token, `/data/wow/media/playable-class/${id}`, ns);
+            const u = (r.body?.assets || []).find(a => a.key === 'icon')?.value;
+            if (u) { icons[cls] = u; break; }
+          }
+        }));
+        if (Object.keys(icons).length) await s.setJSON('meta/class-icons', icons);
+      }
+      return Response.json(icons, { headers: { 'Cache-Control': 'public, max-age=86400' } });
     }
 
     if (req.method === 'GET' && route === 'recipe-index') {
