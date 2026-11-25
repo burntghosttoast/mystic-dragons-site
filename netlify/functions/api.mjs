@@ -389,20 +389,17 @@ async function officerRoute(s, route, body) {
     return json({ ok: true });
   }
   if (route === 'officer/emojis') {
-    // Class icon emojis for the Discord summary, pasted in as <:name:id>.
-    const cur = (await s.get('meta/class-emojis', { type: 'json' })) || {};
-    if (body.emojis && typeof body.emojis === 'object') {
-      const next = {};
-      for (const cls of Object.values(CLASS_IDS)) {
-        const v = String(body.emojis[cls] || '').trim();
-        if (!v) continue;
-        if (!/^<a?:\w{2,32}:\d{5,25}>$/.test(v)) return json({ error: `That ${cls} code doesn’t look right. It should look like <:md_${cls.toLowerCase()}:123456789>.` }, 400);
-        next[cls] = v;
-      }
-      await s.setJSON('meta/class-emojis', next);
-      return json({ ok: true, emojis: next });
+    // Server emoji codes for the Discord summary: paste any text holding <:name:id> codes.
+    const cur = (await s.get('meta/emoji-codes', { type: 'json' })) || {};
+    if (typeof body.text === 'string') {
+      const found = {};
+      for (const m of body.text.slice(0, 20000).matchAll(/<(a?):(\w{2,32}):(\d{5,25})>/g)) found[m[2]] = `<${m[1]}:${m[2]}:${m[3]}>`;
+      if (!Object.keys(found).length) return json({ error: 'No emoji codes found. They look like <:paladin_holy:1234567890>.' }, 400);
+      const next = { ...cur, ...found };
+      await s.setJSON('meta/emoji-codes', next);
+      return json({ ok: true, added: Object.keys(found), codes: next });
     }
-    return json({ emojis: cur });
+    return json({ codes: cur });
   }
   if (route === 'officer/board') {
     // Old-school bulletin board for site and officer ideas.
