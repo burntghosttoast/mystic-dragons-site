@@ -53,6 +53,9 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .ch-item{display:grid;grid-template-columns:84px minmax(0,1fr);gap:10px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
 .ch-slot{color:#8F857C;font-size:13px;padding-top:2px}
 details>summary::-webkit-details-marker{display:none}
+.rcp{cursor:default;color:inherit}
+.rcp:hover,.rcp:focus{color:#F1ECE6;outline:none}
+#gtip{position:fixed;z-index:50;max-width:340px;background:rgba(10,12,28,.96);border:1px solid #6f6f8f;border-radius:6px;padding:10px 12px;font:14px/1.45 Barlow,sans-serif;color:#F1ECE6;box-shadow:0 6px 24px rgba(0,0,0,.5);pointer-events:none}
 </style>
 </head>
 <body>
@@ -117,6 +120,37 @@ details>summary::-webkit-details-marker{display:none}
 {
 const G=Guild,$=G.$,esc=G.esc,low=G.low;
 let data=null, prof='';
+const rec=(name,ids)=>{const id=ids&&ids[name];return id?`<span class="rcp" tabindex="0" data-rid="${id}">${esc(name)}</span>`:esc(name)};
+/* ----- in-game style tooltip ----- */
+const QUAL={POOR:'#9d9d9d',COMMON:'#ffffff',UNCOMMON:'#1eff00',RARE:'#0070dd',EPIC:'#a335ee',LEGENDARY:'#ff8000'};
+const tip=document.createElement('div');tip.id='gtip';tip.hidden=true;document.body.appendChild(tip);
+const cache={};let cur=null;
+async function getRecipe(id){if(!cache[id])cache[id]=fetch('/api/recipe?id='+id).then(r=>r.ok?r.json():null).catch(()=>null);return cache[id]}
+function tipHtml(d){
+ if(!d)return '<div style="color:#AEA49A">No details for this one.</div>';
+ const it=d.item,L=(t,c)=>t?`<div${c?` style="color:${c}"`:''}>${esc(t)}</div>`:'';
+ const two=(a,b)=>a||b?`<div style="display:flex;justify-content:space-between;gap:16px"><span>${esc(a||'')}</span><span>${esc(b||'')}</span></div>`:'';
+ let h='';
+ if(it){
+  h+=`<div style="display:flex;gap:10px;align-items:flex-start">${it.icon?`<img src="${esc(it.icon)}" alt="" width="40" height="40" style="border:1px solid ${QUAL[it.quality]||'#555'};border-radius:4px;flex:none">`:''}<div style="min-width:0">`;
+  h+=`<div style="color:${QUAL[it.quality]||'#fff'};font-weight:600;font-size:15px">${esc(it.name)}</div>`+L(it.binding)+two(it.slot,it.type===it.slot?'':it.type)+L(it.armor)+two(it.damage,it.speed)+L(it.dps);
+  h+=it.stats.map(x=>L(x)).join('')+L(it.durability)+L(it.level)+L(it.skill)+it.spells.map(x=>L(x,'#1eff00')).join('')+(it.description?L('"'+it.description+'"','#ffd100'):'');
+  h+='</div></div>';
+ } else h+=`<div style="font-weight:600;font-size:15px;color:#fff">${esc(d.name)}</div>`+(d.description?L(d.description,'#ffd100'):'');
+ if(d.reagents.length)h+=`<div style="margin-top:8px;color:#AEA49A">Reagents: <span style="color:#F1ECE6">${d.reagents.map(r=>esc(r.name)+(r.qty>1?' ('+r.qty+')':'')).join(', ')}</span></div>`;
+ if(d.quantity>1)h+=L('Makes '+d.quantity,'#AEA49A');
+ return h;
+}
+function place(x,y){const r=tip.getBoundingClientRect(),W=innerWidth,H=innerHeight;let l=x+16,t=y+16;if(l+r.width>W-8)l=Math.max(8,x-r.width-16);if(t+r.height>H-8)t=Math.max(8,y-r.height-16);tip.style.left=l+'px';tip.style.top=t+'px'}
+async function show(el,x,y){
+ cur=el;tip.hidden=false;tip.innerHTML='<div style="color:#AEA49A">Loading…</div>';place(x,y);
+ const d=await getRecipe(el.dataset.rid);if(cur!==el)return;tip.innerHTML=tipHtml(d);place(x,y);
+}
+document.addEventListener('mouseover',e=>{const el=e.target.closest('.rcp');if(el&&el!==cur)show(el,e.clientX,e.clientY)});
+document.addEventListener('mousemove',e=>{if(cur&&!tip.hidden&&e.target.closest('.rcp')===cur)place(e.clientX,e.clientY)});
+document.addEventListener('mouseout',e=>{const el=e.target.closest('.rcp');if(el&&!el.contains(e.relatedTarget)){cur=null;tip.hidden=true}});
+document.addEventListener('click',e=>{const el=e.target.closest('.rcp');if(el){e.preventDefault();if(cur===el&&!tip.hidden){cur=null;tip.hidden=true}else{const r=el.getBoundingClientRect();show(el,r.left,r.bottom)}}else if(!e.target.closest('#gtip')){cur=null;tip.hidden=true}});
+document.addEventListener('focusin',e=>{const el=e.target.closest('.rcp');if(el){const r=el.getBoundingClientRect();show(el,r.left,r.bottom)}});
 const crafterChip=(c,skill)=>`<a href="/character?c=${encodeURIComponent(c.key)}" style="display:inline-flex;align-items:center;gap:2px;font-size:14px;color:#F1ECE6;background:#241E1C;border-radius:999px;padding:4px 12px;text-decoration:none">${G.dot(c.cls)}${esc(c.name)}${skill!=null?` <span style="color:#8F857C;margin-left:4px">${esc(skill)}</span>`:''}</a>`;
 function draw(){
  const P=data.professions, names=Object.keys(P).sort((a,b)=>(P[b].primary-P[a].primary)||a.localeCompare(b));
@@ -128,12 +162,12 @@ function draw(){
   const hits=[];
   for(const n of names){ if(prof&&n!==prof)continue; for(const [r,keys] of Object.entries(P[n].recipes)) if(low(r).includes(q)) hits.push({r,n,keys}); }
   hits.sort((a,b)=>a.r.localeCompare(b.r));
-  $('results').innerHTML=hits.length?hits.slice(0,150).map(h=>`<div class="md-card" style="gap:8px"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px"><strong style="font-size:17px">${esc(h.r)}</strong><span class="md-lab">${esc(h.n.toUpperCase())}</span></div><div style="display:flex;flex-wrap:wrap;gap:6px">${h.keys.map(k=>byKey[k]).filter(Boolean).sort((a,b)=>b.skill-a.skill).map(c=>crafterChip(c)).join('')}</div></div>`).join('')+(hits.length>150?`<p style="color:#8F857C">Showing the first 150 of ${hits.length}. Try a more specific search.</p>`:''):`<p style="color:#8F857C">Nobody in the guild knows a recipe matching “${esc($('q').value)}” yet.</p>`;
+  $('results').innerHTML=hits.length?hits.slice(0,150).map(h=>`<div class="md-card" style="gap:8px"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px"><strong style="font-size:17px">${rec(h.r,P[h.n].ids)}</strong><span class="md-lab">${esc(h.n.toUpperCase())}</span></div><div style="display:flex;flex-wrap:wrap;gap:6px">${h.keys.map(k=>byKey[k]).filter(Boolean).sort((a,b)=>b.skill-a.skill).map(c=>crafterChip(c)).join('')}</div></div>`).join('')+(hits.length>150?`<p style="color:#8F857C">Showing the first 150 of ${hits.length}. Try a more specific search.</p>`:''):`<p style="color:#8F857C">Nobody in the guild knows a recipe matching “${esc($('q').value)}” yet.</p>`;
   return;
  }
  // Browse: crafters per profession, with their full recipe lists.
  const show=prof?[prof]:names;
- $('results').innerHTML=show.map(n=>{const p=P[n];return `<div class="md-card" style="gap:10px"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:baseline"><h2 style="font-size:clamp(22px,3vw,27px)">${esc(n)}</h2><span style="color:#8F857C;font-size:14px">${p.crafters.length} ${p.crafters.length===1?'crafter':'crafters'} · ${Object.keys(p.recipes).length} recipes known in the guild</span></div>${p.crafters.slice().sort((a,b)=>b.skill-a.skill||b.count-a.count).map(c=>`<details style="border-top:1px solid #2A2321;padding:8px 0"><summary style="cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:8px;list-style:none">${crafterChip(c)}<span style="color:#CFC7BE;font-size:14px">${c.max?`${c.skill} / ${c.max}`:c.skill} · ${c.count} recipes</span></summary><p style="color:#AEA49A;font-size:14px;margin-top:8px;line-height:1.7">${esc(Object.entries(p.recipes).filter(([,k])=>k.includes(c.key)).map(([r])=>r).join(' · ')||'No recipes listed.')}</p></details>`).join('')}</div>`}).join('')||'<p style="color:#8F857C">No professions found yet.</p>';
+ $('results').innerHTML=show.map(n=>{const p=P[n];return `<div class="md-card" style="gap:10px"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:baseline"><h2 style="font-size:clamp(22px,3vw,27px)">${esc(n)}</h2><span style="color:#8F857C;font-size:14px">${p.crafters.length} ${p.crafters.length===1?'crafter':'crafters'} · ${Object.keys(p.recipes).length} recipes known in the guild</span></div>${p.crafters.slice().sort((a,b)=>b.skill-a.skill||b.count-a.count).map(c=>`<details style="border-top:1px solid #2A2321;padding:8px 0"><summary style="cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:8px;list-style:none">${crafterChip(c)}<span style="color:#CFC7BE;font-size:14px">${c.max?`${c.skill} / ${c.max}`:c.skill} · ${c.count} recipes</span></summary><p style="color:#AEA49A;font-size:14px;margin-top:8px;line-height:1.7">${Object.entries(p.recipes).filter(([,k])=>k.includes(c.key)).map(([r])=>rec(r,p.ids)).join(' · ')||'No recipes listed.'}</p></details>`).join('')}</div>`}).join('')||'<p style="color:#8F857C">No professions found yet.</p>';
 }
 $('q').addEventListener('input',draw);
 $('profs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;prof=b.dataset.p;draw()});

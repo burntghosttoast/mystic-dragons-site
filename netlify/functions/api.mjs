@@ -23,6 +23,7 @@ const SYNC_EVERY_MS = 20 * 60 * 1000;
 const CATCHUP_EVERY_MS = 60 * 1000; // while names/races are still missing
 const PROFILE_EVERY_MS = 6 * 60 * 60 * 1000;
 const PROF_EVERY_MS = 6 * 60 * 60 * 1000; // professions and known recipes
+const PROF_V = 2; // bump to re-collect professions after format changes
 const INFO_TTL_MS = 30 * 60 * 1000;
 const INFO_V = 3; // bump to refresh cached game data after format changes
 
@@ -189,7 +190,7 @@ async function syncGuild(s, force) {
       }));
     }
     // Professions and known recipes for the crafting directory, a few per sync.
-    const profTodo = [...byKey.values()].filter(c => c.synced && ids.has(c.key) && c.bslug && (!c.prof_at || Date.now() - c.prof_at > PROF_EVERY_MS))
+    const profTodo = [...byKey.values()].filter(c => c.synced && ids.has(c.key) && c.bslug && (!c.prof_at || c.prof_v !== PROF_V || Date.now() - c.prof_at > PROF_EVERY_MS))
       .sort((a, b) => (a.prof_at || 0) - (b.prof_at || 0));
     const profBatch = profTodo.slice(0, 30);
     for (let i = 0; i < profBatch.length; i += 10) {
@@ -198,7 +199,7 @@ async function syncGuild(s, force) {
         if (r.body) await s.setJSON(`prof/${c.key}`, profList(r.body));
         else if (r.status === 404) await s.setJSON(`prof/${c.key}`, []);
         const cur = (await s.get(`char/${c.key}`, { type: 'json' })) || c;
-        await s.setJSON(`char/${c.key}`, { ...cur, prof_at: Date.now() });
+        await s.setJSON(`char/${c.key}`, { ...cur, prof_at: Date.now(), prof_v: PROF_V });
       }));
     }
     const out = { at: Date.now(), ok: true, members: members.length, pending: todo.length > batchTodo.length || profTodo.length > profBatch.length };
@@ -357,7 +358,8 @@ function profList(body) {
     return {
       name: nm(pr.profession), primary: k === 'primaries',
       skill: Math.max(0, ...tiers.map(t => t.skill_points || 0)), max: Math.max(0, ...tiers.map(t => t.max_skill_points || 0)),
-      recipes: [...new Set(tiers.flatMap(t => (t.known_recipes || []).map(nm)).filter(Boolean))].sort()
+      recipes: [...new Map(tiers.flatMap(t => (t.known_recipes || []).filter(r => nm(r)).map(r => [nm(r), { id: r.id ?? null, name: nm(r) }]))).values()]
+        .sort((a, b) => a.name.localeCompare(b.name))
     };
   })).filter(p => p.name);
 }
@@ -471,6 +473,42 @@ export default async (req, context) => {
       });
     }
 
+    if (req.method === 'GET' && route === 'recipe') {
+      const id = parseInt(url.searchParams.get('id'), 10);
+      if (!id) return json({ error: 'Missing recipe id' }, 400);
+      const cached = await s.get(`recipe/${id}`, { type: 'json' });
+      if (cached) return Response.json(cached, { headers: { 'Cache-Control': 'public, max-age=86400' } });
+      const token = await blizzToken(s);
+      if (!token) return json({ error: 'Game data unavailable' }, 503);
+      const nm = o => o?.name ?? '';
+      const rec = (await bget(token, `/data/wow/recipe/${id}`, 'static-forever-us')).body;
+      if (!rec) return json({ error: 'Recipe not found' }, 404);
+      const itemRef = rec.crafted_item || rec.alliance_crafted_item || rec.horde_crafted_item;
+      const out = {
+        id, name: nm(rec), description: rec.description || '',
+        quantity: rec.crafted_quantity?.value ?? rec.crafted_quantity?.minimum ?? null,
+        reagents: (rec.reagents || []).map(r => ({ name: nm(r.reagent), qty: r.quantity })),
+        item: null
+      };
+      if (itemRef?.id) {
+        const it = (await bget(token, `/data/wow/item/${itemRef.id}`, 'static-forever-us')).body;
+        const pv = it?.preview_item || {};
+        const d = x => x?.display_string || x?.display?.display_string || '';
+        if (it) out.item = {
+          id: itemRef.id, name: nm(it), quality: it.quality?.type || pv.quality?.type || '',
+          binding: nm(pv.binding), slot: nm(pv.inventory_type), type: nm(pv.item_subclass) || nm(it.item_subclass),
+          armor: d(pv.armor), damage: d(pv.weapon?.damage), speed: d(pv.weapon?.attack_speed), dps: d(pv.weapon?.dps),
+          stats: (pv.stats || []).map(d).filter(Boolean),
+          spells: (pv.spells || []).map(sp => sp.description).filter(Boolean),
+          durability: d(pv.durability), level: d(pv.requirements?.level), skill: d(pv.requirements?.skill),
+          description: pv.description || '', icon: ''
+        };
+        if (out.item) { const tmp = { equipment: [{ id: itemRef.id }] }; await addIcons(s, token, tmp); out.item.icon = tmp.equipment[0].icon || ''; }
+      }
+      await s.setJSON(`recipe/${id}`, out);
+      return Response.json(out, { headers: { 'Cache-Control': 'public, max-age=86400' } });
+    }
+
     if (req.method === 'GET' && route === 'crafting') {
       const meta = await s.get('meta/sync', { type: 'json' });
       if (syncDue(meta, false)) { const job = syncGuild(s, false); if (context?.waitUntil) context.waitUntil(job); else await job; }
@@ -479,8 +517,13 @@ export default async (req, context) => {
       const out = {};
       chars.forEach((c, i) => (profs[i] || []).forEach(p => {
         const P = out[p.name] || (out[p.name] = { primary: p.primary, crafters: [], recipes: {} });
+        const P2 = out[p.name]; P2.ids = P2.ids || {};
         P.crafters.push({ key: c.key, name: c.name, cls: c.cls, level: c.level, skill: p.skill, max: p.max, count: p.recipes.length });
-        p.recipes.forEach(r => { (P.recipes[r] || (P.recipes[r] = [])).push(c.key); });
+        p.recipes.forEach(r => {
+          const name = typeof r === 'string' ? r : r.name;
+          if (r && r.id) P2.ids[name] = r.id;
+          (P.recipes[name] || (P.recipes[name] = [])).push(c.key);
+        });
       }));
       const scanned = chars.filter(c => c.prof_at).length;
       return json({ professions: out, scanned, total: chars.length });
