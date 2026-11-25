@@ -197,8 +197,25 @@ export async function handleDiscord(req, s, ctx, d) {
     const k = (id && K['i' + id]) || Object.values(K).find(r => r.n === (e?.n || rname));
     const title = e?.n || k?.n || rname;
     const who = (k?.k || []).map(([key, skill]) => ({ c: known.c[key], skill })).filter(x => x.c).sort((a, b) => (b.skill || 0) - (a.skill || 0));
-    const embed = { title, url: `https://mysticdragons.org/crafters?q=${encodeURIComponent(title)}`, color: QCOL[e?.q] ?? 0xA3BC6E, fields: [] };
-    if (e?.l) embed.description = e.l.slice(0, 400);
+    // The full in-game tooltip from the stored recipe details.
+    const det = id ? await s.get(`recipe/${id}`, { type: 'json' }) : null;
+    const it = det?.item;
+    const wowhead = it?.id ? `https://www.wowhead.com/classic/item=${it.id}`
+      : e?.src ? `https://www.wowhead.com/classic/item=${e.src.id}` : `https://www.wowhead.com/classic/search?q=${encodeURIComponent(title)}`;
+    const site = `https://mysticdragons.org/crafters?q=${encodeURIComponent(title)}`;
+    const tip = [];
+    if (it) {
+      tip.push(it.binding, [it.slot, it.type && it.type !== it.slot ? it.type : ''].filter(Boolean).join(' · '), it.armor,
+        [it.damage, it.speed].filter(Boolean).join(' · '), it.dps, ...it.stats, ...it.spells, it.durability, it.level, it.skill,
+        it.description ? `*“${it.description}”*` : '');
+    } else if (det?.description) tip.push(det.description);
+    tip.splice(0, tip.length, ...tip.filter(Boolean));
+    if (det?.reagents?.length) tip.push('', `**Reagents:** ${det.reagents.map(r => r.name + (r.qty > 1 ? ` (${r.qty})` : '')).join(', ')}`);
+    if (det?.quantity > 1) tip.push(`Makes ${det.quantity}`);
+    const embed = { title, url: wowhead, color: QCOL[e?.q] ?? 0xA3BC6E, fields: [] };
+    const desc = tip.filter(x => x != null && x !== false).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    if (desc) embed.description = desc.slice(0, 1500);
+    else if (e?.l) embed.description = e.l.slice(0, 400);
     if (e?.ic) embed.thumbnail = { url: e.ic };
     if (who.length) {
       const lines = who.map(x => `${specIcon(codes, x.c)} ${x.c.name}${x.skill ? ` · ${x.skill}` : ''}`.trim());
@@ -209,7 +226,8 @@ export async function handleDiscord(req, s, ctx, d) {
       if (e?.src) embed.fields.push({ name: 'How to get it', value: `Learned from [${e.src.name}](https://www.wowhead.com/classic/item=${e.src.id})${e.rep ? `, which needs **${e.rep.faction} – ${STAND[e.rep.level] || ''}**` : ''}.` });
       else if (e) embed.fields.push({ name: 'How to get it', value: 'Most likely taught by a trainer.' });
     }
-    embed.footer = { text: `${e?.p || k?.p || ''}${e?.p || k?.p ? ' · ' : ''}Full details at mysticdragons.org/crafters` };
+    embed.fields.push({ name: 'Links', value: `[Wowhead](${wowhead}) · [Guild crafters page](${site})` });
+    if (e?.p || k?.p) embed.footer = { text: e?.p || k?.p };
     return json({ type: 4, data: { embeds: [embed], allowed_mentions: { parse: [] } } });
   }
 
