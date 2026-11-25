@@ -96,7 +96,7 @@ function A.Bid(sender, sid, idx, amount, via)
     local s = A.session
     local it = item(idx)
     local function no(why)
-        if via == "test" then return false, why end
+        if via == "test" or via == "manual" then return false, why end
         if via == "addon" then M.Send("NO:" .. tostring(sid) .. ":" .. tostring(idx) .. ":" .. why, "WHISPER", sender)
         elseif via == "whisper" then reply(sender, why) end
         return false, why
@@ -115,10 +115,10 @@ function A.Bid(sender, sid, idx, amount, via)
         if amount <= high then return no("The high bid is " .. high .. ". Bid more than that.") end
         if amount < 1 then return no("The minimum bid is 1.") end
         local can, why = D.Spendable(sender)
-        if via == "test" then can, why = 100, nil end
+        if via == "test" or (via == "manual" and A.session.test) then can, why = 100, nil end
         if why then return no(why) end
-        if amount > can then return no("You only have " .. can .. " DKP to spend.") end
-        it.high = { person = person, name = C.Norm(sender), amount = amount }
+        if amount > can then return no(C.Norm(sender) .. " only has " .. can .. " DKP to spend.") end
+        it.high = { person = person, name = C.Norm(sender), amount = amount, voice = via == "manual" }
         table.insert(it.history, 1, it.high)
         it.going = 0
         local msg = "LH:" .. s.sid .. ":" .. idx .. ":" .. amount .. ":" .. it.high.name
@@ -327,6 +327,7 @@ end
 -- Set an item aside for a live auction after the rest of the loot. Bids on it are dropped.
 function A.SaveForLive(idx)
     local it = item(idx); if not it or it.state == "done" then return end
+    it.passedBefore = it.passes   -- people who passed on it don't show up in the live auction's list
     it.state, it.bids, it.passes, it.lcEnd, it.held = "later", {}, {}, nil, {}
     local msg = "LL:" .. A.session.sid .. ":" .. idx
     M.Send(msg, C.GroupChannel())
@@ -346,6 +347,25 @@ function A.StartLive(idx)
     if ns.B then ns.B.OnMessage(C.PlayerName(), "LV", msg) end
     if ns.UI then ns.UI.ShowLive(idx) end
     return true
+end
+
+-- Who the loot master can enter a voice bid for: everyone in the group (or the fake bidders in a
+-- solo test), minus anyone who passed on the item before it was set aside.
+function A.LiveBidders(idx)
+    local it = item(idx); if not it then return {} end
+    local names = {}
+    if A.session.solo then
+        names = { C.PlayerName(), "Test Bidder", "Pretend Raider", "Fake Mage" }
+    else
+        for _, n in pairs((C.GroupNames())) do names[#names + 1] = n end
+    end
+    local out = {}
+    for _, n in ipairs(names) do
+        local p = D.PersonOf(n)
+        if not (it.passedBefore and it.passedBefore[p]) then out[#out + 1] = n end
+    end
+    table.sort(out)
+    return out
 end
 
 -- Going once, going twice. From a click.

@@ -169,21 +169,41 @@ end
 -- Live auction window: one item, everyone sees the high bid, each bid has to beat it.
 ------------------------------------------------------------------------
 local lv
+local GRID = 40
 function UI.ShowLive(idx)
     if not lv then
-        lv = window("MDBidsLiveFrame", GOLD .. "Live auction|r", 380, 300)
+        lv = window("MDBidsLiveFrame", GOLD .. "Live auction|r", 560, 470)
         lv.icon = itemIcon(lv); lv.icon:SetSize(40, 40); lv.icon:SetPoint("TOPLEFT", 14, -58)
-        lv.name = lv:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge"); lv.name:SetPoint("LEFT", lv.icon, "RIGHT", 10, 0); lv.name:SetWidth(300); lv.name:SetJustifyH("LEFT")
+        lv.name = lv:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge"); lv.name:SetPoint("LEFT", lv.icon, "RIGHT", 10, 0); lv.name:SetWidth(480); lv.name:SetJustifyH("LEFT")
         lv.high = lv:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge"); lv.high:SetPoint("TOPLEFT", 14, -112)
-        lv.list = lv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); lv.list:SetPoint("TOPLEFT", 14, -150); lv.list:SetWidth(350); lv.list:SetJustifyH("LEFT")
+        lv.list = lv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); lv.list:SetPoint("TOPLEFT", 14, -146); lv.list:SetWidth(530); lv.list:SetJustifyH("LEFT")
+        -- Bids heard in voice: type the amount, click the name.
+        lv.lab = lv:CreateFontString(nil, "OVERLAY", "GameFontNormal"); lv.lab:SetPoint("TOPLEFT", 14, -172); lv.lab:SetText("Heard a bid in voice? Type it, then click their name:")
+        lv.amount = CreateFrame("EditBox", nil, lv, "InputBoxTemplate"); lv.amount:SetSize(60, 22); lv.amount:SetPoint("LEFT", lv.lab, "RIGHT", 12, 0)
+        lv.amount:SetAutoFocus(false); lv.amount:SetNumeric(true); lv.amount:SetMaxLetters(4)
+        lv.err = lv:CreateFontString(nil, "OVERLAY", "GameFontRedSmall"); lv.err:SetPoint("TOPLEFT", 14, -196); lv.err:SetWidth(530); lv.err:SetJustifyH("LEFT")
+        lv.grid = {}
+        for i = 1, GRID do
+            local b = CreateFrame("Button", nil, lv, "UIPanelButtonTemplate")
+            b:SetSize(128, 20)
+            b:SetPoint("TOPLEFT", 14 + ((i - 1) % 4) * 133, -214 - math.floor((i - 1) / 4) * 22)
+            b:SetScript("OnClick", function(self)
+                A.Flush()
+                local amt = tonumber(lv.amount:GetText())
+                if not amt then lv.err:SetText("Type the amount first."); return end
+                local ok, why = A.Bid(self.who, A.session.sid, lv.idx, amt, "manual")
+                if ok then lv.err:SetText(""); lv.amount:SetText("") else lv.err:SetText(why) end
+            end)
+            b:Hide(); lv.grid[i] = b
+        end
         lv.going = button(lv, "Going once", 110, function() A.Going(lv.idx) end); lv.going:SetPoint("BOTTOMLEFT", 14, 14)
         lv.sold = button(lv, "Sold", 90, function()
             local r, why = A.Sold(lv.idx)
-            if r == "won" or r == "roll" then lv:Hide() elseif why then ns.Print(why) end
+            if r == "won" or r == "roll" then lv:Hide() elseif why then lv.err:SetText(why) end
         end); lv.sold:SetPoint("BOTTOMRIGHT", -14, 14)
         lv.cancel = button(lv, "Back to the list", 120, function() lv:Hide() end); lv.cancel:SetPoint("BOTTOM", 0, 14)
     end
-    lv.idx = idx
+    lv.idx = idx; lv.err:SetText(""); lv.amount:SetText("")
     lv:place(0, 60); lv:Show(); UI.Refresh()
 end
 
@@ -191,14 +211,19 @@ local function drawLive()
     if not (lv and lv:IsShown()) then return end
     local it = A.session and A.session.items[lv.idx]
     if not it or it.state ~= "live" then lv:Hide(); return end
-    lv.sub:SetText("Run it in voice. Bids come in from bid windows and whispers. Each one has to beat the high bid.")
+    lv.sub:SetText("Run it in voice. Bids also come in from bid windows and whispers. Each one has to beat the high bid.")
     fillItem(lv, it)
-    lv.high:SetText(it.high and (GOLD .. it.high.amount .. "|r  " .. it.high.name) or (GREY .. "No bids yet|r"))
+    lv.high:SetText(it.high and (GOLD .. it.high.amount .. "|r  " .. it.high.name .. (it.high.voice and (GREY .. " (voice)|r") or "")) or (GREY .. "No bids yet|r"))
     local lines = {}
     for n = 2, math.min(7, #it.history) do lines[#lines + 1] = it.history[n].name .. " " .. it.history[n].amount end
     lv.list:SetText(#lines > 0 and (GREY .. "Earlier: " .. table.concat(lines, ", ") .. "|r") or "")
     lv.going:SetText((it.going or 0) == 0 and "Going once" or "Going twice")
     lv.going:SetEnabled((it.going or 0) < 2)
+    local names = A.LiveBidders(lv.idx)
+    for i, b in ipairs(lv.grid) do
+        local n = names[i]
+        if n then b.who = n; b:SetText(n); b:Show() else b:Hide() end
+    end
 end
 
 ------------------------------------------------------------------------
