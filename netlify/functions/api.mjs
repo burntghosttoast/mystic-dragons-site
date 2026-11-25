@@ -4,6 +4,7 @@
 // - Raid signups and a change log live in Netlify Blobs (store "guild").
 import { getStore } from '@netlify/blobs';
 import { postSummary, DEFAULT_CODES } from '../lib/summary.mjs';
+import { handleDiscord, refreshBoard, registerCommands } from '../lib/discordbot.mjs';
 import { blizzToken, bget, iconFor, recipeDetail, RECIPE_V } from '../lib/gamedata.mjs';
 
 const CLASSES = {
@@ -393,6 +394,7 @@ async function officerRoute(s, route, body) {
     if (!c) return json({ error: 'Character not found' }, 404);
     await s.delete(`signup/dec9/${c.key}`);
     await log(s, 'officer-remove-signup', c.name, 'officer', { by: who });
+    await refreshBoard(s).catch(() => {});
     return json({ ok: true });
   }
   if (route === 'officer/release') {
@@ -441,6 +443,13 @@ async function officerRoute(s, route, body) {
     const posts = (await Promise.all(blobs.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at));
     return json({ ok: true, posts });
   }
+  if (route === 'officer/discord-setup') {
+    // Adds the bot's /signup commands to Discord and hands back the invite link.
+    const r = await registerCommands();
+    if (!r.ok) return json({ error: r.error }, 400);
+    const board = await s.get('meta/discord-board', { type: 'json' });
+    return json({ ok: true, invite: r.invite, board: !!board });
+  }
   if (route === 'officer/post-summary') {
     const r = await postSummary(s, { reason: '' });
     if (r.ok) await log(s, 'officer-post-summary', 'Discord', 'officer', { by: who });
@@ -455,6 +464,10 @@ export default async (req, context) => {
   const route = url.pathname.replace(/^\/api\/?/, '');
 
   try {
+    if (req.method === 'POST' && route === 'discord') {
+      // Discord bot: clicks and commands, checked against Discord's signature.
+      return await handleDiscord(req, s, context, { clean, slug, allChars, roleFields, SPECS, DEC9, ATTUNE, LATER, ETA, log });
+    }
     await migrateKeys(s);
 
     if (req.method === 'GET' && route === 'roster') {
@@ -664,12 +677,14 @@ export default async (req, context) => {
       doc.discord = clean(verified?.discord || named?.discord || body.discord || prevSign?.discord, 40);
       await s.setJSON(`signup/dec9/${c.key}`, doc);
       await log(s, 'signup', c.name, device, { dec9 });
+      if (context?.waitUntil) context.waitUntil(refreshBoard(s).catch(() => {}));
       return json({ ok: true });
     }
 
     if (route === 'withdraw') {
       await s.delete(`signup/dec9/${c.key}`);
       await log(s, 'withdraw', c.name, device);
+      if (context?.waitUntil) context.waitUntil(refreshBoard(s).catch(() => {}));
       return json({ ok: true });
     }
 

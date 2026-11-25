@@ -54,6 +54,21 @@ const ROLE_EMOJI = { Tank: '628824tank', Healer: '673275healer', 'Melee DPS': '4
 export async function postSummary(s, { reason = '' } = {}) {
   const hook = process.env.DISCORD_WEBHOOK_URL;
   if (!hook) return { ok: false, error: 'DISCORD_WEBHOOK_URL isn’t set up yet.' };
+  const embed = await buildSummary(s);
+  const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'Mystic Dragons', content: reason, embeds: [embed], allowed_mentions: { parse: [] } }) });
+  if (!r.ok) return { ok: false, error: `Discord said ${r.status}` };
+  return { ok: true };
+}
+
+export function todayET() {
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(new Date());
+  const g = t => parseInt(p.find(x => x.type === t).value, 10);
+  return [g('year'), g('month') - 1, g('day')];
+}
+
+// The signup summary embed, used by the scheduled post and the bot's live signup message.
+export async function buildSummary(s) {
   const { blobs } = await s.list({ prefix: 'char/' });
   const chars = (await Promise.all(blobs.map(b => s.get(b.key, { type: 'json' })))).filter(c => c && c.key && c.in_guild !== false);
   const signs = await Promise.all(chars.map(c => s.get(`signup/dec9/${c.key}`, { type: 'json' })));
@@ -95,14 +110,5 @@ export async function postSummary(s, { reason = '' } = {}) {
     fields,
     footer: { text: 'Bold = yes, italic = probably. Sign up or change your answer at mysticdragons.org/signup' }
   };
-  const r = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'Mystic Dragons', content: reason, embeds: [embed], allowed_mentions: { parse: [] } }) });
-  if (!r.ok) return { ok: false, error: `Discord said ${r.status}` };
-  return { ok: true };
-}
-
-export function todayET() {
-  const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(new Date());
-  const g = t => parseInt(p.find(x => x.type === t).value, 10);
-  return [g('year'), g('month') - 1, g('day')];
+  return embed;
 }
