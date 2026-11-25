@@ -87,7 +87,10 @@ export async function buildSummary(s) {
     const ic = iconFor(r.c);
     const lvl = r.c.level && r.c.level < 60 ? ` · ${r.c.level}` : '';
     const tag = ic ? '' : ` · ${r.c.cls}`;
-    return r.sg.dec9 === 'Yes' ? `${ic} **${md(r.c.name)}**${tag}${lvl}`.trim() : `${ic} *${md(r.c.name)}*${tag}${lvl}`.trim();
+    // Other specs they'll play, as icons (or names where there's no emoji).
+    const also = (r.c.also_specs || []).map(sp => codes[SPEC_PICKED[`${r.c.cls}|${sp}`]] || sp).join(' ');
+    const extra = also ? ` · also ${also}` : '';
+    return r.sg.dec9 === 'Yes' ? `${ic} **${md(r.c.name)}**${tag}${lvl}${extra}`.trim() : `${ic} *${md(r.c.name)}*${tag}${lvl}${extra}`.trim();
   };
   const fit = (lines) => { let out = ''; for (let i = 0; i < lines.length; i++) { const next = (out ? out + '\n' : '') + lines[i]; if (next.length > 990) return out + `\n…and ${lines.length - i} more`; out = next; } return out || '—'; };
   const sortR = (a, b) => (a.sg.dec9 === 'Yes' ? 0 : 1) - (b.sg.dec9 === 'Yes' ? 0 : 1) || String(a.c.cls).localeCompare(String(b.c.cls)) || String(a.c.name).localeCompare(String(b.c.name));
@@ -96,8 +99,10 @@ export async function buildSummary(s) {
   const roleName = { Tank: 'Tanks', Healer: 'Healers', 'Melee DPS': 'Melee DPS', 'Ranged DPS': 'Ranged DPS' };
   const blank = { name: '​', value: '​', inline: true };
   const fields = [];
+  // People whose main role is something else but who'd play this one.
+  const swap = k => going.filter(r => r.c.main_role !== k && (r.c.also_play || []).includes(k)).length;
   groups.forEach(([k, list], i) => {
-    fields.push({ name: `${codes[ROLE_EMOJI[k]] ? codes[ROLE_EMOJI[k]] + ' ' : ''}${roleName[k]} · ${list.length}`, value: fit(list.sort(sortR).map(line)), inline: true });
+    fields.push({ name: `${codes[ROLE_EMOJI[k]] ? codes[ROLE_EMOJI[k]] + ' ' : ''}${roleName[k]} · ${list.length}${swap(k) ? ` (+${swap(k)})` : ''}`, value: fit(list.sort(sortR).map(line)), inline: true });
     if (i % 2 === 1) fields.push(blank); // two roles per row
   });
   if (noRole.length) fields.push({ name: `No role picked · ${noRole.length}`, value: fit(noRole.sort(sortR).map(line)), inline: false });
@@ -108,7 +113,7 @@ export async function buildSummary(s) {
     color: 0xA3BC6E,
     description: `**${yes.length}** yes · **${maybe.length}** probably · **${unsure.length}** not sure\n${chars.length - rows.length} of ${chars.length} members haven’t signed up · ${at60} are level 60`,
     fields,
-    footer: { text: 'Bold = yes, italic = probably. Sign up or change your answer at mysticdragons.org/signup' }
+    footer: { text: 'Bold = yes, italic = probably. Icons after “also” are other specs they’ll play; (+N) is how many more could fill that role. Sign up or change your answer at mysticdragons.org/signup' }
   };
   return embed;
 }
