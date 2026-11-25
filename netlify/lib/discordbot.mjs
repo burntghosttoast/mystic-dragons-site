@@ -13,7 +13,7 @@ export const INVITE_PERMISSIONS = 1024 + 2048 + 16384 + 65536 + 262144; // view,
 
 const COMMANDS = [
   { name: 'signup', description: 'Sign up or change your answer for the December 9 raid', type: 1, dm_permission: false },
-  { name: 'craft', description: 'Who in the guild can make an item', type: 1, dm_permission: false,
+  { name: 'crafter', description: 'Who in Mystic Dragons (Forever) can make an item', type: 1, dm_permission: false,
     options: [{ type: 3, name: 'item', description: 'Item or recipe name', required: true, autocomplete: true }] },
   { name: 'who', description: 'Look up a guild member', type: 1, dm_permission: false,
     options: [{ type: 3, name: 'character', description: 'Character name', required: true, autocomplete: true }] },
@@ -138,7 +138,7 @@ export async function handleDiscord(req, s, ctx, d) {
     const o = (i.data?.options || []).find(x => x.focused) || {};
     const q = d.slug(o.value || '');
     let choices = [];
-    if (i.data.name === 'craft') {
+    if (i.data.name === 'crafter') {
       const [known, idx] = await Promise.all([s.get('meta/craft-known', { type: 'json' }), s.get('meta/recipe-index', { type: 'json' })]);
       const seen = new Set(), list = [];
       for (const r of Object.values(known?.r || {})) { seen.add(r.n); list.push({ n: r.n, v: r.id ? 'i:' + r.id : 'n:' + r.n, k: 1 }); }
@@ -160,7 +160,7 @@ export async function handleDiscord(req, s, ctx, d) {
   /* ---------- commands ---------- */
   if (i.type === 2) {
     const name = i.data?.name;
-    if (name === 'craft') return craftReply(String(opt('item')?.value || ''));
+    if (name === 'crafter') return craftReply(String(opt('item')?.value || ''));
     if (name === 'who') return whoReply(String(opt('character')?.value || ''));
     if (name === 'signup-post') {
       const r = await dapi(`/channels/${i.channel_id}/messages`, 'POST', { embeds: [await buildSummary(s)], components: boardButtons() });
