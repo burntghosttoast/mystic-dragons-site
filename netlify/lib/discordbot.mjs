@@ -36,6 +36,10 @@ export async function registerCommands() {
   const app = process.env.DISCORD_APP_ID;
   if (!app || !process.env.DISCORD_BOT_TOKEN) return { ok: false, error: 'Add DISCORD_APP_ID and DISCORD_BOT_TOKEN in Netlify first.' };
   const r = await dapi(`/applications/${app}/commands`, 'PUT', COMMANDS);
+  if (r.status === 429) {
+    const wait = Math.ceil(Number((await r.json().catch(() => ({}))).retry_after) || 60);
+    return { ok: false, error: `Discord is limiting how often the commands can be updated. Try again in ${wait > 90 ? Math.ceil(wait / 60) + ' minutes' : wait + ' seconds'}.` };
+  }
   if (!r.ok) return { ok: false, error: `Discord said ${r.status} when adding the commands. Check DISCORD_APP_ID and DISCORD_BOT_TOKEN.` };
   return { ok: true, invite: `https://discord.com/oauth2/authorize?client_id=${app}&scope=bot%20applications.commands&permissions=${INVITE_PERMISSIONS}` };
 }

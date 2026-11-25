@@ -123,12 +123,6 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div class="rs-tally" id="tally"></div>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><div style="display: flex; flex-wrap: wrap; gap: 8px" id="sFilter"></div><button type="button" id="botSetup" class="rs-btn" style="margin-left: auto">SET UP DISCORD BOT</button><button type="button" id="postNow" class="rs-btn">POST SUMMARY TO DISCORD NOW</button></div>
 <p id="botOut" hidden style="font-size: 15px; color: #CFC7BE"></p>
-<details id="emo" class="md-card" style="gap:10px"><summary style="cursor:pointer;list-style:none;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;letter-spacing:.14em;color:#CFC7BE">SPEC ICONS FOR THE DISCORD POST</summary>
-<p style="font-size:15px;color:#CFC7BE">Paste emoji codes from our server here, like <b>&lt;:paladin_holy:1234567890&gt;</b>. Paste as many as you like at once; anything that isn’t a code is ignored.</p>
-<textarea id="emoText" class="md-in" rows="4" placeholder="<:paladin_holy:…> <:priest_holy:…>"></textarea>
-<div><button type="button" id="emoSave" class="rs-btn rs-btn-p">SAVE CODES</button></div>
-<p id="emoHave" style="font-size:14px;color:#8F857C"></p>
-</details>
 <div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Discord</th><th>Class</th><th class="n">Lvl</th><th>Dec 9</th><th>Attunement / later</th><th>Notes</th><th>Saved</th><th></th></tr></thead><tbody id="sRows"></tbody></table></div>
 </div>
 
@@ -242,12 +236,6 @@ $('bForm').addEventListener('submit',async e=>{
 });
 
 
-const NEED=['warrior_prot','paladin_protection','paladin_holy','paladin_ret','priest_holy','priest_shadow','shaman_resto','shaman_enhancement','shaman_elem','druid_guardian','druid_resto','druid_feral','druid_balance','777528warrior','338425paladin','kindpng_5733924','992310rogue','424450priest','962470shaman','934773mage','412823warlock','831785druid','628824tank','673275healer','454128dps'];
-const showHave=codes=>{const miss=NEED.filter(n=>!codes[n]);$('emoHave').textContent=`${NEED.length-miss.length} of ${NEED.length} icons set.`+(miss.length?' Still missing: '+miss.join(', ')+'.':'')};
-$('emo').addEventListener('toggle',async()=>{if($('emo').open)try{showHave((await oapi('emojis')).codes)}catch(e){}});
-$('emoSave').addEventListener('click',async()=>{
- try{const d=await oapi('emojis',{text:$('emoText').value});$('emoText').value='';showHave(d.codes);$('msg').textContent=`Saved ${d.added.length} emoji ${d.added.length===1?'code':'codes'}.`}catch(e){$('msg').textContent=e.message}
-});
 $('botSetup').addEventListener('click',async()=>{
  try{const d=await oapi('discord-setup');$('botOut').hidden=false;$('botOut').innerHTML=`Bot commands are set up. <a href="${esc(d.invite)}" target="_blank" rel="noopener">Invite the bot to the server</a>, then type <b>/signup-post</b> in the channel where the signup message should live.${d.board?' A signup message is already posted; running /signup-post again moves it.':''}`}
  catch(e){$('msg').textContent=e.message}
