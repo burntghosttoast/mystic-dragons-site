@@ -14,6 +14,7 @@ Put the `MysticDragonsBids` folder in `World of Warcraft\_forever_\Interface\Add
 - `/mdkp show` reopen the windows
 - `/mdkp check` what works on this game patch
 - `/mdkp clear` forget results the site already has
+- `/mdkp keep 120` how many days of old results to keep on this PC (default 120, about a raid tier)
 
 ## How a night works
 1. An officer imports the approved sheet once. It spreads to everyone online with the addon.

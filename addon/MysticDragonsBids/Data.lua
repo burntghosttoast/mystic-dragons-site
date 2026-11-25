@@ -11,13 +11,14 @@ local D = {}
 ns.D = D
 
 local function defaults()
-    return { sheet = nil, results = {}, seq = 0, opts = { minQuality = 4, lastCall = 30 }, errors = {} }
+    return { sheet = nil, results = {}, seq = 0, opts = { minQuality = 4, lastCall = 30, keepDays = 120 }, errors = {} }
 end
 
 function D.Init()
     MDBidsDB = type(MDBidsDB) == "table" and MDBidsDB or defaults()
     local db = MDBidsDB
     for k, v in pairs(defaults()) do if db[k] == nil then db[k] = v end end
+    for k, v in pairs(defaults().opts) do if db.opts[k] == nil then db.opts[k] = v end end
     D.db = db
     -- The companion app drops the newest approved sheet into a small helper addon
     -- (MysticDragonsBids_Inbox) as MDBidsInbox. Take it if it's newer than the one we have.
@@ -75,12 +76,12 @@ function D.SetSheet(sheet, force)
     return true
 end
 
--- Results older than the current sheet are already counted on the site. Keep about three months of them
--- (a few hundred lines, nothing the game notices), then drop the oldest so the saved file can't grow forever.
+-- Results older than the current sheet are already counted on the site. Keep a raid tier's worth
+-- (120 days by default, change with /mdkp keep <days>), then drop the oldest so the saved file can't grow forever.
 function D.Prune()
     local cut = D.IsoToUnix(D.db.sheet and D.db.sheet.at)
     if cut == 0 then return 0 end
-    local kept, keep = {}, 90 * 86400
+    local kept, keep = {}, (tonumber(D.db.opts.keepDays) or 120) * 86400
     for _, r in ipairs(D.db.results) do
         if (r.at or 0) > cut - keep then kept[#kept + 1] = r end
     end

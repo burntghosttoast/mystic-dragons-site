@@ -7,6 +7,7 @@
 --   /mdkp show         reopen the windows
 --   /mdkp check        what works on this patch (send this to whoever maintains the addon)
 --   /mdkp clear        forget results the site already has
+--   /mdkp keep <days>  how long to keep old results on this PC (default 120, about a raid tier)
 local addonName, ns = ...
 local C, D, M, A, B, UI = ns.C, ns.D, ns.M, ns.A, ns.B, ns.UI
 
@@ -102,7 +103,14 @@ SlashCmdList.MDBIDS = function(input)
         local e = D.db.errors[1]
         if e then ns.Print("Last error: " .. e.msg) end
     elseif cmd == "clear" then ns.Print("Cleared " .. D.ClearResults() .. " old result(s).")
-    else ns.Print("Commands: /mdkp, /mdkp import, /mdkp export, /mdkp test, /mdkp test group, /mdkp show, /mdkp check, /mdkp clear") end
+    elseif cmd == "keep" then
+        local days = tonumber(rest)
+        if days and days >= 14 and days <= 730 then
+            D.db.opts.keepDays = math.floor(days)
+            ns.Print("Keeping " .. D.db.opts.keepDays .. " days of results. Older ones drop off when the next sheet arrives.")
+        elseif rest ~= "" then ns.Print("Pick a number of days between 14 and 730, like /mdkp keep 120.")
+        else ns.Print("Keeping " .. (D.db.opts.keepDays or 120) .. " days of results (" .. #D.db.results .. " saved now). Change it with /mdkp keep <days>.") end
+    else ns.Print("Commands: /mdkp, /mdkp import, /mdkp export, /mdkp test, /mdkp test group, /mdkp show, /mdkp check, /mdkp clear, /mdkp keep") end
 end
 
 local f = CreateFrame("Frame")
