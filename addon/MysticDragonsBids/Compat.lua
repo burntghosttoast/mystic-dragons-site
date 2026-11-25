@@ -98,6 +98,11 @@ function C.CanRaidWarn()
 end
 
 -- Guild rank index (0 GM, 1 officer). Used to trust a balance sheet only from officers.
+-- Ask the server for the guild roster (the game only fills it in when asked).
+function C.RequestGuildRoster()
+    if C_GuildInfo and has(C_GuildInfo.GuildRoster) then C_GuildInfo.GuildRoster()
+    elseif has(GuildRoster) then GuildRoster() end
+end
 function C.GuildRankOf(name)
     if not (has(GetNumGuildMembers) and has(GetGuildRosterInfo)) then return nil end
     local key = C.Key(name)

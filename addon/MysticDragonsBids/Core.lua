@@ -118,6 +118,7 @@ f:SetScript("OnEvent", function(_, event, ...)
             D.Init(); C.RegisterPrefix()
             if ChatFrame_AddMessageEventFilter then ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", filter) end
         elseif event == "PLAYER_LOGIN" then
+            C.RequestGuildRoster()
             C.After(8, M.Hello)
         elseif event == "CHAT_MSG_ADDON" then
             M.OnMessage(...)
