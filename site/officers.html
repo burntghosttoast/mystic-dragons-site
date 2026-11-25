@@ -133,6 +133,68 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Source</th><th>Class</th><th class="n">Lvl</th><th class="n">Devices claimed</th><th></th></tr></thead><tbody id="cRows"></tbody></table></div>
 </div>
 
+<!-- DKP -->
+<div data-tab="dkp" hidden style="display: flex; flex-direction: column; gap: 14px">
+<datalist id="dkChars"></datalist>
+<div class="md-card" style="gap: 10px; border-color: #CDB07C">
+<span class="md-lab" style="color: #CDB07C">THIS WEEK’S SHEET</span>
+<p id="dkStatus" style="font-size: 16px; color: #CFC7BE"></p>
+<div><button type="button" id="dkApprove" class="rs-btn rs-btn-p">APPROVE SHEET</button></div>
+</div>
+
+<form id="dkNight" class="md-card" novalidate style="gap: 10px">
+<span class="md-lab">RAID NIGHT ATTENDANCE</span>
+<p style="font-size: 14px; color: #8F857C">Tick who was there at the start and at the end. Bench gets both. Someone’s alts count toward the same person, once a night. First-timers also get their starting DKP.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+<input class="md-in" type="date" id="dkDate" style="width: auto">
+<input class="md-in" type="text" id="dkGroup" maxlength="40" placeholder="Group (optional), like Group A" style="max-width: 260px">
+<input class="md-in" type="search" id="dkQ" placeholder="Filter names" style="max-width: 200px">
+<button type="button" id="dkFill" class="rs-btn">TICK SIGNED-UP YES / PROBABLY</button>
+<button type="button" id="dkClear" class="rs-btn">CLEAR</button>
+</div>
+<div class="rs-wrap" style="max-height: 420px; overflow: auto"><table class="rs-table"><thead><tr><th>Character</th><th>Signup</th><th class="n">Start</th><th class="n">End</th><th class="n">Bench</th></tr></thead><tbody id="dkRows"></tbody></table></div>
+<div><button type="submit" class="rs-btn rs-btn-p">SAVE RAID NIGHT</button></div>
+</form>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px">
+<form id="dkAward" class="md-card" novalidate style="gap: 8px">
+<span class="md-lab">LOOT AWARD</span>
+<input class="md-in" list="dkChars" id="dkAChar" placeholder="Winner (character)">
+<input class="md-in" id="dkAItem" maxlength="80" placeholder="Item name">
+<input class="md-in" type="number" id="dkAAmt" min="0" placeholder="Winning bid">
+<div><button type="submit" class="rs-btn rs-btn-p">ADD AWARD</button></div>
+</form>
+<form id="dkAdj" class="md-card" novalidate style="gap: 8px">
+<span class="md-lab">ADJUSTMENT</span>
+<input class="md-in" list="dkChars" id="dkJChar" placeholder="Character">
+<input class="md-in" type="number" id="dkJAmt" placeholder="Amount, like 5 or -10">
+<input class="md-in" id="dkJNote" maxlength="120" placeholder="Reason">
+<div><button type="submit" class="rs-btn rs-btn-p">ADD ADJUSTMENT</button></div>
+</form>
+</div>
+
+<span class="md-lab">DRAFT CHANGES (NOT OFFICIAL UNTIL APPROVED)</span>
+<div class="rs-wrap"><table class="rs-table"><thead><tr><th>When</th><th>Person</th><th class="n">Change</th><th>What</th><th>By</th><th></th></tr></thead><tbody id="dkDrafts"></tbody></table></div>
+
+<span class="md-lab">BALANCES</span>
+<div class="rs-wrap"><table class="rs-table"><thead><tr><th>Person</th><th>Alts</th><th class="n">Approved</th><th class="n">After this sheet</th></tr></thead><tbody id="dkBal"></tbody></table></div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px">
+<form id="dkLink" class="md-card" novalidate style="gap: 8px">
+<span class="md-lab">ALTS SHARE THEIR MAIN’S DKP</span>
+<input class="md-in" list="dkChars" id="dkLAlt" placeholder="Alt">
+<input class="md-in" list="dkChars" id="dkLMain" placeholder="is an alt of (main)">
+<div><button type="submit" class="rs-btn rs-btn-p">LINK</button></div>
+<div id="dkLinks" style="display: flex; flex-direction: column; gap: 4px; font-size: 15px"></div>
+</form>
+<form id="dkSet" class="md-card" novalidate style="gap: 8px">
+<span class="md-lab">SETTINGS</span>
+<div id="dkSetRows" style="display: grid; grid-template-columns: 1fr 90px; gap: 6px 10px; align-items: center; font-size: 15px"></div>
+<div><button type="submit" class="rs-btn">SAVE SETTINGS</button></div>
+</form>
+</div>
+</div>
+
 <!-- LOG -->
 <div data-tab="log" hidden style="display: flex; flex-direction: column; gap: 14px">
 <p style="font-size: 15px; color: #AEA49A">Latest 200 actions. “Device” is a short id for the browser that did it.</p>
@@ -178,18 +240,60 @@ $('login').addEventListener('submit',async e=>{
 $('logout').addEventListener('click',()=>{saveSess(null);showLogin()});
 $('refresh').addEventListener('click',()=>load());
 
-const TABS=[['signups','Signups'],['characters','Characters'],['log','Change log'],['board','Bulletin board']];
+const TABS=[['signups','Signups'],['dkp','DKP'],['characters','Characters'],['log','Change log'],['board','Bulletin board']];
 function drawTabs(){
  $('tabs').innerHTML=TABS.map(([k,l])=>`<button type="button" data-t="${k}" role="tab" aria-selected="${tab===k}" style='${G.chipStyle(tab===k)}'>${l.toUpperCase()}</button>`).join('');
  document.querySelectorAll('[data-tab]').forEach(el=>{el.hidden=el.dataset.tab!==tab});
 }
-$('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;tab=b.dataset.t;drawTabs();if(tab==='board')loadBoard()});
+$('tabs').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;tab=b.dataset.t;drawTabs();if(tab==='board')loadBoard();if(tab==='dkp')loadDkp()});
 
 function confirmBtn(btn,label,fn){
  if(!btn.dataset.sure){btn.dataset.sure='1';const old=btn.textContent;btn.textContent=label;setTimeout(()=>{delete btn.dataset.sure;btn.textContent=old},4000);return}
  delete btn.dataset.sure;fn();
 }
 async function act(path,key,done){try{await oapi(path,{key});$('msg').textContent=done;await load()}catch(e){$('msg').textContent=e.message}}
+
+
+/* ---------- DKP ---------- */
+let dk=null;const tick={start:new Set(),end:new Set(),bench:new Set()};
+const KIND={start:'Starting DKP','attend-start':'Raid start','attend-end':'Raid end',bench:'Bench',award:'Loot',adjust:'Adjustment',decay:'Weekly decay'};
+const SETL=[['cap','DKP cap'],['start','Starting DKP (first raid night)'],['attendStart','Points at raid start'],['attendEnd','Points at raid end'],['decay','Weekly decay']];
+const charKey=v=>{v=String(v||'').trim().toLowerCase();const c=data.characters.find(x=>x.name.toLowerCase()===v);return c?c.key:''};
+async function loadDkp(){
+ try{dk=await oapi('dkp-data');drawDkp()}catch(e){$('msg').textContent=e.message}
+}
+function drawDkp(){
+ if(!dk||!data)return;
+ const chars=data.characters.filter(c=>c.in_guild!==false);
+ $('dkChars').innerHTML=chars.map(c=>`<option value="${esc(c.name)}">`).join('');
+ if(!$('dkDate').value)$('dkDate').value=new Date().toLocaleDateString('en-CA');
+ $('dkStatus').innerHTML=(dk.approvedAt?`Last approved ${esc(when(dk.approvedAt))}${dk.approvedBy?' by '+esc(dk.approvedBy):''}.`:'Nothing approved yet.')+` <b style="color:#F1ECE6">${dk.drafts.length}</b> draft ${dk.drafts.length===1?'change':'changes'} waiting.`;
+ drawDkRows();
+ $('dkDrafts').innerHTML=dk.drafts.slice().reverse().map(t=>`<tr><td data-l="When" style="white-space:nowrap;color:#8F857C">${esc(when(t.at))}</td><td data-l="Person"><strong>${esc(t.name)}</strong>${t.charName&&t.charName!==t.name?` <span style="color:#8F857C">(${esc(t.charName)})</span>`:''}</td><td data-l="Change" class="n" style="color:${t.delta<0?'#D96A5F':'#A3BC6E'}">${t.delta>0?'+':''}${t.delta}</td><td data-l="What">${esc(KIND[t.kind]||t.kind)}${t.item?': '+esc(t.item):''}${t.note&&t.kind!=='start'&&t.kind!=='decay'&&t.kind!=='bench'?' · '+esc(t.note):''}</td><td data-l="By">${esc(t.by||'')}</td><td><button type="button" class="link-btn" data-dk-rm="${esc(t.id)}">Remove</button></td></tr>`).join('')||'<tr><td colspan="6" style="color:#8F857C">No draft changes.</td></tr>';
+ $('dkBal').innerHTML=dk.people.map(p=>`<tr><td data-l="Person"><strong>${esc(p.name)}</strong></td><td data-l="Alts" style="color:#AEA49A">${esc(p.alts.join(', ')||'—')}</td><td data-l="Approved" class="n">${p.approved}</td><td data-l="After this sheet" class="n" style="color:${p.draft!==p.approved?'#CDB07C':'inherit'}">${p.draft}</td></tr>`).join('')||'<tr><td colspan="4" style="color:#8F857C">No DKP yet. Save a raid night to start.</td></tr>';
+ $('dkLinks').innerHTML=dk.links.map(l=>`<div>${esc(l.name)} → ${esc(l.mainName)} <button type="button" class="link-btn" data-dk-unlink="${esc(l.key)}">Unlink</button></div>`).join('')||'<span style="color:#8F857C">No alts linked yet.</span>';
+ $('dkSetRows').innerHTML=SETL.map(([k,l])=>`<label for="dkS-${k}">${l}</label><input class="md-in" type="number" id="dkS-${k}" data-set="${k}" value="${esc(dk.settings[k])}">`).join('');
+}
+function drawDkRows(){
+ const q=low($('dkQ').value).trim(), R={Yes:0,Probably:1,'Not sure yet':2,No:3};
+ const list=data.characters.filter(c=>c.in_guild!==false&&(!q||low(c.name).includes(q)))
+  .sort((a,b)=>((a.signup?R[a.signup.dec9]:9)-(b.signup?R[b.signup.dec9]:9))||(b.level-a.level)||a.name.localeCompare(b.name));
+ const box=(k,f)=>`<input type="checkbox" data-tk="${f}" data-k="${esc(k)}" ${tick[f].has(k)?'checked':''} aria-label="${f}" style="width:20px;height:20px">`;
+ $('dkRows').innerHTML=list.map(c=>`<tr><td data-l="Character">${G.dot(c.cls)}<strong>${esc(c.name)}</strong> <span style="color:#8F857C">${esc(c.level)}</span></td><td data-l="Signup" style="color:#AEA49A">${esc(c.signup?c.signup.dec9:'—')}</td><td class="n">${box(c.key,'start')}</td><td class="n">${box(c.key,'end')}</td><td class="n">${box(c.key,'bench')}</td></tr>`).join('');
+}
+$('dkQ').addEventListener('input',drawDkRows);
+$('dkRows').addEventListener('change',e=>{const b=e.target.closest('[data-tk]');if(!b)return;const set=tick[b.dataset.tk];b.checked?set.add(b.dataset.k):set.delete(b.dataset.k)});
+$('dkFill').addEventListener('click',()=>{data.characters.filter(c=>c.signup&&(c.signup.dec9==='Yes'||c.signup.dec9==='Probably')).forEach(c=>{tick.start.add(c.key);tick.end.add(c.key)});drawDkRows()});
+$('dkClear').addEventListener('click',()=>{Object.values(tick).forEach(x=>x.clear());drawDkRows()});
+const dkDo=async(path,body,done,after)=>{try{const d=await oapi(path,body);$('msg').textContent=typeof done==='function'?done(d):done;if(after)after();await loadDkp()}catch(e){$('msg').textContent=e.message}};
+$('dkNight').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-night',{date:$('dkDate').value,group:$('dkGroup').value,start:[...tick.start],end:[...tick.end],bench:[...tick.bench]},d=>`Raid night saved for ${d.people} ${d.people===1?'person':'people'}. It’s a draft until you approve the sheet.`,()=>{Object.values(tick).forEach(x=>x.clear());$('dkGroup').value=''})});
+$('dkAward').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-award',{char:charKey($('dkAChar').value),item:$('dkAItem').value,amount:$('dkAAmt').value},'Award added as a draft.',()=>{['dkAChar','dkAItem','dkAAmt'].forEach(i=>$(i).value='')})});
+$('dkAdj').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-adjust',{char:charKey($('dkJChar').value),amount:$('dkJAmt').value,note:$('dkJNote').value},'Adjustment added as a draft.',()=>{['dkJChar','dkJAmt','dkJNote'].forEach(i=>$(i).value='')})});
+$('dkLink').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-link',{alt:charKey($('dkLAlt').value),main:charKey($('dkLMain').value)||'x'},'Linked. That alt now shares its main’s DKP.',()=>{$('dkLAlt').value='';$('dkLMain').value=''})});
+$('dkLinks').addEventListener('click',e=>{const b=e.target.closest('[data-dk-unlink]');if(b)dkDo('dkp-link',{alt:b.dataset.dkUnlink},'Unlinked.')});
+$('dkSet').addEventListener('submit',e=>{e.preventDefault();const body={};document.querySelectorAll('[data-set]').forEach(i=>{body[i.dataset.set]=i.value});dkDo('dkp-settings',body,'Settings saved. They apply to changes added from now on.')});
+$('dkDrafts').addEventListener('click',e=>{const b=e.target.closest('[data-dk-rm]');if(b)confirmBtn(b,'Sure?',()=>dkDo('dkp-tx-delete',{id:b.dataset.dkRm},'Draft change removed.'))});
+$('dkApprove').addEventListener('click',e=>confirmBtn(e.target,'APPROVE? THIS MAKES IT OFFICIAL',()=>dkDo('dkp-approve',{},d=>`Sheet approved: ${d.changes} changes, ${d.people} people.`)));
 
 function drawSignups(){
  const all=data.characters.filter(c=>c.signup), D=['Yes','Probably','Not sure yet','No'];
@@ -242,7 +346,7 @@ $('botSetup').addEventListener('click',async()=>{
 });
 $('postNow').addEventListener('click',()=>confirmBtn($('postNow'),'POST IT?',async()=>{try{await oapi('post-summary');$('msg').textContent='Posted to Discord.'}catch(e){$('msg').textContent=e.message}}));
 async function load(){
- try{data=await oapi('data');$('app').hidden=false;$('whoLine').textContent='Logged in as '+(sess.who||'Officer')+'.';drawTabs();drawSignups();drawChars();drawLog();if(tab==='board')loadBoard()}
+ try{data=await oapi('data');$('app').hidden=false;$('whoLine').textContent='Logged in as '+(sess.who||'Officer')+'.';drawTabs();drawSignups();drawChars();drawLog();if(tab==='board')loadBoard();if(tab==='dkp')loadDkp()}
  catch(e){if(!$('login').hidden)return;$('msg').textContent=e.message}
 }
 if(sess&&sess.token)load();else showLogin();

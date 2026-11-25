@@ -155,8 +155,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 {
 const G=Guild,$=G.$,esc=G.esc,low=G.low;
 const next=new URLSearchParams(location.search).get('next');
-const nextUrl=next==='signup'?'/signup':'/characters';
-const nextLabel=next==='signup'?'GO SIGN UP →':'MY CHARACTERS →';
+const nextUrl=next==='signup'?'/signup':next==='dkp'?'/dkp':'/characters';
+const nextLabel=next==='signup'?'GO SIGN UP →':next==='dkp'?'SEE YOUR DKP →':'MY CHARACTERS →';
 function drawMine(){
  const m=G.mine();
  $('mineBox').hidden=!m.length;

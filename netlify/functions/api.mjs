@@ -5,6 +5,7 @@
 import { getStore } from '@netlify/blobs';
 import { postSummary, DEFAULT_CODES } from '../lib/summary.mjs';
 import { handleDiscord, refreshBoard, registerCommands } from '../lib/discordbot.mjs';
+import * as DKP from '../lib/dkp.mjs';
 import { blizzToken, bget, iconFor, recipeDetail, RECIPE_V } from '../lib/gamedata.mjs';
 
 const CLASSES = {
@@ -443,6 +444,92 @@ async function officerRoute(s, route, body) {
     const posts = (await Promise.all(blobs.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at));
     return json({ ok: true, posts });
   }
+  /* ---------- DKP ---------- */
+  if (route.startsWith('officer/dkp-')) {
+    const chars = (await allChars(s)).filter(x => x.key);
+    const byKey = Object.fromEntries(chars.map(x => [x.key, x]));
+    const pname = p => byKey[p]?.name || p;
+    const num = (v, lo, hi) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
+    if (route === 'officer/dkp-data') {
+      const { cfg, st, drafts, balances } = await DKP.draftSheet(s);
+      const { blobs: nb } = await s.list({ prefix: 'dkp/nights/' });
+      const nights = (await Promise.all(nb.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20);
+      const people = [...new Set([...Object.keys(st.approved), ...Object.keys(balances)])].map(p => ({
+        person: p, name: pname(p), alts: chars.filter(x => x.alt_of === p).map(x => x.name),
+        approved: st.approved[p] || 0, draft: balances[p] || 0
+      })).sort((a, b) => b.draft - a.draft || a.name.localeCompare(b.name));
+      return json({ settings: cfg, approvedAt: st.approvedAt || null, approvedBy: st.approvedBy || '', people, nights,
+        drafts: drafts.map(t => ({ ...t, name: pname(t.person), charName: byKey[t.char]?.name || '' })),
+        links: chars.filter(x => x.alt_of).map(x => ({ key: x.key, name: x.name, main: x.alt_of, mainName: pname(x.alt_of) })) });
+    }
+    if (route === 'officer/dkp-night') {
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date || '') ? body.date : new Date().toISOString().slice(0, 10);
+      const list = k => (Array.isArray(body[k]) ? body[k] : []).map(x => clean(x, 40)).filter(x => byKey[x]);
+      const r = await DKP.recordNight(s, { date, group: clean(body.group, 40), start: list('start'), end: list('end'), bench: list('bench'), by: who }, byKey);
+      if (!r.people) return json({ error: 'Tick at least one person.' }, 400);
+      await log(s, 'dkp-night', `${date}${r.night.group ? ' ' + r.night.group : ''}`, 'officer', { by: who, people: r.people });
+      return json({ ok: true, people: r.people });
+    }
+    if (route === 'officer/dkp-award' || route === 'officer/dkp-adjust') {
+      const ch = byKey[clean(body.char, 40)];
+      if (!ch) return json({ error: 'Pick a character from the list.' }, 400);
+      const award = route === 'officer/dkp-award';
+      const amt = num(body.amount, award ? 0 : -1000, 1000);
+      if (amt === null) return json({ error: 'Enter a whole number.' }, 400);
+      if (award && !clean(body.item, 80)) return json({ error: 'Enter the item name.' }, 400);
+      if (!award && !clean(body.note, 120)) return json({ error: 'Add a short reason.' }, 400);
+      if (award) {
+        const { balances } = await DKP.draftSheet(s);
+        const have = balances[DKP.personOf(ch)] || 0;
+        if (amt > have) return json({ error: `${byKey[DKP.personOf(ch)]?.name || ch.name} only has ${have} DKP right now, counting draft changes.` }, 400);
+      }
+      const t = await DKP.addTx(s, { person: DKP.personOf(ch), char: ch.key, delta: award ? -amt : amt, kind: award ? 'award' : 'adjust',
+        item: award ? clean(body.item, 80) : undefined, night: clean(body.night, 40) || undefined, note: clean(body.note, 120) || undefined, by: who });
+      await log(s, award ? 'dkp-award' : 'dkp-adjust', ch.name, 'officer', { by: who, delta: t.delta, item: t.item, note: t.note });
+      return json({ ok: true });
+    }
+    if (route === 'officer/dkp-tx-delete') {
+      const t = await s.get(`dkp/tx/${clean(body.id, 80)}`, { type: 'json' });
+      if (!t) return json({ error: 'Already gone.' }, 404);
+      if (t.status !== 'draft') return json({ error: 'Approved changes can’t be removed. Add an adjustment instead.' }, 400);
+      await s.delete(`dkp/tx/${t.id}`);
+      return json({ ok: true });
+    }
+    if (route === 'officer/dkp-approve') {
+      const r = await DKP.approve(s, who);
+      if (!r.changes) return json({ error: 'Nothing new to approve.' }, 400);
+      await log(s, 'dkp-approve', `${r.changes} changes`, 'officer', { by: who });
+      return json({ ok: true, ...r });
+    }
+    if (route === 'officer/dkp-link') {
+      const alt = byKey[clean(body.alt, 40)];
+      if (!alt) return json({ error: 'Pick the alt from the list.' }, 400);
+      if (body.main) {
+        const main = byKey[clean(body.main, 40)];
+        if (!main) return json({ error: 'Pick the main from the list.' }, 400);
+        const root = DKP.personOf(main);
+        if (root === alt.key) return json({ error: 'That would make a character its own alt.' }, 400);
+        if (chars.some(x => x.alt_of === alt.key)) return json({ error: `${alt.name} has alts of its own. Move those first.` }, 400);
+        await s.setJSON(`char/${alt.key}`, { ...alt, alt_of: root });
+        await log(s, 'dkp-link', alt.name, 'officer', { by: who, main: byKey[root]?.name });
+      } else {
+        const { alt_of, ...rest } = alt;
+        await s.setJSON(`char/${alt.key}`, rest);
+        await log(s, 'dkp-unlink', alt.name, 'officer', { by: who });
+      }
+      return json({ ok: true });
+    }
+    if (route === 'officer/dkp-settings') {
+      const cur = await DKP.settings(s), next = { ...cur };
+      for (const [k, lo, hi] of [['cap', 1, 10000], ['start', 0, 1000], ['attendStart', 0, 100], ['attendEnd', 0, 100], ['decay', 0, 100]]) {
+        if (body[k] !== undefined) { const n = num(body[k], lo, hi); if (n === null) return json({ error: `Check the ${k} number.` }, 400); next[k] = n; }
+      }
+      await s.setJSON('dkp/settings', next);
+      await log(s, 'dkp-settings', 'DKP settings', 'officer', { by: who, ...next });
+      return json({ ok: true, settings: next });
+    }
+    return json({ error: 'Not found' }, 404);
+  }
   if (route === 'officer/discord-setup') {
     // Adds the bot's /signup commands to Discord and hands back the invite link.
     const r = await registerCommands();
@@ -689,6 +776,15 @@ export default async (req, context) => {
     }
 
     if (route === 'mine') return json({ ok: true, signup: (await s.get(`signup/dec9/${c.key}`, { type: 'json' })) || null });
+
+    if (route === 'dkp') {
+      // Approved DKP for this character's person (main plus alts), with recent history.
+      const person = DKP.personOf(c);
+      const [st, main, txs] = await Promise.all([DKP.state(s), s.get(`char/${person}`, { type: 'json' }), DKP.allTx(s, 'approved')]);
+      const mine = txs.filter(t => t.person === person).slice(-40).reverse()
+        .map(t => ({ at: t.at, delta: t.delta, kind: t.kind, item: t.item || '', note: t.note || '' }));
+      return json({ ok: true, person, main: main?.name || c.name, balance: st.approved[person] || 0, approvedAt: st.approvedAt || null, history: mine });
+    }
 
     return json({ error: 'Not found' }, 404);
   } catch (e) {

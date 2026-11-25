@@ -6,6 +6,7 @@
 //   meta/discord-board        the live signup message { channel, message }
 import crypto from 'node:crypto';
 import { buildSummary, emojiCodes, specIcon } from './summary.mjs';
+import * as DKP from './dkp.mjs';
 
 const API = 'https://discord.com/api/v10';
 const EPHEMERAL = 64;
@@ -17,6 +18,7 @@ const COMMANDS = [
     options: [{ type: 3, name: 'item', description: 'Item or recipe name', required: true, autocomplete: true }] },
   { name: 'who', description: 'Look up a guild member', type: 1, dm_permission: false,
     options: [{ type: 3, name: 'character', description: 'Character name', required: true, autocomplete: true }] },
+  { name: 'dkp', description: 'Your DKP balance (only you see it)', type: 1, dm_permission: false },
   { name: 'signup-post', description: 'Post the raid signup message in this channel (officers)', type: 1, dm_permission: false, default_member_permissions: String(32) }
 ];
 
@@ -166,6 +168,14 @@ export async function handleDiscord(req, s, ctx, d) {
     const name = i.data?.name;
     if (name === 'crafter') return craftReply(String(opt('item')?.value || ''));
     if (name === 'who') return whoReply(String(opt('character')?.value || ''));
+    if (name === 'dkp') {
+      const c = await linked();
+      if (!c) return reply('I don’t know which character you are yet. Click Sign up on the signup message or use /signup once, then try again.');
+      const person = DKP.personOf(c), st = await DKP.state(s);
+      const main = person === c.key ? c : await s.get(`char/${person}`, { type: 'json' });
+      const when = st.approvedAt ? new Date(st.approvedAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'America/New_York' }) : '';
+      return reply(`**${main?.name || c.name}: ${st.approved[person] || 0} DKP**${when ? ` (as of the sheet approved ${when})` : ''}\nHistory: https://mysticdragons.org/dkp`);
+    }
     if (name === 'signup-post') {
       const r = await dapi(`/channels/${i.channel_id}/messages`, 'POST', { embeds: [await buildSummary(s)], components: boardButtons() });
       if (!r.ok) return reply(`I couldn’t post here (Discord said ${r.status}). Make sure I can view and send messages in this channel.`);
