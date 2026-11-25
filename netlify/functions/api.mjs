@@ -3,7 +3,7 @@
 // - Characters are claimed per browser (random device id); no logins.
 // - Raid signups and a change log live in Netlify Blobs (store "guild").
 import { getStore } from '@netlify/blobs';
-import { postSummary } from '../lib/summary.mjs';
+import { postSummary, DEFAULT_CODES } from '../lib/summary.mjs';
 import { blizzToken, bget, iconFor, recipeDetail, RECIPE_V } from '../lib/gamedata.mjs';
 
 const CLASSES = {
@@ -397,9 +397,9 @@ async function officerRoute(s, route, body) {
       if (!Object.keys(found).length) return json({ error: 'No emoji codes found. They look like <:paladin_holy:1234567890>.' }, 400);
       const next = { ...cur, ...found };
       await s.setJSON('meta/emoji-codes', next);
-      return json({ ok: true, added: Object.keys(found), codes: next });
+      return json({ ok: true, added: Object.keys(found), codes: { ...DEFAULT_CODES, ...next } });
     }
-    return json({ codes: cur });
+    return json({ codes: { ...DEFAULT_CODES, ...cur } });
   }
   if (route === 'officer/board') {
     // Old-school bulletin board for site and officer ideas.
