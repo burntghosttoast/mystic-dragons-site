@@ -461,12 +461,14 @@ async function officerRoute(s, route, body, reqUrl = '') {
     if (route === 'officer/dkp-data') {
       const { cfg, st, drafts, balances } = await DKP.draftSheet(s);
       const { blobs: nb } = await s.list({ prefix: 'dkp/nights/' });
-      const nights = (await Promise.all(nb.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 20);
+      const nights = (await Promise.all(nb.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at));
       const people = [...new Set([...Object.keys(st.approved), ...Object.keys(balances)])].map(p => ({
-        person: p, name: pname(p), alts: chars.filter(x => x.alt_of === p).map(x => x.name),
+        person: p, name: pname(p), cls: byKey[p]?.cls || '', role: byKey[p]?.main_role || '', alts: chars.filter(x => x.alt_of === p).map(x => x.name),
         approved: st.approved[p] || 0, draft: balances[p] || 0
       })).sort((a, b) => b.draft - a.draft || a.name.localeCompare(b.name));
-      return json({ settings: cfg, approvedAt: st.approvedAt || null, approvedBy: st.approvedBy || '', people, nights,
+      // Every change, approved and draft, in order, for the officer views.
+      const tx = (await DKP.allTx(s)).map(t => ({ id: t.id, at: t.at, person: t.person, delta: t.delta, kind: t.kind, status: t.status, night: t.night || '', item: t.item || '', note: t.note || '', by: t.by || '', char: t.char || '', charName: byKey[t.char]?.name || '' }));
+      return json({ settings: cfg, approvedAt: st.approvedAt || null, approvedBy: st.approvedBy || '', people, nights, tx,
         drafts: drafts.map(t => ({ ...t, name: pname(t.person), charName: byKey[t.char]?.name || '' })),
         links: chars.filter(x => x.alt_of).map(x => ({ key: x.key, name: x.name, main: x.alt_of, mainName: pname(x.alt_of) })) });
     }

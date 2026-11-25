@@ -38,6 +38,7 @@ button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid #A3BC
 .rs-table th,.rs-table td{text-align:left;padding:11px 14px;border-bottom:1px solid #362D2A;vertical-align:top}
 .rs-table th{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:#8F857C}
 .rs-table .n{text-align:right;font-variant-numeric:tabular-nums}
+.tx-table{table-layout:fixed}
 @media (max-width:700px){.rs-tally{grid-template-columns:repeat(2,minmax(0,1fr))}.rs-two{grid-template-columns:minmax(0,1fr)}
 .rs-table thead{display:none}.rs-table tr{display:grid;padding:10px 0;border-bottom:1px solid #362D2A}.rs-table td{border:0;padding:3px 14px 3px 8.5em;text-align:left !important}.rs-table td::before{content:attr(data-l);float:left;width:7.5em;margin-left:-7.5em;color:#8F857C;font-size:13px}}
 .rs-btn{min-height:46px;padding:0 20px;border:1px solid #362D2A;border-radius:4px;background:transparent;color:#CFC7BE;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:16px;letter-spacing:.12em;cursor:pointer}
@@ -143,6 +144,44 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <p style="font-size: 14px; color: #8F857C">Weekly decay adds itself early every Tuesday on the live site, so it shows up in that day’s sheet.</p>
 </div>
 
+<div role="tablist" id="dkViews" style="display: flex; flex-wrap: wrap; gap: 8px"></div>
+
+<!-- DKP: overview -->
+<div data-dv="overview" style="display: flex; flex-direction: column; gap: 14px">
+<div class="rs-tally" id="dkTally"></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px">
+<div class="md-card" style="gap: 10px"><span class="md-lab">WHERE BALANCES SIT</span><div id="dkDist"></div></div>
+<div class="md-card" style="gap: 10px"><span class="md-lab">DKP SPENT EACH RAID NIGHT</span><div id="dkSpent"></div></div>
+</div>
+</div>
+
+<!-- DKP: people -->
+<div data-dv="people" hidden style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><input class="md-in" type="search" id="dkPQ" placeholder="Search people" style="max-width: 260px"><div id="dkPCls" style="display: flex; flex-wrap: wrap; gap: 6px"></div></div>
+<div class="rs-wrap"><table class="rs-table"><thead><tr id="dkPHead"></tr></thead><tbody id="dkPRows"></tbody></table></div>
+<p style="font-size: 14px; color: #8F857C">Click a name to see everything for that person. Balances include draft changes. Attendance counts nights held since the first one on record.</p>
+</div>
+
+<!-- DKP: one person -->
+<div data-dv="person" hidden style="display: flex; flex-direction: column; gap: 14px">
+<button type="button" id="dkBack" class="link-btn" style="align-self: flex-start">← All people</button>
+<div id="dkPerson"></div>
+</div>
+
+<!-- DKP: raid nights -->
+<div data-dv="nights" hidden style="display: flex; flex-direction: column; gap: 12px">
+<div id="dkNList" style="display: flex; flex-wrap: wrap; gap: 8px"></div>
+<div id="dkNight1"></div>
+</div>
+
+<!-- DKP: loot -->
+<div data-dv="loot" hidden style="display: flex; flex-direction: column; gap: 12px">
+<input class="md-in" type="search" id="dkLQ" placeholder="Search items or winners" style="max-width: 320px">
+<div class="rs-wrap"><table class="rs-table"><thead><tr id="dkLHead"></tr></thead><tbody id="dkLRows"></tbody></table></div>
+</div>
+
+<!-- DKP: enter and fix -->
+<div data-dv="enter" hidden style="display: flex; flex-direction: column; gap: 14px">
 <form id="dkNight" class="md-card" novalidate style="gap: 10px">
 <span class="md-lab">RAID NIGHT ATTENDANCE</span>
 <p style="font-size: 14px; color: #8F857C">For now this is how attendance gets in. Later the bidding tool fills it in, and this is for fixes like bench. Tick who was there at the start and at the end. Bench gets both. Someone’s alts count toward the same person, once a night. First-timers also get their starting DKP.</p>
@@ -200,6 +239,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <p style="font-size: 15px; color: #CFC7BE">Deletes every raid night, award, adjustment, sheet and balance. Settings and alt links stay. Use it to clear test data before raids start.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 8px"><input class="md-in" id="dkResetTxt" placeholder="Type RESET" style="max-width: 200px"><button type="button" id="dkReset" class="rs-btn">DELETE ALL DKP DATA</button></div>
 <div id="dkDemoRow" hidden style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid #362D2A; padding-top: 10px; margin-top: 4px"><button type="button" id="dkDemo" class="rs-btn">FILL WITH EXAMPLE DATA</button><span style="font-size: 14px; color: #8F857C">Preview site only. Replaces everything with six made-up November raid nights.</span></div>
+</div>
 </div>
 </div>
 
@@ -281,6 +321,7 @@ function drawDkp(){
  $('dkBal').innerHTML=dk.people.map(p=>`<tr><td data-l="Person"><strong>${esc(p.name)}</strong></td><td data-l="Alts" style="color:#AEA49A">${esc(p.alts.join(', ')||'—')}</td><td data-l="Approved" class="n">${p.approved}</td><td data-l="After this sheet" class="n" style="color:${p.draft!==p.approved?'#CDB07C':'inherit'}">${p.draft}</td></tr>`).join('')||'<tr><td colspan="4" style="color:#8F857C">No DKP yet. Save a raid night to start.</td></tr>';
  $('dkLinks').innerHTML=dk.links.map(l=>`<div>${esc(l.name)} → ${esc(l.mainName)} <button type="button" class="link-btn" data-dk-unlink="${esc(l.key)}">Unlink</button></div>`).join('')||'<span style="color:#8F857C">No alts linked yet.</span>';
  $('dkSetRows').innerHTML=SETL.map(([k,l])=>`<label for="dkS-${k}">${l}</label><input class="md-in" type="number" id="dkS-${k}" data-set="${k}" value="${esc(dk.settings[k])}">`).join('');
+ dkCompute();drawDkViews();
 }
 function drawDkRows(){
  const q=low($('dkQ').value).trim(), R={Yes:0,Probably:1,'Not sure yet':2,No:3};
@@ -289,6 +330,116 @@ function drawDkRows(){
  const box=(k,f)=>`<input type="checkbox" data-tk="${f}" data-k="${esc(k)}" ${tick[f].has(k)?'checked':''} aria-label="${f}" style="width:20px;height:20px">`;
  $('dkRows').innerHTML=list.map(c=>`<tr><td data-l="Character">${G.dot(c.cls)}<strong>${esc(c.name)}</strong> <span style="color:#8F857C">${esc(c.level)}</span></td><td data-l="Signup" style="color:#AEA49A">${esc(c.signup?c.signup.dec9:'—')}</td><td class="n">${box(c.key,'start')}</td><td class="n">${box(c.key,'end')}</td><td class="n">${box(c.key,'bench')}</td></tr>`).join('');
 }
+
+/* ---------- DKP views ---------- */
+let dkView='overview',dkSel='',dkNightSel='',dkPSort=['draft',-1],dkLSort=['at',-1],dkPClass='';
+const DV=[['overview','Overview'],['people','People'],['nights','Raid nights'],['loot','Loot'],['enter','Enter & fix']];
+const ymd=t=>new Date(t).toLocaleDateString('en-CA');
+const dayL=d=>new Date(d+'T12:00:00').toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'});
+let S=null;
+function dkCompute(){
+ const nights=dk.nights.slice().sort((a,b)=>a.at.localeCompare(b.at));
+ const nightOf=t=>{if(t.night)return t.night;if(t.kind==='decay')return '';const d=ymd(t.at);let best='';for(const n of nights){if(n.at<=t.at&&(new Date(t.at)-new Date(n.at))<30*3600e3)best=n.id;if(n.date===d&&!best)best=n.id}return best};
+ const P={},cap=dk.settings.cap;
+ dk.people.forEach(p=>{P[p.person]={...p,earned:0,spent:0,decay:0,items:[],present:new Set(),full:new Set(),line:[],bal:0,first:''}});
+ for(const t of dk.tx){
+  const p=P[t.person];if(!p)continue;
+  t.n=nightOf(t);
+  p.bal=t.delta>=0?Math.min(cap,p.bal+t.delta):Math.max(0,p.bal+t.delta);p.line.push([t.at,p.bal,t.status]);
+  if(t.kind==='award'){p.spent-=t.delta;p.items.push(t)}else if(t.kind==='decay')p.decay-=t.delta;else if(t.delta>0)p.earned+=t.delta;
+  if(['attend-start','bench'].includes(t.kind)&&t.n){p.present.add(t.n);if(!p.first)p.first=t.n}
+  if(['attend-end','bench'].includes(t.kind)&&t.n)p.full.add(t.n);
+ }
+ const order=nights.map(n=>n.id);
+ Object.values(P).forEach(p=>{const i=order.indexOf(p.first);p.held=i<0?0:order.length-i;p.att=p.held?p.present.size/p.held:0;p.last=[...p.present].sort((a,b)=>order.indexOf(b)-order.indexOf(a))[0]||''});
+ S={P,nights,byNight:Object.fromEntries(nights.map(n=>[n.id,n]))};
+}
+const nLabel=id=>{const n=S.byNight[id];return n?dayL(n.date)+(n.group?' · '+n.group:''):''};
+const pct=x=>Math.round(x*100)+'%';
+const bars=(rows,unit='')=>{const max=Math.max(1,...rows.map(r=>r[1]));return rows.map(([l,v,sub])=>`<div style="display:grid;grid-template-columns:110px 1fr 54px;gap:10px;align-items:center;font-size:14px;margin:4px 0"><span style="color:#AEA49A;white-space:nowrap">${esc(l)}</span><div style="height:14px;background:#241E1C;border-radius:3px"><div style="height:14px;width:${(v/max*100).toFixed(1)}%;background:${sub||'#A3BC6E'};border-radius:3px"></div></div><span class="n" style="text-align:right;color:#F1ECE6">${v}${unit}</span></div>`).join('')};
+function drawDkViews(){
+ $('dkViews').innerHTML=DV.map(([k,l])=>`<button type="button" data-dv-go="${k}" style='${G.chipStyle(dkView===k||(dkView==='person'&&k==='people'))};min-height:38px'>${l.toUpperCase()}</button>`).join('');
+ document.querySelectorAll('[data-dv]').forEach(el=>{el.hidden=el.dataset.dv!==dkView});
+ if(dkView==='overview')drawOverview();if(dkView==='people')drawPeople();if(dkView==='person')drawPerson();if(dkView==='nights')drawNights();if(dkView==='loot')drawLoot();
+}
+$('dkViews').addEventListener('click',e=>{const b=e.target.closest('[data-dv-go]');if(!b)return;dkView=b.dataset.dvGo;drawDkViews()});
+function drawOverview(){
+ const ps=Object.values(S.P),cap=dk.settings.cap,tot=ps.reduce((a,p)=>a+p.draft,0),items=dk.tx.filter(t=>t.kind==='award').length;
+ $('dkTally').innerHTML=[['People',ps.length],['DKP in the guild',tot],['Average',ps.length?Math.round(tot/ps.length):0],['At the cap',ps.filter(p=>p.draft>=cap).length],['Raid nights',S.nights.length],['Items awarded',items]].map(([l,n])=>`<div class="md-card"><span class="md-lab">${esc(l.toUpperCase())}</span><strong style="font:700 clamp(26px,3.6vw,36px)/1.05 Cinzel,serif;color:#F7F2EC">${n}</strong></div>`).join('');
+ const step=Math.max(10,Math.ceil(cap/5/10)*10),buckets=[];
+ for(let lo=0;lo<cap;lo+=step){const hi=Math.min(cap-1,lo+step-1);buckets.push([`${lo}–${hi}`,ps.filter(p=>p.draft>=lo&&p.draft<=hi).length])}
+ buckets.push([`${cap} (cap)`,ps.filter(p=>p.draft>=cap).length,'#CDB07C']);
+ $('dkDist').innerHTML=bars(buckets)+'<p style="font-size:13px;color:#8F857C;margin-top:6px">People per balance range, including draft changes.</p>';
+ const sp=S.nights.map(n=>[dayL(n.date)+(n.group?' '+n.group:''),-dk.tx.filter(t=>t.kind==='award'&&t.n===n.id).reduce((a,t)=>a+t.delta,0),'#D96A5F']);
+ $('dkSpent').innerHTML=sp.length?bars(sp,''):'<p style="color:#8F857C">No raid nights yet.</p>';
+}
+const PCOLS=[['name','Person'],['cls','Class'],['draft','Balance'],['earned','Earned'],['spent','Spent'],['items','Items'],['att','Attendance'],['last','Last raid']];
+function drawPeople(){
+ const q=low($('dkPQ').value).trim(),cls=[...new Set(Object.values(S.P).map(p=>p.cls).filter(Boolean))].sort();
+ $('dkPCls').innerHTML=['',...cls].map(c=>`<button type="button" data-pc="${esc(c)}" style='${G.chipStyle(dkPClass===c)};min-height:34px;text-transform:none;letter-spacing:.02em'>${c?G.dot(c)+esc(c):'All classes'}</button>`).join('');
+ $('dkPHead').innerHTML=PCOLS.map(([k,l])=>`<th class="${['draft','earned','spent','items','att'].includes(k)?'n':''}"><button type="button" class="link-btn" data-ps="${k}" style="color:inherit;font:inherit;letter-spacing:inherit">${l}${dkPSort[0]===k?(dkPSort[1]<0?' ↓':' ↑'):''}</button></th>`).join('');
+ const val=(p,k)=>k==='items'?p.items.length:k==='last'?(S.byNight[p.last]?.at||''):p[k];
+ const list=Object.values(S.P).filter(p=>(!q||low(p.name).includes(q)||p.alts.some(a=>low(a).includes(q)))&&(!dkPClass||p.cls===dkPClass))
+  .sort((a,b)=>{const x=val(a,dkPSort[0]),y=val(b,dkPSort[0]);return (typeof x==='string'?String(x).localeCompare(y):x-y)*dkPSort[1]||a.name.localeCompare(b.name)});
+ const cap=dk.settings.cap;
+ $('dkPRows').innerHTML=list.map(p=>`<tr><td data-l="Person"><button type="button" class="link-btn" data-person="${esc(p.person)}" style="color:#F1ECE6;font-weight:600">${esc(p.name)}</button>${p.alts.length?`<span style="color:#8F857C;font-size:13px"> +${p.alts.length} alt${p.alts.length>1?'s':''}</span>`:''}</td><td data-l="Class">${p.cls?G.dot(p.cls)+esc(p.cls):'—'}</td><td data-l="Balance" class="n" style="color:${p.draft>=cap?'#CDB07C':'#F1ECE6'};font-weight:600">${p.draft}${p.draft!==p.approved?` <span style="color:#8F857C;font-weight:400;font-size:13px">(${p.approved})</span>`:''}</td><td data-l="Earned" class="n">${p.earned}</td><td data-l="Spent" class="n">${p.spent}</td><td data-l="Items" class="n">${p.items.length}</td><td data-l="Attendance" class="n">${p.held?`${pct(p.att)} <span style="color:#8F857C;font-size:13px">${p.present.size}/${p.held}</span>`:'—'}</td><td data-l="Last raid" style="color:#AEA49A;white-space:nowrap">${esc(p.last?nLabel(p.last):'—')}</td></tr>`).join('')||'<tr><td colspan="8" style="color:#8F857C">Nobody matches.</td></tr>';
+}
+$('dkPQ').addEventListener('input',drawPeople);
+$('dkPCls').addEventListener('click',e=>{const b=e.target.closest('[data-pc]');if(b){dkPClass=b.dataset.pc;drawPeople()}});
+$('dkPHead').addEventListener('click',e=>{const b=e.target.closest('[data-ps]');if(!b)return;const k=b.dataset.ps;dkPSort=dkPSort[0]===k?[k,-dkPSort[1]]:[k,['name','cls'].includes(k)?1:-1];drawPeople()});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-person]');if(!b||!S)return;dkSel=b.dataset.person;dkView='person';drawDkViews();window.scrollTo({top:$('dkViews').getBoundingClientRect().top+scrollY-20})});
+$('dkBack').addEventListener('click',()=>{dkView='people';drawDkViews()});
+const KLINE=t=>`${esc(KIND[t.kind]||t.kind)}${t.item?': '+esc(t.item):''}${t.note&&!['start','decay','bench'].includes(t.kind)?' · '+esc(t.note):''}`;
+const txRow=(t,showWho)=>`<tr><td data-l="What">${showWho?`<button type="button" class="link-btn" data-person="${esc(t.person)}" style="color:#F1ECE6">${esc(S.P[t.person]?.name||t.person)}</button> · `:''}${KLINE(t)}${t.charName&&S.P[t.person]&&t.charName!==S.P[t.person].name?` <span style="color:#8F857C">(on ${esc(t.charName)})</span>`:''}</td><td data-l="Change" class="n" style="color:${t.delta<0?'#D96A5F':'#A3BC6E'}">${t.delta>0?'+':''}${t.delta}</td><td data-l="Status">${t.status==='draft'?'<span style="color:#CDB07C">Draft</span>':'<span style="color:#8F857C">Approved</span>'}</td><td>${t.status==='draft'?`<button type="button" class="link-btn" data-dk-rm="${esc(t.id)}">Remove</button>`:''}</td></tr>`;
+function chart(line,cap){
+ if(line.length<2)return '';
+ const W=640,H=160,t0=new Date(line[0][0]).getTime(),t1=new Date(line[line.length-1][0]).getTime()||t0+1,x=t=>((new Date(t).getTime()-t0)/Math.max(1,t1-t0))*(W-40)+30,y=v=>H-20-(v/cap)*(H-36);
+ let d='';line.forEach(([t,v],i)=>{d+=(i?`H${x(t).toFixed(1)}V${y(v).toFixed(1)}`:`M${x(t).toFixed(1)} ${y(v).toFixed(1)}`)});
+ return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Balance over time" style="width:100%;height:auto;max-height:200px"><line x1="30" x2="${W-10}" y1="${y(cap)}" y2="${y(cap)}" stroke="#CDB07C" stroke-dasharray="4 4" stroke-width="1"/><text x="${W-12}" y="${y(cap)-4}" fill="#CDB07C" font-size="11" text-anchor="end">cap ${cap}</text><line x1="30" x2="${W-10}" y1="${y(0)}" y2="${y(0)}" stroke="#362D2A"/><path d="${d}" fill="none" stroke="#A3BC6E" stroke-width="2.5"/><text x="30" y="${H-4}" fill="#8F857C" font-size="11">${esc(dayL(ymd(line[0][0])))}</text><text x="${W-10}" y="${H-4}" fill="#8F857C" font-size="11" text-anchor="end">${esc(dayL(ymd(line[line.length-1][0])))}</text></svg>`;
+}
+function drawPerson(){
+ const p=S.P[dkSel];if(!p){$('dkPerson').innerHTML='<p style="color:#8F857C">Not found.</p>';return}
+ const mine=dk.tx.filter(t=>t.person===p.person),groups=new Map();
+ mine.slice().reverse().forEach(t=>{const k=t.n?'n:'+t.n:'d:'+ymd(t.at);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(t)});
+ const head=k=>k.startsWith('n:')?'Raid night · '+nLabel(k.slice(2)):dayL(k.slice(2));
+ $('dkPerson').innerHTML=`<div class="md-card" style="gap:12px">
+  <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:baseline"><h2 style="font-size:clamp(24px,3.4vw,34px)">${p.cls?G.dot(p.cls):''}${esc(p.name)}</h2><span style="color:#AEA49A">${p.alts.length?'Alts: '+esc(p.alts.join(', ')):'No alts linked'}</span></div>
+  <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:baseline"><strong style="font:700 48px/1 Cinzel,serif;color:#CDB07C">${p.draft}</strong><span style="color:#AEA49A">approved ${p.approved} · earned ${p.earned} · spent ${p.spent} · decay ${p.decay} · ${p.items.length} item${p.items.length===1?'':'s'} · attendance ${p.held?pct(p.att)+` (${p.present.size}/${p.held}, ${p.full.size} full)`:'—'}</span></div>
+  ${chart(p.line,dk.settings.cap)}
+  <div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="rs-btn" data-prefill="adj">ADD ADJUSTMENT</button><button type="button" class="rs-btn" data-prefill="award">ADD MISSED AWARD</button></div>
+ </div>`+[...groups].map(([k,list])=>`<div><span class="md-lab" style="display:block;margin:6px 0">${esc(head(k).toUpperCase())}</span><div class="rs-wrap"><table class="rs-table tx-table"><colgroup><col><col style="width:80px"><col style="width:110px"><col style="width:90px"></colgroup><tbody>${list.map(t=>txRow(t,false)).join('')}</tbody></table></div></div>`).join('');
+}
+$('dkPerson').addEventListener('click',e=>{const b=e.target.closest('[data-prefill]');if(!b)return;const p=S.P[dkSel];dkView='enter';drawDkViews();if(b.dataset.prefill==='adj'){$('dkJChar').value=p.name;$('dkJAmt').focus()}else{$('dkAChar').value=p.name;$('dkAItem').focus()}});
+function drawNights(){
+ const ns=S.nights.slice().reverse();
+ if(!dkNightSel||!S.byNight[dkNightSel])dkNightSel=ns[0]?.id||'';
+ $('dkNList').innerHTML=ns.map(n=>`<button type="button" data-ng="${esc(n.id)}" style='${G.chipStyle(dkNightSel===n.id)};min-height:36px;text-transform:none;letter-spacing:.02em'>${esc(dayL(n.date))}${n.group?' · '+esc(n.group):''}</button>`).join('')||'<p style="color:#8F857C">No raid nights yet.</p>';
+ const n=S.byNight[dkNightSel];if(!n){$('dkNight1').innerHTML='';return}
+ const lines=dk.tx.filter(t=>t.n===n.id),who=new Map();
+ lines.forEach(t=>{if(!['start','attend-start','attend-end','bench'].includes(t.kind))return;const e=who.get(t.person)||{s:0,e:0,b:0,pts:0};if(t.kind==='attend-start')e.s=1;if(t.kind==='attend-end')e.e=1;if(t.kind==='bench')e.b=1;e.pts+=t.delta;who.set(t.person,e)});
+ const awards=lines.filter(t=>t.kind==='award'),other=lines.filter(t=>t.kind==='adjust');
+ const yes='<span style="color:#A3BC6E">Yes</span>',no='<span style="color:#8F857C">—</span>';
+ $('dkNight1').innerHTML=`<div class="md-card" style="gap:12px"><h2 style="font-size:clamp(22px,3vw,28px)">${esc(dayL(n.date))}${n.group?' · '+esc(n.group):''}</h2>
+  <p style="color:#AEA49A">${who.size} people · ${[...who.values()].filter(e=>e.b).length} benched · ${awards.length} item${awards.length===1?"":"s"} for ${-awards.reduce((a,t)=>a+t.delta,0)} DKP · entered by ${esc(n.by||'')}</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px">
+  <div><span class="md-lab" style="display:block;margin-bottom:6px">ATTENDANCE</span><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Person</th><th>Start</th><th>End</th><th>Bench</th><th class="n">Points</th></tr></thead><tbody>${[...who].sort((a,b)=>(S.P[a[0]]?.name||'').localeCompare(S.P[b[0]]?.name||'')).map(([pp,e])=>`<tr><td data-l="Person"><button type="button" class="link-btn" data-person="${esc(pp)}" style="color:#F1ECE6">${esc(S.P[pp]?.name||pp)}</button></td><td data-l="Start">${e.s||e.b?yes:no}</td><td data-l="End">${e.e||e.b?yes:no}</td><td data-l="Bench">${e.b?yes:no}</td><td data-l="Points" class="n">+${e.pts}</td></tr>`).join('')}</tbody></table></div></div>
+  <div><span class="md-lab" style="display:block;margin-bottom:6px">LOOT AND ADJUSTMENTS</span><div class="rs-wrap"><table class="rs-table tx-table"><colgroup><col><col style="width:80px"><col style="width:110px"><col style="width:90px"></colgroup><tbody>${[...awards,...other].map(t=>txRow(t,true)).join('')||'<tr><td style="color:#8F857C">Nothing awarded.</td></tr>'}</tbody></table></div></div>
+  </div></div>`;
+}
+$('dkNList').addEventListener('click',e=>{const b=e.target.closest('[data-ng]');if(b){dkNightSel=b.dataset.ng;drawNights()}});
+const LCOLS=[['at','Date'],['item','Item'],['name','Winner'],['price','Price'],['status','Status']];
+function drawLoot(){
+ const q=low($('dkLQ').value).trim();
+ $('dkLHead').innerHTML=LCOLS.map(([k,l])=>`<th class="${k==='price'?'n':''}"><button type="button" class="link-btn" data-ls="${k}" style="color:inherit;font:inherit;letter-spacing:inherit">${l}${dkLSort[0]===k?(dkLSort[1]<0?' ↓':' ↑'):''}</button></th>`).join('');
+ const rows=dk.tx.filter(t=>t.kind==='award').map(t=>({...t,name:S.P[t.person]?.name||t.person,price:-t.delta}))
+  .filter(t=>!q||low(t.item).includes(q)||low(t.name).includes(q)||low(t.charName).includes(q))
+  .sort((a,b)=>{const k=dkLSort[0],x=a[k],y=b[k];return (typeof x==='number'?x-y:String(x).localeCompare(String(y)))*dkLSort[1]});
+ $('dkLRows').innerHTML=rows.map(t=>`<tr><td data-l="Date" style="white-space:nowrap;color:#AEA49A">${esc(t.n?nLabel(t.n):dayL(ymd(t.at)))}</td><td data-l="Item" style="color:#B56CF5">${esc(t.item)}</td><td data-l="Winner"><button type="button" class="link-btn" data-person="${esc(t.person)}" style="color:#F1ECE6">${esc(t.name)}</button>${t.charName&&t.charName!==t.name?` <span style="color:#8F857C">(on ${esc(t.charName)})</span>`:''}</td><td data-l="Price" class="n">${t.price}</td><td data-l="Status">${t.status==='draft'?'<span style="color:#CDB07C">Draft</span>':'<span style="color:#8F857C">Approved</span>'}</td></tr>`).join('')||'<tr><td colspan="5" style="color:#8F857C">No loot yet.</td></tr>';
+}
+$('dkLQ').addEventListener('input',drawLoot);
+$('dkLHead').addEventListener('click',e=>{const b=e.target.closest('[data-ls]');if(!b)return;const k=b.dataset.ls;dkLSort=dkLSort[0]===k?[k,-dkLSort[1]]:[k,['item','name','status'].includes(k)?1:-1];drawLoot()});
+['dkPerson','dkNight1'].forEach(id=>$(id).addEventListener('click',e=>{const b=e.target.closest('[data-dk-rm]');if(b)confirmBtn(b,'Sure?',()=>dkDo('dkp-tx-delete',{id:b.dataset.dkRm},'Draft change removed.'))}));
+
 $('dkQ').addEventListener('input',drawDkRows);
 $('dkRows').addEventListener('change',e=>{const b=e.target.closest('[data-tk]');if(!b)return;const set=tick[b.dataset.tk];b.checked?set.add(b.dataset.k):set.delete(b.dataset.k)});
 $('dkFill').addEventListener('click',()=>{data.characters.filter(c=>c.signup&&(c.signup.dec9==='Yes'||c.signup.dec9==='Probably')).forEach(c=>{tick.start.add(c.key);tick.end.add(c.key)});drawDkRows()});
