@@ -524,6 +524,54 @@ async function officerRoute(s, route, body, reqUrl = '') {
       await log(s, award ? 'dkp-award' : 'dkp-adjust', ch.name, 'officer', { by: who, delta: t.delta, item: t.item, note: t.note });
       return json({ ok: true });
     }
+    if (route === 'officer/dkp-addon-import') {
+      // Results pasted from the in-game addon (/mdkp export). The page checks the paste; here each row
+      // becomes a draft loot line, matched to its raid night by date. Rows already imported are skipped.
+      const lm = clean(body.lm, 40) || 'addon';
+      const rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 200);
+      const all = await DKP.allTx(s);
+      const have = new Set(all.filter(t => t.ext).map(t => t.ext));
+      const { blobs: nb } = await s.list({ prefix: 'dkp/nights/' });
+      const nights = (await Promise.all(nb.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean);
+      const byName = Object.fromEntries(chars.map(c => [c.name.toLowerCase(), c]));
+      const out = { added: 0, skipped: 0, problems: [] };
+      for (const r of rows) {
+        const seq = num(r.seq, 0, 1e9), at = num(r.at, 0, 4e9), price = num(r.price, 0, 10000);
+        const item = clean(r.item, 80), winner = clean(r.winner, 40);
+        if (seq === null || at === null || price === null || !item || !winner) { out.problems.push(`A row couldn't be read: ${JSON.stringify(r).slice(0, 80)}`); continue; }
+        const ext = `${lm}|${seq}|${at}`;
+        if (have.has(ext)) { out.skipped++; continue; }
+        const ch = byName[winner.toLowerCase()];
+        if (!ch) { out.problems.push(`${winner} (won ${item}) isn't a character on the site. Add them, then paste again.`); continue; }
+        const person = DKP.personOf(ch);
+        // Raid night: the one on that date (US Eastern), preferring one this person was at.
+        const date = new Date(at * 1000 - 5 * 3600e3).toISOString().slice(0, 10);
+        const same = nights.filter(n => n.date === date);
+        const night = same.find(n => all.some(t => t.night === n.id && t.person === person)) || same[0];
+        const when = new Date(at * 1000).toISOString();
+        const kindNote = { live: 'live auction', roll: 'rolled off' }[r.kind] || '';
+        await DKP.addTx(s, { at: when, person, char: ch.key, delta: -price, kind: 'award', item, itemId: num(r.itemId, 0, 1e7) || undefined,
+          night: night?.id, note: kindNote || undefined, by: `${who} (from ${lm}'s addon)`, source: 'addon', ext });
+        have.add(ext); out.added++;
+      }
+      if (out.added) await DKP.audit(s, 'addon-import', who, `Imported ${out.added} loot award${out.added === 1 ? '' : 's'} from ${lm}'s addon`, { lm, added: out.added, skipped: out.skipped });
+      return json({ ok: true, ...out });
+    }
+    if (route === 'officer/dkp-addon-sheet') {
+      // The approved sheet for the addon: approved balances only (points since the last approval don't count yet).
+      const { cfg, st } = await DKP.draftSheet(s);
+      const safe = v => String(v || '').replace(/[=;#,/:\n|]/g, ' ').trim();
+      const people = Object.entries(st.approved || {}).map(([p, bal]) => {
+        const main = byKey[p]; if (!main) return null;
+        const alts = chars.filter(c => c.alt_of === p).map(c => safe(c.name)).filter(Boolean);
+        return `${safe(main.name)}=${Math.max(0, Math.round(bal))}=${alts.join('/')}`;
+      }).filter(Boolean);
+      const { blobs: nb } = await s.list({ prefix: 'dkp/nights/' });
+      const body2 = people.join(';');
+      let sum = 0; for (const b of Buffer.from(body2, 'utf8')) sum = (sum * 31 + b) % 1000003;
+      const head = `at=${st.approvedAt || new Date(0).toISOString()},by=${safe(st.approvedBy)},start=${cfg.start},first=${nb.length ? 0 : 1}`;
+      return json({ text: `MDKP1:${head}#${body2}#${sum}`, people: people.length, approvedAt: st.approvedAt || null });
+    }
     if (route === 'officer/dkp-tx-delete') {
       const t = await s.get(`dkp/tx/${clean(body.id, 80)}`, { type: 'json' });
       if (!t) return json({ error: 'Already gone.' }, 404);

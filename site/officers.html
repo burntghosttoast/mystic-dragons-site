@@ -142,6 +142,14 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <p id="dkStatus" style="font-size: 16px; color: #CFC7BE"></p>
 <div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" id="dkApprove" class="rs-btn rs-btn-p">APPROVE SHEET</button><button type="button" id="dkCsvBal" class="rs-btn">DOWNLOAD BALANCES</button><button type="button" id="dkCsvTx" class="rs-btn">DOWNLOAD FULL LEDGER</button></div>
 <p style="font-size: 14px; color: #8F857C">Downloads are spreadsheet files (.csv) that open in Excel or Google Sheets.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid #362D2A; padding-top: 12px"><span class="md-lab" style="margin-right: 6px">IN-GAME ADDON</span><button type="button" id="dkAddonCopy" class="rs-btn">COPY SHEET FOR THE ADDON</button><button type="button" id="dkAddonPaste" class="rs-btn">PASTE RESULTS FROM THE ADDON</button></div>
+<p id="dkAddonMsg" style="font-size: 14px; color: #CFC7BE" hidden></p>
+<div id="dkAddonBox" hidden><div style="display: flex; flex-direction: column; gap: 8px">
+<p style="font-size: 14px; color: #8F857C">In game, the loot master types <code>/mdkp export</code>, presses Ctrl+C, and pastes here. Pasting the same results twice is fine: ones already on the site are skipped.</p>
+<textarea id="dkAddonText" class="md-in" rows="4" placeholder="MDKPR1:..." style="font-family: monospace; font-size: 13px"></textarea>
+<div id="dkAddonPrev"></div>
+<div><button type="button" id="dkAddonGo" class="rs-btn rs-btn-p" hidden>ADD THESE AS DRAFTS</button></div>
+</div></div>
 </div>
 
 <div role="tablist" id="dkViews" style="display: flex; flex-wrap: wrap; gap: 8px"></div>
@@ -510,6 +518,28 @@ $('dkArch').addEventListener('click',async e=>{const b=e.target.closest('[data-a
   csvDl(`mystic-dragons-dkp-backup-${a.at.slice(0,16).replace(':','')}.csv`,[['When (UTC)','Raid night','Group','Person','Character','Type','Item','Note','Change','Status','Entered by'],
    ...a.tx.sort((x,y)=>x.at.localeCompare(y.at)||(x.ord||0)-(y.ord||0)).map(t=>[t.at,nb[t.night]?.date||'',nb[t.night]?.group||'',nm(t.person),nm(t.char||''),KIND[t.kind]||t.kind,t.item||'',['start','decay','bench'].includes(t.kind)?'':(t.note||''),t.delta,t.status==='draft'?'Draft':'Approved',t.by||''])])}catch(err){$('msg').textContent=err.message}});
 $('dkGit').addEventListener('click',()=>dkDo('dkp-backup',{},d=>d.unchanged?'Nothing changed since the last backup.':'Backed up to GitHub.'));
+
+// In-game addon: sheet out, results in. Same checksum as the addon (Data.lua): (sum*31 + byte) % 1000003 over the UTF-8 bytes.
+const mdSum=t=>{let s=0;for(const b of new TextEncoder().encode(t))s=(s*31+b)%1000003;return String(s)};
+let addonRows=null,addonLm='';
+$('dkAddonCopy').addEventListener('click',async()=>{
+ try{const d=await oapi('dkp-addon-sheet');
+  try{await navigator.clipboard.writeText(d.text);$('dkAddonMsg').textContent=`Copied: ${d.people} ${d.people===1?'person':'people'}, approved ${d.approvedAt?when(d.approvedAt):'(nothing approved yet)'}. In game: /mdkp import, then Ctrl+V. It spreads to everyone online with the addon.`}
+  catch(_){$('dkAddonMsg').innerHTML='Copy this, then in game: /mdkp import and Ctrl+V.<br><textarea class="md-in" rows="3" readonly style="font-family:monospace;font-size:12px;margin-top:6px">'+esc(d.text)+'</textarea>'}
+  $('dkAddonMsg').hidden=false}catch(e){$('msg').textContent=e.message}});
+$('dkAddonPaste').addEventListener('click',()=>{$('dkAddonBox').hidden=!$('dkAddonBox').hidden;$('dkAddonText').focus()});
+$('dkAddonText').addEventListener('input',()=>{
+ const t=$('dkAddonText').value.replace(/\s*\n\s*/g,'').trim();addonRows=null;$('dkAddonGo').hidden=true;
+ if(!t){$('dkAddonPrev').innerHTML='';return}
+ const m=t.match(/^MDKPR1:([^#]*)#(.*)#(\d+)$/);
+ if(!m){$('dkAddonPrev').innerHTML='<p style="color:#D96A5F">That isn’t an export from the addon. In game: /mdkp export, Ctrl+C.</p>';return}
+ if(mdSum(m[2])!==m[3]){$('dkAddonPrev').innerHTML='<p style="color:#D96A5F">The paste got cut off or changed. Copy it again in game.</p>';return}
+ const head=Object.fromEntries(m[1].split(',').map(x=>x.split('=')));addonLm=head.lm||'';
+ addonRows=m[2]?m[2].split(';').map(r=>{const [seq,at,itemId,item,winner,price,kind]=r.split('=');return{seq,at,itemId,item,winner,price,kind}}):[];
+ const known=new Set((data?.characters||[]).map(c=>c.name.toLowerCase()));
+ $('dkAddonPrev').innerHTML=`<p style="font-size:14px;color:#CFC7BE">${addonRows.length} result${addonRows.length===1?'':'s'} from ${esc(addonLm)}’s addon (version ${esc(head.v||'?')}):</p><div class="rs-wrap"><table class="rs-table"><thead><tr><th>When</th><th>Item</th><th>Winner</th><th class="n">DKP</th></tr></thead><tbody>${addonRows.map(r=>`<tr><td data-l="When" style="color:#AEA49A">${esc(whenL(new Date(r.at*1000).toISOString()))}</td><td data-l="Item">${esc(r.item)}${r.kind&&r.kind!=='bid'?` <span style="color:#8F857C">(${r.kind==='live'?'live auction':r.kind==='roll'?'rolled off':esc(r.kind)})</span>`:''}</td><td data-l="Winner">${esc(r.winner)}${known.has(String(r.winner).toLowerCase())?'':' <span style="color:#D96A5F">not on the site</span>'}</td><td data-l="DKP" class="n">${esc(r.price)}</td></tr>`).join('')}</tbody></table></div>`;
+ $('dkAddonGo').hidden=!addonRows.length});
+$('dkAddonGo').addEventListener('click',()=>{if(!addonRows)return;dkDo('dkp-addon-import',{lm:addonLm,rows:addonRows},d=>`Added ${d.added} award${d.added===1?'':'s'} as drafts${d.skipped?`, skipped ${d.skipped} already on the site`:''}.`+(d.problems.length?' '+d.problems.join(' '):''),()=>{$('dkAddonText').value='';$('dkAddonPrev').innerHTML='';$('dkAddonGo').hidden=true;addonRows=null})});
 let dkBusy=false;
 const dkDo=async(path,body,done,after)=>{if(dkBusy)return;dkBusy=true;$('msg').textContent='Working…';try{const d=await oapi(path,body);$('msg').textContent=typeof done==='function'?done(d):done;if(after)after();await loadDkp()}catch(e){$('msg').textContent=e.message}finally{dkBusy=false}};
 // Picking a date that's already entered loads that night into the boxes, and saving edits it.

@@ -1,0 +1,15 @@
+## Interface: 16001
+## Title: |cffCDB07CMystic Dragons|r Bids
+## Notes: DKP bidding for Mystic Dragons. /mdkp
+## Author: Mystic Dragons
+## Version: 0.1.0
+## SavedVariables: MDBidsDB
+## X-Website: https://mysticdragons.org
+
+Compat.lua
+Data.lua
+Comm.lua
+Auction.lua
+Bidder.lua
+UI.lua
+Core.lua

@@ -1,0 +1,135 @@
+-- Mystic Dragons Bids: start-up, game events, slash commands.
+--   /mdkp              your DKP and what's open
+--   /mdkp import       paste the approved sheet from the site (officers)
+--   /mdkp export       copy tonight's results for the site (loot masters)
+--   /mdkp test         practice alone with fake items and fake bidders
+--   /mdkp test group   practice with your group: everyone gets the bid window, nothing is real
+--   /mdkp show         reopen the windows
+--   /mdkp check        what works on this patch (send this to whoever maintains the addon)
+--   /mdkp clear        forget results the site already has
+local addonName, ns = ...
+local C, D, M, A, B, UI = ns.C, ns.D, ns.M, ns.A, ns.B, ns.UI
+
+function ns.Print(msg) print("|cffCDB07CMD Bids|r " .. tostring(msg)) end
+function ns.When(iso)
+    local m, d, hh, mm = tostring(iso):match("^%d+%-(%d+)%-(%d+)T(%d+):(%d+)")
+    if not m then return tostring(iso) end
+    local months = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
+    return (months[tonumber(m)] or m) .. " " .. tonumber(d) .. ", " .. hh .. ":" .. mm .. " UTC"
+end
+
+-- Show a held whisper in chat the way the game would have.
+function ns.EchoWhisper(sender, text)
+    local frame = DEFAULT_CHAT_FRAME
+    local info = ChatTypeInfo and ChatTypeInfo["WHISPER"]
+    local line = "[" .. tostring(sender) .. "] whispers: " .. tostring(text)
+    if frame then frame:AddMessage(line, info and info.r or 1, info and info.g or 0.5, info and info.b or 1) end
+end
+
+-- Whispers: a bid to the loot master is handled once (on the event) and the chat filter just reads
+-- the answer by line id, because the filter runs once per chat window.
+local hold = {}
+local function filter(_, _, msg, sender, ...)
+    local lineID = select(9, ...)
+    return lineID and hold[lineID] or false
+end
+
+local TEST_ITEMS = { 18713, 17193, 18608, 19169, 18821, 19147, 18609, 18876, 19168, 21134 }
+local FAKE = { "Test Bidder", "Pretend Raider", "Fake Mage" }
+
+local function startTest(group)
+    local items, used = {}, {}
+    while #items < 4 do
+        local id = TEST_ITEMS[math.random(#TEST_ITEMS)]
+        if not used[id] then used[id] = true; items[#items + 1] = { itemId = id }; if C_Item and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(id) end end
+    end
+    if group and not C.InGroup() then ns.Print("You aren't in a group. Doing a solo test instead."); group = false end
+    local ok, why = A.Start(items, { test = true, solo = not group })
+    if not ok then ns.Print(why); return end
+    if not group then
+        -- Fake bidders bid over the next few seconds. Two of them tie on the first item, so you can see a rebid.
+        for n, name in ipairs(FAKE) do
+            C.After(1 + n, function()
+                if not A.session or A.session.ended then return end
+                for idx = 1, #A.session.items do
+                    if math.random() < 0.7 then A.Bid(name, A.session.sid, idx, idx == 1 and n <= 2 and 25 or math.random(1, 40), "test")
+                    else A.Bid(name, A.session.sid, idx, "pass", "test") end
+                end
+            end)
+        end
+        ns.Print("Practice started: 4 fake items, 3 fake bidders. Bid or pass in the bid window, then try Last call and Award. End bidding throws it all away.")
+    else
+        ns.Print("Group practice started. Everyone with the addon gets the bid window. Nothing is real, and End bidding throws it all away.")
+    end
+end
+
+local function status()
+    local s = D.db.sheet
+    if not s then ns.Print("No DKP sheet yet. An officer imports it with /mdkp import, and it spreads to everyone with the addon.") return end
+    local can, why = D.Spendable(C.PlayerName())
+    ns.Print("Sheet approved " .. ns.When(s.at) .. (s.by ~= "" and (" by " .. s.by) or "") .. ".")
+    ns.Print(why or ("You have " .. can .. " DKP to spend."))
+end
+
+SLASH_MDBIDS1, SLASH_MDBIDS2 = "/mdkp", "/mdbids"
+SlashCmdList.MDBIDS = function(input)
+    local cmd, rest = (input or ""):match("^%s*(%S*)%s*(.-)%s*$")
+    cmd = cmd:lower()
+    if cmd == "" then status()
+    elseif cmd == "import" then
+        UI.ShowText("Import DKP sheet", "On the site: Officer tools → DKP → Copy for the addon. Paste it here (Ctrl+V).", "", function(text)
+            local sheet, why = D.ParseSheet(text)
+            if not sheet then UI.TextError(why) return end
+            D.SetSheet(sheet, true)
+            UI.HideText()
+            local n = 0; for _ in pairs(sheet.bal) do n = n + 1 end
+            ns.Print("Imported the sheet approved " .. ns.When(sheet.at) .. ": " .. n .. " people. Sending it to everyone online with the addon.")
+            M.SendSheet()
+            UI.Refresh()
+        end)
+    elseif cmd == "export" then
+        local text, n = D.ExportString()
+        if n == 0 then ns.Print("No results to export yet.") return end
+        UI.ShowText("Export results", n .. " result" .. (n == 1 and "" or "s") .. ". Ctrl+C, then paste on the site: Officer tools → DKP → Paste from the addon.", text)
+    elseif cmd == "test" then startTest(rest:lower() == "group")
+    elseif cmd == "show" then
+        if A.session then UI.ShowLM() end
+        if B.cur then UI.ShowBidder() end
+        if not A.session and not B.cur then ns.Print("Nothing is open.") end
+    elseif cmd == "check" then
+        ns.Print("Version " .. C.VERSION .. ", game " .. tostring((select(4, GetBuildInfo()))) .. ":")
+        for _, row in ipairs(C.Check()) do ns.Print((row[2] and "|cff7CD67C✓|r " or "|cffD96A5F✗|r ") .. row[1]) end
+        local e = D.db.errors[1]
+        if e then ns.Print("Last error: " .. e.msg) end
+    elseif cmd == "clear" then ns.Print("Cleared " .. D.ClearResults() .. " old result(s).")
+    else ns.Print("Commands: /mdkp, /mdkp import, /mdkp export, /mdkp test, /mdkp test group, /mdkp show, /mdkp check, /mdkp clear") end
+end
+
+local f = CreateFrame("Frame")
+f:RegisterEvent("ADDON_LOADED")
+f:RegisterEvent("PLAYER_LOGIN")
+f:RegisterEvent("CHAT_MSG_ADDON")
+f:RegisterEvent("CHAT_MSG_WHISPER")
+f:RegisterEvent("LOOT_READY")
+f:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+f:SetScript("OnEvent", function(_, event, ...)
+    local ok, err = pcall(function(...)
+        if event == "ADDON_LOADED" and ... == addonName then
+            D.Init(); C.RegisterPrefix()
+            if ChatFrame_AddMessageEventFilter then ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", filter) end
+        elseif event == "PLAYER_LOGIN" then
+            C.After(8, M.Hello)
+        elseif event == "CHAT_MSG_ADDON" then
+            M.OnMessage(...)
+        elseif event == "CHAT_MSG_WHISPER" then
+            local msg, sender = ...
+            local lineID = select(11, ...)
+            if A.OnWhisper(sender, msg) and lineID then hold[lineID] = true end
+        elseif event == "LOOT_READY" then
+            A.OnLootReady()
+        elseif event == "GET_ITEM_INFO_RECEIVED" then
+            UI.Refresh()
+        end
+    end, ...)
+    if not ok then D.LogError(err) end
+end)
