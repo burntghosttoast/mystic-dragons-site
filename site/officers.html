@@ -160,7 +160,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div data-dv="people" hidden style="display: flex; flex-direction: column; gap: 12px">
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><input class="md-in" type="search" id="dkPQ" placeholder="Search people" style="max-width: 260px"><div id="dkPCls" style="display: flex; flex-wrap: wrap; gap: 6px"></div></div>
 <div class="rs-wrap"><table class="rs-table"><thead><tr id="dkPHead"></tr></thead><tbody id="dkPRows"></tbody></table></div>
-<p style="font-size: 14px; color: #8F857C">Click a name to see everything for that person. Balances include changes that haven’t been approved yet; the small “+5 waiting” under a balance is how much of it is still waiting for the sheet to be approved. Attendance counts raid nights since that person’s first one.</p>
+<p style="font-size: 14px; color: #8F857C">Click a name to see everything for that person. Balance = Earned + Adjusted − Spent − Decay. Earned is starting DKP plus raid and bench points; Adjusted is officer adjustments. Points that would have gone past the cap aren’t counted. Balances include changes that haven’t been approved yet; the small “+5 waiting” under a balance is how much of it is still waiting for the sheet to be approved. Attendance counts raid nights since that person’s first one.</p>
 </div>
 
 <!-- DKP: one person -->
@@ -353,12 +353,14 @@ function dkCompute(){
  const nightOf=t=>{if(t.night)return t.night;if(t.kind==='decay')return '';const d=ymd(t.at);let best='';for(const n of nights){if(n.at<=t.at&&(new Date(t.at)-new Date(n.at))<30*3600e3)best=n.id;if(n.date===d&&!best)best=n.id}return best};
  const nkey={};nights.forEach(n=>{nkey[n.id]=n.date+'|'+(n.group||'')});const nk=id=>nkey[id]||id;
  const P={},cap=dk.settings.cap;
- dk.people.forEach(p=>{P[p.person]={...p,earned:0,spent:0,decay:0,items:[],nids:new Set(),present:new Set(),full:new Set(),line:[],bal:0,first:''}});
+ dk.people.forEach(p=>{P[p.person]={...p,earned:0,spent:0,decay:0,items:[],adj:0,overCap:0,nids:new Set(),present:new Set(),full:new Set(),line:[],bal:0,first:''}});
  for(const t of dk.tx){
   const p=P[t.person];if(!p)continue;
   t.n=nightOf(t);
-  p.bal=t.delta>=0?Math.min(cap,p.bal+t.delta):Math.max(0,p.bal+t.delta);p.line.push([t.at,p.bal,t.status]);
-  if(t.kind==='award'){p.spent-=t.delta;p.items.push(t)}else if(t.kind==='decay')p.decay-=t.delta;else if(t.delta>0)p.earned+=t.delta;
+  // Count what actually moved the balance, so Balance = Earned + Adjusted − Spent − Decay.
+  const was=p.bal;p.bal=t.delta>=0?Math.min(cap,p.bal+t.delta):Math.max(0,p.bal+t.delta);const got=p.bal-was;p.line.push([t.at,p.bal,t.status]);
+  if(t.delta>0&&got<t.delta)p.overCap+=t.delta-got;
+  if(t.kind==='award'){p.spent-=got;p.items.push(t)}else if(t.kind==='decay')p.decay-=got;else if(t.kind==='adjust')p.adj+=got;else p.earned+=got;
   if(['attend-start','bench'].includes(t.kind)&&t.n){p.present.add(nk(t.n));if(!p.first)p.first=nk(t.n);p.nids.add(t.n)}
   if(['attend-end','bench'].includes(t.kind)&&t.n)p.full.add(nk(t.n));
  }
@@ -385,16 +387,16 @@ function drawOverview(){
  const sp=S.nights.map(n=>[dayL(n.date)+(n.group?' '+n.group:''),-dk.tx.filter(t=>t.kind==='award'&&t.n===n.id).reduce((a,t)=>a+t.delta,0),'#D96A5F']);
  $('dkSpent').innerHTML=sp.length?bars(sp,''):'<p style="color:#8F857C">No raid nights yet.</p>';
 }
-const PCOLS=[['name','Person'],['cls','Class'],['draft','Balance'],['earned','Earned'],['spent','Spent'],['items','Items'],['att','Attendance'],['last','Last raid']];
+const PCOLS=[['name','Person'],['cls','Class'],['draft','Balance'],['earned','Earned'],['adj','Adjusted'],['spent','Spent'],['decay','Decay'],['items','Items'],['att','Attendance'],['last','Last raid']];
 function drawPeople(){
  const q=low($('dkPQ').value).trim(),cls=[...new Set(Object.values(S.P).map(p=>p.cls).filter(Boolean))].sort();
  $('dkPCls').innerHTML=['',...cls].map(c=>`<button type="button" data-pc="${esc(c)}" style='${G.chipStyle(dkPClass===c)};min-height:34px;text-transform:none;letter-spacing:.02em'>${c?G.dot(c)+esc(c):'All classes'}</button>`).join('');
- $('dkPHead').innerHTML=PCOLS.map(([k,l])=>`<th class="${['draft','earned','spent','items','att'].includes(k)?'n':''}"><button type="button" class="link-btn" data-ps="${k}" style="color:inherit;font:inherit;letter-spacing:inherit">${l}${dkPSort[0]===k?(dkPSort[1]<0?' ↓':' ↑'):''}</button></th>`).join('');
+ $('dkPHead').innerHTML=PCOLS.map(([k,l])=>`<th class="${['draft','earned','adj','spent','decay','items','att'].includes(k)?'n':''}"><button type="button" class="link-btn" data-ps="${k}" style="color:inherit;font:inherit;letter-spacing:inherit">${l}${dkPSort[0]===k?(dkPSort[1]<0?' ↓':' ↑'):''}</button></th>`).join('');
  const val=(p,k)=>k==='items'?p.items.length:k==='last'?(S.byNight[p.last]?.at||''):p[k];
  const list=Object.values(S.P).filter(p=>(!q||low(p.name).includes(q)||p.alts.some(a=>low(a).includes(q)))&&(!dkPClass||p.cls===dkPClass))
   .sort((a,b)=>{const x=val(a,dkPSort[0]),y=val(b,dkPSort[0]);return (typeof x==='string'?String(x).localeCompare(y):x-y)*dkPSort[1]||a.name.localeCompare(b.name)});
  const cap=dk.settings.cap;
- $('dkPRows').innerHTML=list.map(p=>`<tr><td data-l="Person"><button type="button" class="link-btn" data-person="${esc(p.person)}" style="color:#F1ECE6;font-weight:600">${esc(p.name)}</button>${p.alts.length?`<span style="color:#8F857C;font-size:13px"> +${p.alts.length} alt${p.alts.length>1?'s':''}</span>`:''}</td><td data-l="Class">${p.cls?G.dot(p.cls)+esc(p.cls):'—'}</td><td data-l="Balance" class="n" style="color:${p.draft>=cap?'#CDB07C':'#F1ECE6'};font-weight:600">${p.draft}${p.draft!==p.approved?`<span style="display:block;color:#CDB07C;font-weight:400;font-size:12px">${p.draft-p.approved>0?'+':''}${p.draft-p.approved} waiting</span>`:''}</td><td data-l="Earned" class="n">${p.earned}</td><td data-l="Spent" class="n">${p.spent}</td><td data-l="Items" class="n">${p.items.length}</td><td data-l="Attendance" class="n">${p.held?`${pct(p.att)} <span style="color:#8F857C;font-size:13px">${p.present.size}/${p.held}</span>`:'—'}</td><td data-l="Last raid" style="color:#AEA49A;white-space:nowrap">${esc(p.last?nLabel(p.last):'—')}</td></tr>`).join('')||'<tr><td colspan="8" style="color:#8F857C">Nobody matches.</td></tr>';
+ $('dkPRows').innerHTML=list.map(p=>`<tr><td data-l="Person"><button type="button" class="link-btn" data-person="${esc(p.person)}" style="color:#F1ECE6;font-weight:600">${esc(p.name)}</button>${p.alts.length?`<span style="color:#8F857C;font-size:13px"> +${p.alts.length} alt${p.alts.length>1?'s':''}</span>`:''}</td><td data-l="Class">${p.cls?G.dot(p.cls)+esc(p.cls):'—'}</td><td data-l="Balance" class="n" style="color:${p.draft>=cap?'#CDB07C':'#F1ECE6'};font-weight:600">${p.draft}${p.draft!==p.approved?`<span style="display:block;color:#CDB07C;font-weight:400;font-size:12px">${p.draft-p.approved>0?'+':''}${p.draft-p.approved} waiting</span>`:''}</td><td data-l="Earned" class="n">${p.earned}</td><td data-l="Adjusted" class="n" style="color:${p.adj?'#F1ECE6':'#8F857C'}">${p.adj>0?'+':''}${p.adj}</td><td data-l="Spent" class="n">${p.spent}</td><td data-l="Decay" class="n">${p.decay}</td><td data-l="Items" class="n">${p.items.length}</td><td data-l="Attendance" class="n">${p.held?`${pct(p.att)} <span style="color:#8F857C;font-size:13px">${p.present.size}/${p.held}</span>`:'—'}</td><td data-l="Last raid" style="color:#AEA49A;white-space:nowrap">${esc(p.last?nLabel(p.last):'—')}</td></tr>`).join('')||'<tr><td colspan="10" style="color:#8F857C">Nobody matches.</td></tr>';
 }
 $('dkPQ').addEventListener('input',drawPeople);
 $('dkPCls').addEventListener('click',e=>{const b=e.target.closest('[data-pc]');if(b){dkPClass=b.dataset.pc;drawPeople()}});
@@ -416,7 +418,7 @@ function drawPerson(){
  const head=k=>k.startsWith('n:')?'Raid night · '+nLabel(k.slice(2)):dayL(k.slice(2));
  $('dkPerson').innerHTML=`<div class="md-card" style="gap:12px">
   <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:baseline"><h2 style="font-size:clamp(24px,3.4vw,34px)">${p.cls?G.dot(p.cls):''}${esc(p.name)}</h2><span style="color:#AEA49A">${p.alts.length?'Alts: '+esc(p.alts.join(', ')):'No alts linked'}</span></div>
-  <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:baseline"><strong style="font:700 48px/1 Cinzel,serif;color:#CDB07C">${p.draft}</strong><span style="color:#AEA49A">approved ${p.approved} · earned ${p.earned} · spent ${p.spent} · decay ${p.decay} · ${p.items.length} item${p.items.length===1?'':'s'} · attendance ${p.held?pct(p.att)+` (${p.present.size}/${p.held}, ${p.full.size} full)`:'—'}</span></div>
+  <div style="display:flex;flex-wrap:wrap;gap:22px;align-items:baseline"><strong style="font:700 48px/1 Cinzel,serif;color:#CDB07C">${p.draft}</strong><span style="color:#AEA49A">approved ${p.approved} · earned ${p.earned}${p.adj?` · adjusted ${p.adj>0?'+':''}${p.adj}`:''} · spent ${p.spent} · decay ${p.decay}${p.overCap?` · <span title="Points that would have gone over the cap">${p.overCap} lost to the cap</span>`:''} · ${p.items.length} item${p.items.length===1?'':'s'} · attendance ${p.held?pct(p.att)+` (${p.present.size}/${p.held}, ${p.full.size} full)`:'—'}</span></div>
   ${chart(p.line,dk.settings.cap)}
   <div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="rs-btn" data-prefill="adj">ADD ADJUSTMENT</button><button type="button" class="rs-btn" data-prefill="award">ADD MISSED AWARD</button></div>
  </div>`+[...groups].map(([k,list])=>`<div><span class="md-lab" style="display:block;margin:6px 0">${esc(head(k).toUpperCase())}</span><div class="rs-wrap"><table class="rs-table tx-table"><colgroup><col><col style="width:80px"><col style="width:110px"><col style="width:90px"></colgroup><tbody>${list.map(t=>txRow(t,false)).join('')}</tbody></table></div></div>`).join('');
@@ -464,8 +466,8 @@ function csvDl(name,rows){
 }
 const today=()=>new Date().toISOString().slice(0,10);
 $('dkCsvBal').addEventListener('click',()=>{if(!S)return;
- csvDl(`mystic-dragons-dkp-balances-${today()}.csv`,[['Person','Alts','Class','Approved balance','Balance with drafts','Earned','Spent','Decay','Items','Raid nights attended','Raid nights since first','Attendance %','Last raid'],
-  ...Object.values(S.P).sort((a,b)=>b.draft-a.draft).map(p=>[p.name,p.alts.join('; '),p.cls||'',p.approved,p.draft,p.earned,p.spent,p.decay,p.items.length,p.present.size,p.held,p.held?Math.round(p.att*100):'',p.last?(S.byNight[p.last]?.date||''):''])])});
+ csvDl(`mystic-dragons-dkp-balances-${today()}.csv`,[['Person','Alts','Class','Approved balance','Balance with drafts','Earned','Adjusted','Spent','Decay','Items','Raid nights attended','Raid nights since first','Attendance %','Last raid'],
+  ...Object.values(S.P).sort((a,b)=>b.draft-a.draft).map(p=>[p.name,p.alts.join('; '),p.cls||'',p.approved,p.draft,p.earned,p.adj,p.spent,p.decay,p.items.length,p.present.size,p.held,p.held?Math.round(p.att*100):'',p.last?(S.byNight[p.last]?.date||''):''])])});
 $('dkCsvTx').addEventListener('click',()=>{if(!S)return;
  csvDl(`mystic-dragons-dkp-ledger-${today()}.csv`,[['When (UTC)','Raid night','Group','Person','Character','Type','Item','Note','Change','Status','Entered by'],
   ...dk.tx.map(t=>{const n=S.byNight[t.n];return [t.at,n?n.date:'',n?.group||'',S.P[t.person]?.name||t.person,t.charName||'',KIND[t.kind]||t.kind,t.item||'',['start','decay','bench'].includes(t.kind)?'':(t.note||''),t.delta,t.status==='draft'?'Draft':'Approved',t.by||'']})])});
