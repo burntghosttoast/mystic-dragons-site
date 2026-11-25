@@ -96,13 +96,13 @@ export async function handleDiscord(req, s, ctx, d) {
       rows.push(select('su:later', 'Raiding with us after that?', d.LATER.map(v => ({ label: `Raiding with us after that: ${v}`, value: v, default: a.later === v }))));
       if (a.later && a.later !== 'Not planning to raid' && c.level < 60) rows.push(select('su:eta', 'Roughly when do you expect to hit 60?', d.ETA.map(v => ({ label: `Hitting 60: ${v}`, value: v, default: a.eta === v }))));
     }
-    rows.push({ type: 1, components: [btn('su:notes', a.notes ? 'Edit notes' : 'Add notes'), btn('su:switch', 'Not this character?'), ...(sign ? [btn('su:withdraw', 'Remove my signup', 4)] : [])] });
+    rows.push({ type: 1, components: [btn('su:specs', 'Other specs I’ll play'), btn('su:notes', a.notes ? 'Edit notes' : 'Add notes'), btn('su:switch', 'Not this character?'), ...(sign ? [btn('su:withdraw', 'Remove my signup', 4)] : [])] });
     const pending = draft && draft.key === c.key;
     const status = !c.main_spec ? 'Pick your main spec and answer below. It saves as soon as everything’s answered.'
       : pending ? `Almost there: ${missing(c, a)}.`
       : sign ? `You’re signed up: **${sign.dec9}**. Change anything below and it saves right away.`
       : 'Answer below. It saves as soon as everything’s answered.';
-    return [`**Signing up as ${c.name}** · Level ${c.level} ${c.cls}${c.main_spec ? ` · ${c.main_spec}` : ''}\n${note ? note + '\n' : ''}${status}`, rows];
+    return [`**Signing up as ${c.name}** · Level ${c.level} ${c.cls}${c.main_spec ? ` · ${c.main_spec}` : ''}${(c.also_specs || []).length ? ` (also ${c.also_specs.join(', ')})` : ''}\n${note ? note + '\n' : ''}${status}`, rows];
   };
   const missing = (c, a) => !a.dec9 ? 'answer the December 9 question' : (a.dec9 === 'Yes' || a.dec9 === 'Probably') && !a.attune ? 'answer the attunement question to save'
     : a.dec9 === 'No' && !a.later ? 'answer whether you’re raiding with us after that to save' : !c.main_spec ? 'pick your main spec to save' : 'nearly done';
@@ -173,6 +173,27 @@ export async function handleDiscord(req, s, ctx, d) {
   const c = await linked();
   if (!c) return respond(i, 'Tell me which character you are first.', [{ type: 1, components: [btn('su:switch', 'Pick my character', 1)] }]);
 
+  // Other specs someone is willing to play, on their own screen (Discord allows only five rows).
+  const specsView = (note = '') => {
+    const specs = (d.SPECS[c.cls] || []).filter(([n]) => n !== c.main_spec);
+    const rows = [];
+    if (specs.length) rows.push({ type: 1, components: [{ type: 3, custom_id: 'su:also', placeholder: 'Other specs you’re willing to play', min_values: 0, max_values: specs.length,
+      options: specs.map(([n, r]) => ({ label: n, description: r, value: n, default: (c.also_specs || []).includes(n) })) }] });
+    rows.push({ type: 1, components: [btn('su:back', 'Done', 1)] });
+    return respond(i, `**Other specs for ${c.name}**${c.main_spec ? ` · main spec ${c.main_spec}` : ''}\n${note ? note + '\n' : ''}Pick every other spec you’d play if we need it, or none. It saves right away.`, rows);
+  };
+  if (id === 'su:specs') return specsView();
+  if (id === 'su:back') return showFor(c);
+  if (id === 'su:also') {
+    const f = d.roleFields({ main_spec: c.main_spec || '', also_specs: (i.data.values || []).map(v => d.clean(v, 30)) }, c.cls, c);
+    if (c.main_spec) {
+      Object.assign(c, { also_specs: f.also_specs, also_play: f.also_play, updated_at: new Date().toISOString() });
+      await s.setJSON(`char/${c.key}`, c);
+      await d.log(s, 'update', c.name, 'discord:' + uid, { changed: ['also_specs'], via: 'Discord' });
+      return specsView('Saved.');
+    }
+    return specsView('Pick your main spec first, then come back here.');
+  }
   if (id === 'su:spec') {
     const spec = d.clean(i.data.values?.[0], 30);
     const f = d.roleFields({ main_spec: spec, also_specs: c.also_specs || [] }, c.cls, c);
