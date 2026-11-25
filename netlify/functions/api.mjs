@@ -461,15 +461,17 @@ export default async (req, context) => {
       const out = {};
       const peek = (b) => JSON.stringify(b).slice(0, 1500);
       const tryp = async (label, path, ns) => { const r = await bget(token, path, ns); out[label] = { status: r.status, body: r.body ? peek(r.body) : null }; return r.body; };
-      for (const ns of ['static-forever-us', 'static-classic1x-us']) await tryp('profIndex ' + ns, '/data/wow/profession/index', ns);
-      const tailor = await tryp('prof197', '/data/wow/profession/197', 'static-forever-us');
-      const tier = tailor?.skill_tiers?.[0]?.id;
-      if (tier) await tryp('tier', `/data/wow/profession/197/skill-tier/${tier}`, 'static-forever-us');
-      await tryp('searchItem', '/data/wow/search/item?name.en_US=Azure%20Silk&_pageSize=10', 'static-forever-us');
-      const k = (await allChars(s)).find(c => c.bslug && c.synced);
-      if (k) {
-        const pr = await tryp('charProf', `/profile/wow/character/${encodeURIComponent(k.bslug)}/professions`);
-        await tryp('charRep', `/profile/wow/character/${encodeURIComponent(k.bslug)}/reputations`);
+      for (const q of ["Admiral's Hat", 'Runecloth Bag', 'Enchant Bracer - Healing']) {
+        const r = await bget(token, `/data/wow/search/item?name.en_US=${encodeURIComponent(q)}&_pageSize=10`, 'static-forever-us');
+        const hits = (r.body?.results || []).map(x => ({ id: x.data.id, name: x.data.name?.en_US, cls: x.data.item_class?.name?.en_US }));
+        out['search ' + q] = hits;
+        const pat = hits.find(h => h.cls === 'Recipe');
+        if (pat) await tryp('item ' + pat.name, `/data/wow/item/${pat.id}`, 'static-forever-us');
+      }
+      for (const pid of [197, 333]) {
+        const pr = (await bget(token, `/data/wow/profession/${pid}`, 'static-forever-us')).body;
+        out['tiers ' + pid] = [];
+        for (const t of pr?.skill_tiers || []) { const tb = (await bget(token, `/data/wow/profession/${pid}/skill-tier/${t.id}`, 'static-forever-us')).body; out['tiers ' + pid].push({ id: t.id, name: t.name, n: (tb?.categories || []).reduce((a, c) => a + (c.recipes || []).length, 0), cats: (tb?.categories || []).map(c => c.name) }); }
       }
       return json(out);
     }
