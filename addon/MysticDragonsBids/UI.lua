@@ -22,7 +22,17 @@ local function window(name, title, w, h)
     local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
     f:SetSize(w, h); f:SetPoint("CENTER"); f:SetFrameStrata("DIALOG"); f:SetClampedToScreen(true)
     f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local p, _, rp, x, y = self:GetPoint()
+        if D.db then D.db.opts.pos = D.db.opts.pos or {}; D.db.opts.pos[name] = { p, rp, x, y } end
+    end)
+    f.place = function(self, dx, dy)
+        local pos = D.db and D.db.opts.pos and D.db.opts.pos[name]
+        self:ClearAllPoints()
+        if pos then self:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else self:SetPoint("CENTER", UIParent, "CENTER", dx or 0, dy or 0) end
+    end
     backdrop(f)
     f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     f.title:SetPoint("TOPLEFT", 14, -12); f.title:SetText(title)
@@ -87,9 +97,17 @@ local function buildLM()
         r.name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight"); r.name:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 8, 0); r.name:SetWidth(240); r.name:SetJustifyH("LEFT")
         r.bids = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); r.bids:SetPoint("TOPLEFT", r.name, "BOTTOMLEFT", 0, -2); r.bids:SetWidth(300); r.bids:SetJustifyH("LEFT")
         r.clock = r:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); r.clock:SetPoint("TOPRIGHT", r, "TOPRIGHT", -250, 0)
-        r.give = button(r, "Give…", 60, function() UI.ShowGive(r.idx) end); r.give:SetPoint("RIGHT", 0, 0)
-        r.award = button(r, "Award", 80, function() A.Award(r.idx) end); r.award:SetPoint("RIGHT", r.give, "LEFT", -4, 0)
-        r.last = button(r, "Last call", 80, function() A.LastCall(r.idx) end); r.last:SetPoint("RIGHT", r.award, "LEFT", -4, 0)
+        r.live = button(r, "Live auction", 96, function() local it = A.session.items[r.idx]; if it.state == "later" then A.StartLive(r.idx) else A.SaveForLive(r.idx) end end); r.live:SetPoint("RIGHT", 0, 0)
+        r.award = button(r, "Award", 84, function() A.Award(r.idx) end); r.award:SetPoint("RIGHT", r.live, "LEFT", -4, 0)
+        r.last = button(r, "Last call", 76, function() A.LastCall(r.idx) end); r.last:SetPoint("RIGHT", r.award, "LEFT", -4, 0)
+        -- Roll-off winner: type the name (or target them), then Give.
+        r.who = CreateFrame("EditBox", nil, r, "InputBoxTemplate"); r.who:SetSize(130, 22); r.who:SetAutoFocus(false); r.who:SetPoint("RIGHT", -70, 0)
+        r.whoGo = button(r, "Give", 60, function()
+            local ok, why = A.ManualAward(r.idx, r.who:GetText(), 0, "roll")
+            if not ok then ns.Print(why) else r.who:SetText("") end
+        end); r.whoGo:SetPoint("RIGHT", 0, 0)
+        r.who:SetScript("OnEditFocusGained", function(self) if self:GetText() == "" and UnitExists("target") and UnitIsPlayer("target") then self:SetText(C.Norm(GetUnitName("target", true)) or "") end end)
+        r.undo = button(r, "Undo", 60, function() A.Undo(r.idx) end); r.undo:SetPoint("RIGHT", 0, 0)
         r:Hide()
         lm.rows[i] = r
     end
@@ -97,12 +115,12 @@ local function buildLM()
     lm.send = button(lm, "Send replies", 110, function() UI.Refresh() end); lm.send:SetPoint("BOTTOMLEFT", 14, 14)
     lm.endb = button(lm, "End bidding", 110, function() A.End() end); lm.endb:SetPoint("BOTTOMRIGHT", -14, 14)
     lm.note = lm:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall"); lm.note:SetPoint("BOTTOM", 0, 18)
-    lm.note:SetText("Live auction? Run it in voice, then Give… with the price.")
+    lm.note:SetText("Live auction sets an item aside. When the rest is done, press it again to run that auction.")
     local t = 0
     lm:SetScript("OnUpdate", function(_, e) t = t + e; if t > 0.5 then t = 0; UI.Refresh() end end)
 end
 
-function UI.ShowLM() if not lm then buildLM() end; lm:Show(); UI.Refresh() end
+function UI.ShowLM() if not lm then buildLM() end; if not lm:IsShown() then lm:place(-340, 40) end; lm:Show(); UI.Refresh() end
 
 local function drawLM()
     if not (lm and lm:IsShown()) then return end
@@ -116,7 +134,9 @@ local function drawLM()
             local passes = 0; for _ in pairs(it.passes) do passes = passes + 1 end
             local text
             if it.state == "done" then text = GREEN .. (it.winner == "-" and "Nobody" or it.winner) .. " — " .. (it.price or 0) .. " DKP|r"
-            elseif it.state == "roll" then text = GOLD .. "No bids. Roll it off, then Give… to the winner.|r"
+            elseif it.state == "roll" then text = GOLD .. "Roll it off, then type the winner and Give.|r"
+            elseif it.state == "later" then text = GOLD .. "Saved for a live auction. Press Live auction when the rest is done.|r"
+            elseif it.state == "live" then text = GOLD .. "Live auction running: " .. (it.high and (it.high.name .. " " .. it.high.amount) or "no bids yet") .. "|r"
             elseif not it.lmDecided then text = GREY .. #ranked .. " bid" .. (#ranked == 1 and "" or "s") .. ", " .. passes .. " pass" .. (passes == 1 and "" or "es") .. ". Bid or pass in your bid window to see them.|r"
             else
                 local parts = {}
@@ -126,11 +146,16 @@ local function drawLM()
             end
             r.bids:SetText(text)
             r.clock:SetText(it.state ~= "done" and countdown(it) or "")
-            local open = it.state ~= "done" and not (s.ended)
-            r.last:SetShown(open and it.state ~= "roll"); r.award:SetShown(open and it.state ~= "roll")
-            r.award:SetText(#ranked == 0 and "Roll it off" or "Award")
-            r.give:SetText(it.state == "done" and "Undo" or "Give…")
-            r.give:SetScript("OnClick", function() A.Flush(); if it.state == "done" then A.Undo(i) else UI.ShowGive(i) end end)
+            local live = not s.ended
+            local bidding = live and (it.state == "open" or it.state == "tie")
+            r.last:SetShown(bidding); r.award:SetShown(bidding)
+            r.award:SetText(#ranked == 0 and it.state ~= "tie" and "Roll it off" or "Award")
+            r.live:SetShown(live and (bidding or it.state == "later" or it.state == "live"))
+            r.live:SetText(it.state == "later" and "Start live" or it.state == "live" and "Open live" or "Live auction")
+            if it.state == "live" then r.live:SetScript("OnClick", function() A.Flush(); UI.ShowLive(i) end)
+            else r.live:SetScript("OnClick", function() A.Flush(); if it.state == "later" then A.StartLive(i) else A.SaveForLive(i) end end) end
+            r.who:SetShown(live and it.state == "roll"); r.whoGo:SetShown(live and it.state == "roll")
+            r.undo:SetShown(it.state == "done" and it.winner ~= "-")
         end
     end
     local n = #A.replies
@@ -141,29 +166,39 @@ local function drawLM()
 end
 
 ------------------------------------------------------------------------
--- Give… (manual award: live auction, roll-off winner, or a fix)
+-- Live auction window: one item, everyone sees the high bid, each bid has to beat it.
 ------------------------------------------------------------------------
-local give
-function UI.ShowGive(idx)
-    local it = A.session and A.session.items[idx]; if not it then return end
-    if not give then
-        give = window("MDBidsGiveFrame", "Give item", 320, 170)
-        give.nameBox = CreateFrame("EditBox", nil, give, "InputBoxTemplate"); give.nameBox:SetSize(180, 22); give.nameBox:SetPoint("TOPLEFT", 90, -60); give.nameBox:SetAutoFocus(false)
-        give.priceBox = CreateFrame("EditBox", nil, give, "InputBoxTemplate"); give.priceBox:SetSize(60, 22); give.priceBox:SetPoint("TOPLEFT", 90, -90); give.priceBox:SetAutoFocus(false); give.priceBox:SetNumeric(true)
-        local l1 = give:CreateFontString(nil, "OVERLAY", "GameFontNormal"); l1:SetPoint("RIGHT", give.nameBox, "LEFT", -10, 0); l1:SetText("Who")
-        local l2 = give:CreateFontString(nil, "OVERLAY", "GameFontNormal"); l2:SetPoint("RIGHT", give.priceBox, "LEFT", -10, 0); l2:SetText("DKP")
-        give.err = give:CreateFontString(nil, "OVERLAY", "GameFontRedSmall"); give.err:SetPoint("BOTTOMLEFT", 14, 44); give.err:SetWidth(290); give.err:SetJustifyH("LEFT")
-        give.ok = button(give, "Give it", 100, function()
-            local ok, why = A.ManualAward(give.idx, give.nameBox:GetText(), give.priceBox:GetText())
-            if ok then give:Hide() else give.err:SetText(why) end
-        end)
-        give.ok:SetPoint("BOTTOMRIGHT", -14, 14)
+local lv
+function UI.ShowLive(idx)
+    if not lv then
+        lv = window("MDBidsLiveFrame", GOLD .. "Live auction|r", 380, 300)
+        lv.icon = itemIcon(lv); lv.icon:SetSize(40, 40); lv.icon:SetPoint("TOPLEFT", 14, -58)
+        lv.name = lv:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge"); lv.name:SetPoint("LEFT", lv.icon, "RIGHT", 10, 0); lv.name:SetWidth(300); lv.name:SetJustifyH("LEFT")
+        lv.high = lv:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge"); lv.high:SetPoint("TOPLEFT", 14, -112)
+        lv.list = lv:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); lv.list:SetPoint("TOPLEFT", 14, -150); lv.list:SetWidth(350); lv.list:SetJustifyH("LEFT")
+        lv.going = button(lv, "Going once", 110, function() A.Going(lv.idx) end); lv.going:SetPoint("BOTTOMLEFT", 14, 14)
+        lv.sold = button(lv, "Sold", 90, function()
+            local r, why = A.Sold(lv.idx)
+            if r == "won" or r == "roll" then lv:Hide() elseif why then ns.Print(why) end
+        end); lv.sold:SetPoint("BOTTOMRIGHT", -14, 14)
+        lv.cancel = button(lv, "Back to the list", 120, function() lv:Hide() end); lv.cancel:SetPoint("BOTTOM", 0, 14)
     end
-    give.idx = idx
-    give.sub:SetText(it.link or it.name or "")
-    give.nameBox:SetText(UnitExists("target") and UnitIsPlayer("target") and (C.Norm(GetUnitName("target", true)) or "") or "")
-    give.priceBox:SetText("0"); give.err:SetText("")
-    give:Show()
+    lv.idx = idx
+    lv:place(0, 60); lv:Show(); UI.Refresh()
+end
+
+local function drawLive()
+    if not (lv and lv:IsShown()) then return end
+    local it = A.session and A.session.items[lv.idx]
+    if not it or it.state ~= "live" then lv:Hide(); return end
+    lv.sub:SetText("Run it in voice. Bids come in from bid windows and whispers. Each one has to beat the high bid.")
+    fillItem(lv, it)
+    lv.high:SetText(it.high and (GOLD .. it.high.amount .. "|r  " .. it.high.name) or (GREY .. "No bids yet|r"))
+    local lines = {}
+    for n = 2, math.min(7, #it.history) do lines[#lines + 1] = it.history[n].name .. " " .. it.history[n].amount end
+    lv.list:SetText(#lines > 0 and (GREY .. "Earlier: " .. table.concat(lines, ", ") .. "|r") or "")
+    lv.going:SetText((it.going or 0) == 0 and "Going once" or "Going twice")
+    lv.going:SetEnabled((it.going or 0) < 2)
 end
 
 ------------------------------------------------------------------------
@@ -172,7 +207,6 @@ end
 local bw
 local function buildBW()
     bw = window("MDBidsBidFrame", GOLD .. "Mystic Dragons|r bids", 520, 110 + ROWS * 46)
-    bw:SetPoint("CENTER", 0, 80)
     bw.rows = {}
     for i = 1, ROWS do
         local r = CreateFrame("Frame", nil, bw)
@@ -195,7 +229,7 @@ local function buildBW()
     bw:SetScript("OnUpdate", function(_, e) t = t + e; if t > 0.5 then t = 0; UI.Refresh() end end)
 end
 
-function UI.ShowBidder() if not bw then buildBW() end; bw:Show(); UI.Refresh() end
+function UI.ShowBidder() if not bw then buildBW() end; if not bw:IsShown() then bw:place(A.IsMine() and 300 or 0, 40) end; bw:Show(); UI.Refresh() end
 
 local function drawBW()
     if not (bw and bw:IsShown()) then return end
@@ -209,8 +243,8 @@ local function drawBW()
             r:Show(); r.idx = i; fillItem(r, it)
             r.status:SetText(r.err and (RED .. r.err .. "|r") or it.status or "")
             r.err = nil
-            local open = not cur.closed and it.state ~= "done" and (it.state ~= "tie" or it.canBid or C.Key(cur.lm) == C.Key(C.PlayerName()))
-            r.box:SetShown(open); r.bid:SetShown(open); r.pass:SetShown(open and it.state ~= "tie")
+            local open = not cur.closed and (it.state == "open" or it.state == "live" or (it.state == "tie" and it.canBid))
+            r.box:SetShown(open); r.bid:SetShown(open); r.pass:SetShown(open and it.state == "open")
             r.clock:SetText(it.state ~= "done" and countdown(it) or "")
         end
     end
@@ -241,4 +275,4 @@ end
 function UI.TextError(msg) if tw then tw.err:SetText(msg) end end
 function UI.HideText() if tw then tw:Hide() end end
 
-function UI.Refresh() drawLM(); drawBW() end
+function UI.Refresh() drawLM(); drawBW(); drawLive() end

@@ -10,6 +10,9 @@
 --   LC:<sid>:<idx>:<seconds>       RAID, last call.
 --   RB:<sid>:<idx>:<name>/<name>   RAID, tie: only these people rebid.
 --   W:<sid>:<idx>:<winner>:<price> RAID, item awarded (price 0 and winner "-" = rolled off / nobody).
+--   LL:<sid>:<idx>                 RAID, item saved for a live auction later.
+--   LV:<sid>:<idx>                 RAID, live auction started on it.
+--   LH:<sid>:<idx>:<amount>:<name> RAID, new high bid in the live auction.
 --   X:<sid>                        RAID, bidding over.
 local _, ns = ...
 local C = ns.C
@@ -107,7 +110,7 @@ function M.OnMessage(prefix, msg, channel, sender)
     elseif kind == "B" or kind == "P" then
         if ns.A then ns.A.OnAddonBid(sender, msg) end
     else
-        if sender ~= me or kind == "O" or kind == "W" or kind == "LC" or kind == "RB" or kind == "X" then
+        if sender ~= me or kind == "O" or kind == "W" or kind == "LC" or kind == "RB" or kind == "X" or kind == "LL" or kind == "LV" or kind == "LH" then
             if ns.B then ns.B.OnMessage(sender, kind, msg) end
         end
     end

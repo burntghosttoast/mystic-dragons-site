@@ -35,8 +35,11 @@ function B.Bid(idx, amount)
     if not cur or cur.closed then return false, "Bidding is over." end
     local it = cur.items[idx]
     if not it then return false, "That item isn't up for bids." end
+    if it.state == "later" then return false, "This one is saved for a live auction later." end
+    if it.state == "live" and amount == "pass" then return false, "Just don't bid if you don't want it." end
     if amount ~= "pass" then
         amount = tonumber(amount)
+        if it.state == "live" and amount and amount <= (it.high or 0) then return false, "Bid more than " .. (it.high or 0) .. "." end
         if not amount or amount < 1 or amount ~= math.floor(amount) then return false, "Bid a whole number, 1 or more." end
         local can, why = D.Spendable(me())
         if why then return false, why end
@@ -97,6 +100,16 @@ function B.OnMessage(sender, kind, msg)
         for n in names:gmatch("[^/]+") do if isMe(n) then mine = true end end
         it.status = mine and "|cffCDB07CTie! Rebid now.|r" or ("Tie: " .. names:gsub("/", " vs "))
         it.canBid = mine
+    elseif kind == "LL" or kind == "LV" or kind == "LH" then
+        local sid, idx, amount, name = msg:match("^%u+:([^:]+):(%d+):?(%d*):?(.*)$")
+        local it = sid == cur.sid and cur.items[tonumber(idx)]
+        if not it then return end
+        if kind == "LL" then it.state, it.status, it.mine = "later", "Live auction after the rest of the loot", nil
+        elseif kind == "LV" then it.state, it.status, it.high, it.lcEnd = "live", "|cffCDB07CLive auction now! Bid more than the high bid.|r", 0, nil
+        else
+            it.high = tonumber(amount) or 0
+            it.status = (isMe(name) and "|cff7CD67CYou're the high bid|r" or ("High bid: " .. name)) .. " at " .. it.high
+        end
     elseif kind == "W" then
         local sid, idx, winner, price = msg:match("^W:([^:]+):(%d+):([^:]*):(%d+)$")
         if sid == cur.sid then B.Won(tonumber(idx), winner, tonumber(price)) end

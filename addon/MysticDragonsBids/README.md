@@ -19,7 +19,8 @@ Put the `MysticDragonsBids` folder in `World of Warcraft\_forever_\Interface\Add
 1. An officer imports the approved sheet once. It spreads to everyone online with the addon.
 2. The loot master opens the loot (master loot). Bidding opens on every epic at once.
 3. Raiders bid in the bid window, or whisper the loot master `[item] 15` or `pass`.
-4. Per item the loot master presses Last call, then Award. Ties rebid. No bids: roll it off, then Give….
+4. Per item the loot master presses Last call, then Award. Ties rebid. No bids: roll it off, then type the winner and Give.
+   Live auction sets an item aside; when the rest is done, Start live runs an open auction (each bid beats the last, Going once, Going twice, Sold).
 5. After raid: `/mdkp export`, paste on the site, approve the sheet as usual.
 
 ## Rules it follows

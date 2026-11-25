@@ -98,7 +98,7 @@ SlashCmdList.MDBIDS = function(input)
         if not A.session and not B.cur then ns.Print("Nothing is open.") end
     elseif cmd == "check" then
         ns.Print("Version " .. C.VERSION .. ", game " .. tostring((select(4, GetBuildInfo()))) .. ":")
-        for _, row in ipairs(C.Check()) do ns.Print((row[2] and "|cff7CD67C✓|r " or "|cffD96A5F✗|r ") .. row[1]) end
+        for _, row in ipairs(C.Check()) do ns.Print(row[1] .. ": " .. (row[2] and "|cff7CD67Cworks|r" or "|cffD96A5FMISSING|r")) end
         local e = D.db.errors[1]
         if e then ns.Print("Last error: " .. e.msg) end
     elseif cmd == "clear" then ns.Print("Cleared " .. D.ClearResults() .. " old result(s).")

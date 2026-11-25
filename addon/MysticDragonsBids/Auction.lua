@@ -3,7 +3,9 @@
 -- Opening the loot (master loot, you're the loot master) opens bidding on every item at once.
 -- Raiders bid in their popup or by whisper ("[item] 25", "pass"). Minimum bid is 1, nobody can bid more
 -- than they can spend. Per item the loot master has: Last call, Award (top bid wins and pays it; a tie
--- makes the tied people rebid), Roll it off when nobody bid, and a manual award for live auctions.
+-- makes the tied people rebid), Roll it off when nobody bid, and Live auction: the item is set aside
+-- until the rest of the loot is done, then gets its own open, out-loud auction (everyone sees the high bid,
+-- each bid has to beat it, Going once / Going twice / Sold).
 -- The loot master bids like everyone else, and can't see an item's bids until they've bid or passed on it.
 -- Whispers that are bids are held out of the loot master's chat until then, and shown after.
 local _, ns = ...
@@ -101,9 +103,31 @@ function A.Bid(sender, sid, idx, amount, via)
     end
     if not s or s.ended or (sid and sid ~= s.sid) or not it then return no("Bidding isn't open on that.") end
     if it.state == "done" then return no((it.link and it.link or "That item") .. " is already awarded.") end
+    if it.state == "later" then return no(linkOf(it) .. " is saved for a live auction after the rest of the loot.") end
+    if it.state == "roll" then return no(linkOf(it) .. " is being rolled off.") end
     if not inGroup(sender) then return no("You need to be in the raid to bid.") end
     local person = D.PersonOf(sender)
     if it.state == "tie" and not it.tied[person] then return no("Only the tied bidders can bid on " .. linkOf(it) .. " right now.") end
+    if it.state == "live" then
+        amount = tonumber(amount)
+        local high = it.high and it.high.amount or 0
+        if amount == nil or amount ~= math.floor(amount) then return no("Bid a whole number, like 15.") end
+        if amount <= high then return no("The high bid is " .. high .. ". Bid more than that.") end
+        if amount < 1 then return no("The minimum bid is 1.") end
+        local can, why = D.Spendable(sender)
+        if via == "test" then can, why = 100, nil end
+        if why then return no(why) end
+        if amount > can then return no("You only have " .. can .. " DKP to spend.") end
+        it.high = { person = person, name = C.Norm(sender), amount = amount }
+        table.insert(it.history, 1, it.high)
+        it.going = 0
+        local msg = "LH:" .. s.sid .. ":" .. idx .. ":" .. amount .. ":" .. it.high.name
+        M.Send(msg, C.GroupChannel())
+        if ns.B then ns.B.OnMessage(C.PlayerName(), "LH", msg) end
+        if via == "whisper" then reply(sender, "You're the high bid on " .. linkOf(it) .. " at " .. amount .. ".") end
+        if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+        return true
+    end
     if amount == "pass" then
         it.bids[person], it.passes[person] = nil, sender
         if via == "addon" then M.Send("OK:" .. s.sid .. ":" .. idx .. ":pass", "WHISPER", sender)
@@ -149,7 +173,8 @@ local function whichItem(text)
     local s = A.session
     local id = C.ItemIdFromLink(text)
     local open = {}
-    for _, it in ipairs(s.items) do if it.state ~= "done" then open[#open + 1] = it end end
+    for _, it in ipairs(s.items) do if it.state == "live" then if not id or it.itemId == id then return it end end end
+    for _, it in ipairs(s.items) do if it.state == "open" or it.state == "tie" then open[#open + 1] = it end end
     if id then for _, it in ipairs(open) do if it.itemId == id then return it end end return nil, "That item isn't up for bids." end
     if #open == 1 then return open[1] end
     return nil, "Several items are up. Whisper the item link with your bid, like [item] 15."
@@ -297,6 +322,59 @@ function A.Undo(idx)
     if it.result then it.result.undone = true end
     it.state, it.winner, it.price, it.result = "open", nil, nil, nil
     if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+end
+
+-- Set an item aside for a live auction after the rest of the loot. Bids on it are dropped.
+function A.SaveForLive(idx)
+    local it = item(idx); if not it or it.state == "done" then return end
+    it.state, it.bids, it.passes, it.lcEnd, it.held = "later", {}, {}, nil, {}
+    local msg = "LL:" .. A.session.sid .. ":" .. idx
+    M.Send(msg, C.GroupChannel())
+    if ns.B then ns.B.OnMessage(C.PlayerName(), "LL", msg) end
+    if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+end
+
+-- Start the live auction for one item. From a click.
+function A.StartLive(idx)
+    local it = item(idx); if not it or it.state == "done" then return end
+    for _, other in ipairs(A.session.items) do if other.state == "live" and other ~= it then return false, "Finish the other live auction first." end end
+    A.Flush()
+    it.state, it.high, it.history, it.going, it.lmDecided = "live", nil, {}, 0, true
+    announce("Live auction: " .. linkOf(it) .. "! Bid in the bid window or whisper me a number. Highest bid wins.")
+    local msg = "LV:" .. A.session.sid .. ":" .. idx
+    M.Send(msg, C.GroupChannel())
+    if ns.B then ns.B.OnMessage(C.PlayerName(), "LV", msg) end
+    if ns.UI then ns.UI.ShowLive(idx) end
+    return true
+end
+
+-- Going once, going twice. From a click.
+function A.Going(idx)
+    local it = item(idx); if not it or it.state ~= "live" then return end
+    A.Flush()
+    if not it.high then announce("Live auction: " .. linkOf(it) .. ". No bids yet!") return end
+    it.going = (it.going or 0) + 1
+    announce((it.going == 1 and "Going once: " or "Going twice: ") .. linkOf(it) .. " at " .. it.high.amount .. " to " .. it.high.name .. ".")
+    if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+end
+
+-- Sold to the high bid (or rolled off when nobody bid). From a click.
+function A.Sold(idx)
+    local it = item(idx); if not it or it.state ~= "live" then return end
+    A.Flush()
+    if not it.high then
+        announce("No bids on " .. linkOf(it) .. ". Roll it off!")
+        it.state = "roll"
+        if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+        return "roll"
+    end
+    -- The high bidder might have spent DKP on another item meanwhile.
+    if (D.Spendable(it.high.name)) < it.high.amount and not A.session.test then
+        return false, it.high.name .. " doesn't have " .. it.high.amount .. " anymore."
+    end
+    announce("Sold! " .. it.high.name .. " wins " .. linkOf(it) .. " for " .. it.high.amount .. " DKP.")
+    finish(it, it.high.name, it.high.amount, "live")
+    return "won"
 end
 
 function A.End()
