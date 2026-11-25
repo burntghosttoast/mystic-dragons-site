@@ -476,6 +476,7 @@ async function officerRoute(s, route, body, reqUrl = '') {
       const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date || '') ? body.date : new Date().toISOString().slice(0, 10);
       const list = k => (Array.isArray(body[k]) ? body[k] : []).map(x => clean(x, 40)).filter(x => byKey[x]);
       const r = await DKP.recordNight(s, { date, group: clean(body.group, 40), start: list('start'), end: list('end'), bench: list('bench'), by: who }, byKey);
+      if (r.people) { const n = k => byKey[k]?.name || k; await DKP.audit(s, 'night', who, `Raid night ${date}${r.night.group ? ' (' + r.night.group + ')' : ''} entered for ${r.people} ${r.people === 1 ? 'person' : 'people'}`, { night: r.night.id, date, group: r.night.group, start: list('start').map(n), end: list('end').map(n), bench: list('bench').map(n) }); }
       if (r.duplicate) return json({ error: `That night (${date}${r.duplicate.group ? ', ' + r.duplicate.group : ''}) is already entered. Fix it from Raid nights, or give this one a different group name.` }, 409);
       if (!r.people) return json({ error: 'Tick at least one person.' }, 400);
       await log(s, 'dkp-night', `${date}${r.night.group ? ' ' + r.night.group : ''}`, 'officer', { by: who, people: r.people });
@@ -498,6 +499,8 @@ async function officerRoute(s, route, body, reqUrl = '') {
       }
       const t = await DKP.addTx(s, { person: DKP.personOf(ch), char: ch.key, delta: award ? -amt : amt, kind: award ? 'award' : 'adjust',
         item: award ? clean(body.item, 80) : undefined, night: clean(body.night, 40) || undefined, note: clean(body.note, 120) || undefined, by: who });
+      const pname = byKey[DKP.personOf(ch)]?.name || ch.name;
+      await DKP.audit(s, award ? 'award' : 'adjust', who, award ? `${pname} won ${t.item} for ${amt}${ch.name !== pname ? ' (on ' + ch.name + ')' : ''}` : `${pname} ${t.delta > 0 ? '+' : ''}${t.delta}: ${t.note}`, { tx: t });
       await log(s, award ? 'dkp-award' : 'dkp-adjust', ch.name, 'officer', { by: who, delta: t.delta, item: t.item, note: t.note });
       return json({ ok: true });
     }
@@ -506,11 +509,13 @@ async function officerRoute(s, route, body, reqUrl = '') {
       if (!t) return json({ error: 'Already gone.' }, 404);
       if (t.status !== 'draft') return json({ error: 'Approved changes can’t be removed. Add an adjustment instead.' }, 400);
       await s.delete(`dkp/tx/${t.id}`);
+      await DKP.audit(s, 'remove', who, `Removed draft: ${byKey[t.person]?.name || t.person} ${t.delta > 0 ? '+' : ''}${t.delta} ${t.item || t.note || t.kind}`, { tx: t });
       return json({ ok: true });
     }
     if (route === 'officer/dkp-approve') {
       const r = await DKP.approve(s, who);
       if (!r.changes) return json({ error: 'Nothing new to approve.' }, 400);
+      await DKP.audit(s, 'approve', who, `Approved the sheet (${r.changes} changes)`, { changes: r.changes, balances: Object.fromEntries(Object.entries(r.balances || {}).map(([k, v]) => [byKey[k]?.name || k, v])) });
       await log(s, 'dkp-approve', `${r.changes} changes`, 'officer', { by: who });
       return json({ ok: true, ...r });
     }
@@ -524,10 +529,12 @@ async function officerRoute(s, route, body, reqUrl = '') {
         if (root === alt.key) return json({ error: 'That would make a character its own alt.' }, 400);
         if (chars.some(x => x.alt_of === alt.key)) return json({ error: `${alt.name} has alts of its own. Move those first.` }, 400);
         await s.setJSON(`char/${alt.key}`, { ...alt, alt_of: root });
+        await DKP.audit(s, 'link', who, `Linked ${alt.name} as an alt of ${byKey[root]?.name || root}`, { alt: alt.name, main: byKey[root]?.name });
         await log(s, 'dkp-link', alt.name, 'officer', { by: who, main: byKey[root]?.name });
       } else {
         const { alt_of, ...rest } = alt;
         await s.setJSON(`char/${alt.key}`, rest);
+        await DKP.audit(s, 'unlink', who, `Unlinked ${alt.name} from ${byKey[alt.alt_of]?.name || alt.alt_of}`, { alt: alt.name });
         await log(s, 'dkp-unlink', alt.name, 'officer', { by: who });
       }
       return json({ ok: true });
@@ -549,12 +556,21 @@ async function officerRoute(s, route, body, reqUrl = '') {
       await s.setJSON('dkp/demo-lock', { at: Date.now() });
       let r;
       try { r = await DKP.seedDemo(s, raiders, byKey, who); } finally { await s.delete('dkp/demo-lock'); }
+      await DKP.audit(s, 'demo', who, `Filled with example data (${r.nights} nights)`);
       await log(s, 'dkp-demo', `${r.nights} example nights`, 'officer', { by: who });
       return json({ ok: true, ...r });
     }
+    if (route === 'officer/dkp-audit') return json({ entries: await DKP.auditAll(s) });
+    if (route === 'officer/dkp-archives') {
+      const { blobs } = await s.list({ prefix: 'dkparchive/' });
+      if (body.at) { const a = await s.get(`dkparchive/${clean(body.at, 40)}`, { type: 'json' }); return a ? json(a) : json({ error: 'Backup not found.' }, 404); }
+      const list = (await Promise.all(blobs.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean).map(a => ({ at: a.at, by: a.by, why: a.why, lines: a.tx.length, nights: a.nights.length }));
+      return json({ archives: list.sort((a, b) => b.at.localeCompare(a.at)) });
+    }
     if (route === 'officer/dkp-reset') {
       if (body.confirm !== 'RESET') return json({ error: 'Type RESET to confirm.' }, 400);
-      const n = await DKP.resetAll(s);
+      const n = await DKP.resetAll(s, who, 'Start over');
+      await DKP.audit(s, 'reset', who, `Start over: deleted ${n} records (backup saved first)`);
       await log(s, 'dkp-reset', `${n} records`, 'officer', { by: who });
       return json({ ok: true, removed: n });
     }
@@ -564,6 +580,8 @@ async function officerRoute(s, route, body, reqUrl = '') {
         if (body[k] !== undefined) { const n = num(body[k], lo, hi); if (n === null) return json({ error: `Check the ${k} number.` }, 400); next[k] = n; }
       }
       await s.setJSON('dkp/settings', next);
+      const diff = Object.keys(next).filter(k => next[k] !== cur[k]).map(k => `${k} ${cur[k]} → ${next[k]}`);
+      if (diff.length) await DKP.audit(s, 'settings', who, `Settings changed: ${diff.join(', ')}`, { before: cur, after: next });
       await log(s, 'dkp-settings', 'DKP settings', 'officer', { by: who, ...next });
       return json({ ok: true, settings: next });
     }

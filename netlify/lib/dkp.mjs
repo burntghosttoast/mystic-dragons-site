@@ -7,11 +7,32 @@
 //   dkp/tx/<id>      { id, at, person, delta, kind, status: draft|approved, night?, char?, item?, note?, by }
 //   dkp/nights/<id>  { id, date, group, by, at }
 //   dkp/sheets/<at>  snapshot of balances at each approval
+//   dkpaudit/<at>-<id>   append-only trail of every DKP action (never deleted, not even by Start over)
+//   dkparchive/<at>      full copy of all DKP data, saved right before any wipe
 // A character's person is its main: char.alt_of when set, otherwise its own key.
 
 export const DEFAULTS = { cap: 100, start: 20, attendStart: 5, attendEnd: 5, decay: 5 };
 const rid = () => Math.random().toString(36).slice(2, 8);
 const stamp = (t = Date.now()) => new Date(t).toISOString();
+
+// Paper trail. Lives outside dkp/ so nothing that wipes DKP data can touch it.
+export async function audit(s, action, by, summary, detail = {}) {
+  const at = stamp();
+  await s.setJSON(`dkpaudit/${at}-${rid()}`, { at, action, by: by || '', summary, ...detail });
+}
+export async function auditAll(s) {
+  const { blobs } = await s.list({ prefix: 'dkpaudit/' });
+  return (await Promise.all(blobs.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean).sort((a, b) => a.at.localeCompare(b.at));
+}
+// Everything, in one object: used for backups before a wipe.
+export async function snapshot(s) {
+  const out = { settings: await s.get('dkp/settings', { type: 'json' }), state: await s.get('dkp/state', { type: 'json' }) };
+  for (const k of ['tx', 'nights', 'sheets']) {
+    const { blobs } = await s.list({ prefix: `dkp/${k}/` });
+    out[k] = (await Promise.all(blobs.map(b => s.get(b.key, { type: 'json' })))).filter(Boolean);
+  }
+  return out;
+}
 
 export const personOf = c => (c && c.alt_of) || (c && c.key) || '';
 
@@ -86,7 +107,7 @@ export async function approve(s, by, when) {
   const next = { ...st, approved: balances, approvedAt: at, approvedBy: by };
   await s.setJSON('dkp/state', next);
   await s.setJSON(`dkp/sheets/${at}`, { at, by, balances, changes: drafts.length, cap: cfg.cap });
-  return { at, changes: drafts.length, people: Object.keys(balances).length };
+  return { at, changes: drafts.length, people: Object.keys(balances).length, balances };
 }
 
 // Weekly decay as draft lines, for everyone holding DKP. Runs early Tuesday.
@@ -98,11 +119,17 @@ export async function addDecay(s, by = 'Weekly decay', force = false, when) {
   let n = 0;
   for (const [person, bal] of Object.entries(balances)) if (bal > 0) { await addTx(s, { at: when, person, delta: -cfg.decay, kind: 'decay', note: 'Weekly decay', by }); n++; }
   await s.setJSON('dkp/state', { ...st, lastDecay: week });
+  if (n && !when) await audit(s, 'decay', by, `Weekly decay: -${cfg.decay} for ${n} ${n === 1 ? 'person' : 'people'}`, { people: n, amount: cfg.decay });
   return n;
 }
 
 // Wipes all DKP history and balances (settings and alt links stay). For clearing test data.
-export async function resetAll(s) {
+export async function resetAll(s, by = '', why = 'Start over') {
+  const snap = await snapshot(s), at = stamp();
+  if (snap.tx.length || snap.nights.length || snap.sheets.length) {
+    await s.setJSON(`dkparchive/${at}`, { at, by, why, ...snap });
+    await audit(s, 'backup', by, `Backed up ${snap.tx.length} lines and ${snap.nights.length} raid nights before: ${why}`, { archive: at });
+  }
   let n = 0;
   for (const prefix of ['dkp/tx/', 'dkp/nights/', 'dkp/sheets/']) {
     const { blobs } = await s.list({ prefix });
@@ -115,7 +142,7 @@ export async function resetAll(s) {
 // Example data for trying the officer tools: six November raid nights (Mon/Wed),
 // the last one left as drafts to review. Uses the given characters as raiders.
 export async function seedDemo(s, raiders, charsByKey, by) {
-  await resetAll(s);
+  await resetAll(s, by, 'Fill with example data');
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const pickN = (arr, n) => arr.slice().sort(() => rnd() - 0.5).slice(0, n);
   const ITEMS = ['Band of Accuria', 'Onyxia Tooth Pendant', 'Cenarion Boots', 'Felheart Gloves', 'Giantstalker’s Belt', 'Lawbringer Bracers',

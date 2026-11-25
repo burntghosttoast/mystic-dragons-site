@@ -235,9 +235,18 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div><button type="submit" class="rs-btn">SAVE SETTINGS</button></div>
 </form>
 </div>
+<div class="md-card" style="gap: 10px">
+<span class="md-lab">PAPER TRAIL</span>
+<p style="font-size: 15px; color: #CFC7BE">Every DKP action on the site, who did it and when: raid nights entered, awards, adjustments, removed drafts (with what was removed), approvals (with everyone’s balances at that moment), alt links, settings changes, weekly decay and Start over. Nothing can edit or delete it, including Start over.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" id="dkCsvAudit" class="rs-btn">DOWNLOAD PAPER TRAIL</button></div>
+<div class="rs-wrap" style="max-height: 360px; overflow: auto"><table class="rs-table"><thead><tr><th>When</th><th>Who</th><th>What happened</th></tr></thead><tbody id="dkAudit"></tbody></table></div>
+<span class="md-lab" style="margin-top: 6px">BACKUPS</span>
+<p style="font-size: 14px; color: #8F857C">A full copy of all DKP data is saved automatically right before anything wipes it. Each one downloads as a ledger spreadsheet.</p>
+<div id="dkArch" style="display: flex; flex-direction: column; gap: 6px"></div>
+</div>
 <div class="md-card" style="gap: 8px; border-color: #5A2A27">
 <span class="md-lab" style="color: #D96A5F">START OVER</span>
-<p style="font-size: 15px; color: #CFC7BE">Deletes every raid night, award, adjustment, sheet and balance. Settings and alt links stay. Use it to clear test data before raids start.</p>
+<p style="font-size: 15px; color: #CFC7BE">Deletes every raid night, award, adjustment, sheet and balance. Settings and alt links stay, and a backup is saved first. Use it to clear test data before raids start.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 8px"><input class="md-in" id="dkResetTxt" placeholder="Type RESET" style="max-width: 200px"><button type="button" id="dkReset" class="rs-btn">DELETE ALL DKP DATA</button></div>
 <div id="dkDemoRow" hidden style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid #362D2A; padding-top: 10px; margin-top: 4px"><button type="button" id="dkDemo" class="rs-btn">FILL WITH EXAMPLE DATA</button><span style="font-size: 14px; color: #8F857C">Preview site only. Replaces everything with six made-up November raid nights.</span></div>
 </div>
@@ -310,6 +319,7 @@ const SETL=[['cap','DKP cap'],['start','Starting DKP (first raid night)'],['atte
 const charKey=v=>{v=String(v||'').trim().toLowerCase();const c=data.characters.find(x=>x.name.toLowerCase()===v);return c?c.key:''};
 async function loadDkp(){
  try{dk=await oapi('dkp-data');drawDkp()}catch(e){$('msg').textContent=e.message}
+ try{const [a,b]=await Promise.all([oapi('dkp-audit'),oapi('dkp-archives')]);dkAud=a.entries;dkArc=b.archives;drawAudit()}catch(e){}
 }
 function drawDkp(){
  if(!dk||!data)return;
@@ -459,6 +469,18 @@ $('dkCsvBal').addEventListener('click',()=>{if(!S)return;
 $('dkCsvTx').addEventListener('click',()=>{if(!S)return;
  csvDl(`mystic-dragons-dkp-ledger-${today()}.csv`,[['When (UTC)','Raid night','Group','Person','Character','Type','Item','Note','Change','Status','Entered by'],
   ...dk.tx.map(t=>{const n=S.byNight[t.n];return [t.at,n?n.date:'',n?.group||'',S.P[t.person]?.name||t.person,t.charName||'',KIND[t.kind]||t.kind,t.item||'',['start','decay','bench'].includes(t.kind)?'':(t.note||''),t.delta,t.status==='draft'?'Draft':'Approved',t.by||'']})])});
+let dkAud=[],dkArc=[];
+const whenL=t=>new Date(t).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+function drawAudit(){
+ $('dkAudit').innerHTML=dkAud.slice().reverse().slice(0,60).map(a=>`<tr><td data-l="When" style="white-space:nowrap;color:#AEA49A">${esc(whenL(a.at))}</td><td data-l="Who">${esc(a.by||'Site')}</td><td data-l="What happened">${esc(a.summary||a.action)}</td></tr>`).join('')||'<tr><td colspan="3" style="color:#8F857C">Nothing yet.</td></tr>';
+ $('dkArch').innerHTML=dkArc.map(a=>`<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center"><button type="button" class="link-btn" data-arch="${esc(a.at)}">Download</button><span style="color:#CFC7BE">${esc(whenL(a.at))} · before “${esc(a.why||'wipe')}” by ${esc(a.by||'?')} · ${a.lines} lines, ${a.nights} nights</span></div>`).join('')||'<span style="color:#8F857C">No backups yet. One is made automatically the first time anything wipes DKP data.</span>';
+}
+$('dkCsvAudit').addEventListener('click',()=>csvDl(`mystic-dragons-dkp-paper-trail-${today()}.csv`,[['When (UTC)','Who','Action','What happened','Details'],
+ ...dkAud.map(a=>{const {at,by,action,summary,...rest}=a;return [at,by||'Site',action,summary||'',Object.keys(rest).length?JSON.stringify(rest):'']})]));
+$('dkArch').addEventListener('click',async e=>{const b=e.target.closest('[data-arch]');if(!b)return;
+ try{const a=await oapi('dkp-archives',{at:b.dataset.arch});const nb=Object.fromEntries(a.nights.map(n=>[n.id,n])),nm=k=>(data?.characters||[]).find(c=>c.key===k)?.name||k;
+  csvDl(`mystic-dragons-dkp-backup-${a.at.slice(0,16).replace(':','')}.csv`,[['When (UTC)','Raid night','Group','Person','Character','Type','Item','Note','Change','Status','Entered by'],
+   ...a.tx.sort((x,y)=>x.at.localeCompare(y.at)||(x.ord||0)-(y.ord||0)).map(t=>[t.at,nb[t.night]?.date||'',nb[t.night]?.group||'',nm(t.person),nm(t.char||''),KIND[t.kind]||t.kind,t.item||'',['start','decay','bench'].includes(t.kind)?'':(t.note||''),t.delta,t.status==='draft'?'Draft':'Approved',t.by||''])])}catch(err){$('msg').textContent=err.message}});
 let dkBusy=false;
 const dkDo=async(path,body,done,after)=>{if(dkBusy)return;dkBusy=true;$('msg').textContent='Working…';try{const d=await oapi(path,body);$('msg').textContent=typeof done==='function'?done(d):done;if(after)after();await loadDkp()}catch(e){$('msg').textContent=e.message}finally{dkBusy=false}};
 $('dkNight').addEventListener('submit',e=>{e.preventDefault();dkDo('dkp-night',{date:$('dkDate').value,group:$('dkGroup').value,start:[...tick.start],end:[...tick.end],bench:[...tick.bench]},d=>`Raid night saved for ${d.people} ${d.people===1?'person':'people'}. It’s a draft until you approve the sheet.`,()=>{Object.values(tick).forEach(x=>x.clear());$('dkGroup').value=''})});
