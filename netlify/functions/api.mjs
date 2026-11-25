@@ -479,9 +479,11 @@ async function officerRoute(s, route, body) {
       if (award && !clean(body.item, 80)) return json({ error: 'Enter the item name.' }, 400);
       if (!award && !clean(body.note, 120)) return json({ error: 'Add a short reason.' }, 400);
       if (award) {
-        const { balances } = await DKP.draftSheet(s);
-        const have = balances[DKP.personOf(ch)] || 0;
-        if (amt > have) return json({ error: `${byKey[DKP.personOf(ch)]?.name || ch.name} only has ${have} DKP right now, counting draft changes.` }, 400);
+        // Spendable = last approved balance, minus anything already spent or taken since.
+        // Points earned since then don't count until the sheet is approved; starting DKP counts right away.
+        const { cfg, st, drafts } = await DKP.draftSheet(s);
+        const have = DKP.apply(st.approved, drafts.filter(t => t.delta < 0 || t.kind === 'start'), cfg.cap)[DKP.personOf(ch)] || 0;
+        if (amt > have) return json({ error: `${byKey[DKP.personOf(ch)]?.name || ch.name} only has ${have} DKP to spend. Points from raids since the last approved sheet don’t count yet.` }, 400);
       }
       const t = await DKP.addTx(s, { person: DKP.personOf(ch), char: ch.key, delta: award ? -amt : amt, kind: award ? 'award' : 'adjust',
         item: award ? clean(body.item, 80) : undefined, night: clean(body.night, 40) || undefined, note: clean(body.note, 120) || undefined, by: who });
