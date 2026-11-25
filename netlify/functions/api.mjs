@@ -461,14 +461,14 @@ export default async (req, context) => {
       const out = {};
       const peek = (b) => JSON.stringify(b).slice(0, 1500);
       const tryp = async (label, path, ns) => { const r = await bget(token, path, ns); out[label] = { status: r.status, body: r.body ? peek(r.body) : null }; return r.body; };
-      for (const q of ["Admiral's Hat", 'Runecloth Bag', 'Enchant Bracer - Healing']) {
+      for (const q of ["Admiral's Hat", 'Mooncloth Robe', 'Enchant Weapon - Mighty Intellect', 'Runecloth Bag']) {
         const r = await bget(token, `/data/wow/search/item?name.en_US=${encodeURIComponent(q)}&_pageSize=10`, 'static-forever-us');
         const hits = (r.body?.results || []).map(x => ({ id: x.data.id, name: x.data.name?.en_US, cls: x.data.item_class?.name?.en_US }));
         out['search ' + q] = hits;
         const pat = hits.find(h => h.cls === 'Recipe');
-        if (pat) await tryp('item ' + pat.name, `/data/wow/item/${pat.id}`, 'static-forever-us');
+        if (pat) { const it = (await bget(token, `/data/wow/item/${pat.id}`, 'static-forever-us')).body; const pv = it?.preview_item || {}; out['item ' + pat.name] = { keys: Object.keys(pv), req: pv.requirements, spells: pv.spells, desc: pv.description, recipe: pv.recipe ? JSON.stringify(pv.recipe).slice(0, 600) : null }; }
       }
-      for (const pid of [197, 333]) {
+      for (const pid of []) {
         const pr = (await bget(token, `/data/wow/profession/${pid}`, 'static-forever-us')).body;
         out['tiers ' + pid] = [];
         for (const t of pr?.skill_tiers || []) { const tb = (await bget(token, `/data/wow/profession/${pid}/skill-tier/${t.id}`, 'static-forever-us')).body; out['tiers ' + pid].push({ id: t.id, name: t.name, n: (tb?.categories || []).reduce((a, c) => a + (c.recipes || []).length, 0), cats: (tb?.categories || []).map(c => c.name) }); }
