@@ -504,11 +504,19 @@ async function officerRoute(s, route, body, reqUrl = '') {
         // Points earned since then don't count until the sheet is approved; starting DKP counts right away.
         const { cfg, st, drafts } = await DKP.draftSheet(s);
         const have = DKP.apply(st.approved, drafts.filter(t => t.delta < 0 || t.kind === 'start'), cfg.cap)[DKP.personOf(ch)] || 0;
+        // New raiders can't spend on their first raid night. The exception is the guild's very first raid night, when everyone is new.
+        const person = DKP.personOf(ch), all = await DKP.allTx(s);
+        const nightDate = id => id ? (id.match(/^\d{4}-\d{2}-\d{2}/) || [''])[0] : '';
+        const firstNight = all.find(t => t.kind === 'start' && t.person === person);
+        const awardDate = nightDate(clean(body.night, 60)) || new Date(Date.now() - 5 * 3600e3).toISOString().slice(0, 10);
+        const guildFirst = all.filter(t => t.night).map(t => nightDate(t.night)).sort()[0];
+        if (firstNight && nightDate(firstNight.night) === awardDate && awardDate !== guildFirst)
+          return json({ error: `This is ${byKey[person]?.name || ch.name}’s first raid night, and new raiders can’t spend DKP until their second raid.` }, 400);
         if (amt > have) return json({ error: `${byKey[DKP.personOf(ch)]?.name || ch.name} only has ${have} DKP to spend. Points from raids since the last approved sheet don’t count yet.` }, 400);
       }
       // Adjustment types: plain adjustment (either way), decay (for going MIA / leaving early) or a fine. Decay and fines only take away.
       const type = award ? 'award' : ['decay', 'fine'].includes(body.type) ? body.type : 'adjust';
-      if (type !== 'adjust' && amt > 0) return json({ error: `A ${type} takes DKP away, so use a negative number, like -5.` }, 400);
+      if ((type === 'decay' || type === 'fine') && amt > 0) return json({ error: `A ${type} takes DKP away, so use a negative number, like -5.` }, 400);
       const t = await DKP.addTx(s, { person: DKP.personOf(ch), char: ch.key, delta: award ? -amt : amt, kind: type,
         item: award ? clean(body.item, 80) : undefined, night: clean(body.night, 40) || undefined, note: clean(body.note, 120) || undefined, by: who });
       const pname = byKey[DKP.personOf(ch)]?.name || ch.name;

@@ -53,6 +53,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 .ch-item{display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;padding:6px 0;border-bottom:1px solid #2A2321;font-size:15px}
 .ch-slot{color:#8F857C;font-size:13px;padding-top:2px}
 </style>
+<script src="/gate.js"></script>
 </head>
 <body>
 <div style="background: #121011; color: #F1ECE6; font-family: 'Barlow', 'Helvetica Neue', sans-serif; font-size: 16px; line-height: 1.6; min-height: 100vh">
@@ -175,8 +176,11 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 {
 const G=Guild,$=G.$,esc=G.esc,low=G.low;
 const next=new URLSearchParams(location.search).get('next');
-const nextUrl=next==='signup'?'/signup':next==='dkp'?'/dkp':'/characters';
-const nextLabel=next==='signup'?'GO SIGN UP →':next==='dkp'?'SEE YOUR DKP →':'MY CHARACTERS →';
+// next = where to go after claiming: a page on this site only (like signup, dkp, crafters?q=x, character?c=key).
+const NEXTL={signup:'GO SIGN UP →',dkp:'SEE YOUR DKP →',crafters:'SEE CRAFTERS →',roster:'SEE THE ROSTER →',character:'BACK TO THAT CHARACTER →',raiding:'BACK TO RAIDING →',loot:'BACK TO LOOT →',forever:'BACK TO FOREVER →',addons:'BACK TO ADDONS →','forever-faq':'BACK TO THE FAQ →'};
+const nextPage=(next||'').split('?')[0];
+const nextUrl=NEXTL[nextPage]&&/^[a-z-]+(\?[\w=&%.-]*)?$/i.test(next)?'/'+next:'/characters';
+const nextLabel=NEXTL[nextPage]&&nextUrl!=='/characters'?NEXTL[nextPage]:'MY CHARACTERS →';
 function drawMine(){
  const m=G.mine();
  $('mineBox').hidden=!m.length;
