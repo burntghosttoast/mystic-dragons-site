@@ -80,6 +80,20 @@ function D.DisplayName(person)
     return s and s.display[person] or person
 end
 
+-- "2026-12-10T15:00:00Z" to seconds since 1970 (UTC). 0 if it can't be read.
+function D.IsoToUnix(iso)
+    local y, m, d, hh, mm, ss = tostring(iso or ""):match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)")
+    if not y then return 0 end
+    y, m, d = tonumber(y), tonumber(m), tonumber(d)
+    if m <= 2 then y = y - 1; m = m + 12 end
+    local days = 365 * y + math.floor(y / 4) - math.floor(y / 100) + math.floor(y / 400) + math.floor((153 * (m - 3) + 2) / 5) + d - 719469
+    return days * 86400 + tonumber(hh) * 3600 + tonumber(mm) * 60 + tonumber(ss)
+end
+
+-- Results that come off balances: anything won after the sheet was approved (the sheet can't include
+-- those yet). Re-importing the same or a re-copied sheet mid-raid doesn't give DKP back.
+local function after(r, s) return (r.at or 0) > D.IsoToUnix(s and s.at) end
+
 -- What a person can spend tonight: the approved sheet, minus anything already won since it was approved.
 -- On the guild's very first raid night (first=1), anyone not on the sheet has the starting DKP.
 -- Otherwise someone not on the sheet is new, and new raiders can't spend on their first night.
@@ -95,7 +109,7 @@ function D.Spendable(name)
     end
     s = s or { at = "" }
     for _, r in ipairs(D.db.results) do
-        if r.sheet == s.at and r.person == person and not r.undone then bal = bal - (r.price or 0) end
+        if after(r, s) and r.person == person and not r.undone then bal = bal - (r.price or 0) end
     end
     return math.max(0, bal)
 end
@@ -128,8 +142,8 @@ end
 -- Tonight's stay, because they still come off people's balances until the next sheet.
 -- Exporting the same result twice is harmless: the site skips ones it already has.
 function D.ClearResults()
-    local kept, cur = {}, D.db.sheet and D.db.sheet.at or ""
-    for _, r in ipairs(D.db.results) do if r.sheet == cur and not r.test then kept[#kept + 1] = r end end
+    local kept = {}
+    for _, r in ipairs(D.db.results) do if after(r, D.db.sheet) and not r.test then kept[#kept + 1] = r end end
     local dropped = #D.db.results - #kept
     D.db.results = kept
     return dropped
