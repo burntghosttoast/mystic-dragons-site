@@ -135,7 +135,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 </div>
 <span class="md-lab" style="margin-top: 10px">CLASS</span>
 <div class="md-classes" id="aClasses"></div>
-<span class="md-lab" style="margin-top: 10px">ROLES</span>
+<span class="md-lab" style="margin-top: 10px">SPECS</span>
 <div id="aRoles" style="display: flex; flex-direction: column; gap: 8px"></div>
 <button type="submit" class="rs-btn rs-btn-p" id="aGo" style="margin-top: 10px; align-self: flex-start">ADD &amp; CLAIM</button>
 <p role="alert" id="aErr" style="font-size: 15px; color: #D96A5F; min-height: 22px"></p>
@@ -194,8 +194,8 @@ const add={cls:'',picks:{}};
 const drawAdd=G.editor($('aClasses'),$('aRoles'),add);
 $('addForm').addEventListener('submit',async e=>{
  e.preventDefault();
- const name=$('aName').value.trim().replace(/\s+/g,' '),lvl=parseInt($('aLevel').value,10),p=G.picksOut(add.picks);
- const err=!name?'Add your character’s first and last name.':!(lvl>=1&&lvl<=60)?'Add your level (1–60).':!add.cls?'Pick your class.':!p.main_role?'Mark one role as Main.':'';
+ const name=$('aName').value.trim().replace(/\s+/g,' '),lvl=parseInt($('aLevel').value,10),p=G.picksOut(add.picks,add.cls);
+ const err=!name?'Add your character’s first and last name.':!(lvl>=1&&lvl<=60)?'Add your level (1–60).':!add.cls?'Pick your class.':!p.main_spec?'Mark one spec as Main.':'';
  $('aErr').textContent=err;if(err)return;
  $('aGo').disabled=true;
  try{const d=await G.api('claim',{name,level:lvl,cls:add.cls,...p});if(d.needsConfirm){$('cName').textContent=d.name;$('confirm').dataset.key=d.key;$('confirm').showModal();return}G.addClaim(d.character.key);location.href=nextUrl}

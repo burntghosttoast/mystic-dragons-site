@@ -1,11 +1,23 @@
 // Builds and posts the raid signup summary to Discord (DISCORD_WEBHOOK_URL).
 const ORDER = ['Tank', 'Healer', 'Melee DPS', 'Ranged DPS'];
-// Our server's emoji names: a spec icon where class + main role tells us the spec, else the class icon.
+// Our server's emoji names. Older saves have only a role: a spec icon where class + role tells us the spec, else the class icon.
 const SPEC = {
   'Warrior|Tank': 'warrior_prot', 'Paladin|Tank': 'paladin_protection', 'Paladin|Healer': 'paladin_holy', 'Paladin|Melee DPS': 'paladin_ret',
   'Priest|Healer': 'priest_holy', 'Priest|Ranged DPS': 'priest_shadow',
   'Shaman|Healer': 'shaman_resto', 'Shaman|Melee DPS': 'shaman_enhancement', 'Shaman|Ranged DPS': 'shaman_elem',
   'Druid|Tank': 'druid_guardian', 'Druid|Healer': 'druid_resto', 'Druid|Melee DPS': 'druid_feral', 'Druid|Ranged DPS': 'druid_balance'
+};
+// Picked specs to emoji names.
+const SPEC_PICKED = {
+  'Warrior|Arms': 'warrior_arms', 'Warrior|Fury': 'warrior_fury', 'Warrior|Protection': 'warrior_prot',
+  'Paladin|Holy': 'paladin_holy', 'Paladin|Protection': 'paladin_protection', 'Paladin|Retribution': 'paladin_ret',
+  'Hunter|Beast Mastery': 'hunter_bm', 'Hunter|Marksmanship': 'hunter_mm', 'Hunter|Survival': 'hunter_survival',
+  'Rogue|Assassination': 'rogue_assa', 'Rogue|Combat': 'rogue_outlaw', 'Rogue|Subtlety': 'rogue_sub',
+  'Priest|Discipline': 'priest_disc', 'Priest|Holy': 'priest_holy', 'Priest|Shadow': 'priest_shadow',
+  'Shaman|Elemental': 'shaman_elem', 'Shaman|Enhancement': 'shaman_enhancement', 'Shaman|Restoration': 'shaman_resto',
+  'Mage|Arcane': 'mage_arcane', 'Mage|Fire': 'mage_fire', 'Mage|Frost': 'mage_frost',
+  'Warlock|Affliction': 'warlock_affli', 'Warlock|Demonology': 'warlock_demono', 'Warlock|Destruction': 'warlock_destru',
+  'Druid|Balance': 'druid_balance', 'Druid|Feral (Cat)': 'druid_feral', 'Druid|Feral (Bear)': 'druid_guardian', 'Druid|Restoration': 'druid_resto'
 };
 const CLASS_EMOJI = { Warrior: '777528warrior', Paladin: '338425paladin', Hunter: 'kindpng_5733924', Rogue: '992310rogue', Priest: '424450priest',
   Shaman: '962470shaman', Mage: '934773mage', Warlock: '412823warlock', Druid: '831785druid' };
@@ -54,13 +66,13 @@ export async function postSummary(s, { reason = '' } = {}) {
   const when = days > 1 ? `${days} days to go` : days === 1 ? 'Tomorrow!' : days === 0 ? 'Tonight!' : '';
   // Icons are our server's emojis; officers paste their codes in on the officer page.
   const codes = { ...DEFAULT_CODES, ...((await s.get('meta/emoji-codes', { type: 'json' })) || {}) };
-  const iconFor = c => codes[SPEC[`${c.cls}|${c.main_role}`]] || codes[CLASS_EMOJI[c.cls]] || '';
+  const iconFor = c => codes[SPEC_PICKED[`${c.cls}|${c.main_spec}`]] || codes[SPEC[`${c.cls}|${c.main_role}`]] || codes[CLASS_EMOJI[c.cls]] || '';
   const md = t => String(t).replace(/([\\*_~`|>])/g, '\\$1');
   const line = r => {
     const ic = iconFor(r.c);
     const lvl = r.c.level && r.c.level < 60 ? ` · ${r.c.level}` : '';
     const tag = ic ? '' : ` · ${r.c.cls}`;
-    return r.sg.dec9 === 'Yes' ? `${ic} **${md(r.c.name)}**${tag}${lvl}`.trim() : `${ic} *${md(r.c.name)}*${tag}${lvl} · probably`.trim();
+    return r.sg.dec9 === 'Yes' ? `${ic} **${md(r.c.name)}**${tag}${lvl}`.trim() : `${ic} *${md(r.c.name)}*${tag}${lvl}`.trim();
   };
   const fit = (lines) => { let out = ''; for (let i = 0; i < lines.length; i++) { const next = (out ? out + '\n' : '') + lines[i]; if (next.length > 990) return out + `\n…and ${lines.length - i} more`; out = next; } return out || '—'; };
   const sortR = (a, b) => (a.sg.dec9 === 'Yes' ? 0 : 1) - (b.sg.dec9 === 'Yes' ? 0 : 1) || String(a.c.cls).localeCompare(String(b.c.cls)) || String(a.c.name).localeCompare(String(b.c.name));

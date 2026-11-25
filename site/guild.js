@@ -2,6 +2,19 @@
 window.Guild = (() => {
   const CLASSES = [['Warrior', '#C69B6D', ['Tank', 'Melee DPS']], ['Paladin', '#F48CBA', ['Tank', 'Healer', 'Melee DPS']], ['Hunter', '#AAD372', ['Ranged DPS', 'Melee DPS']], ['Rogue', '#FFF468', ['Melee DPS']], ['Priest', '#E6E6E6', ['Healer', 'Ranged DPS']], ['Shaman', '#2F8FEA', ['Healer', 'Melee DPS', 'Ranged DPS']], ['Mage', '#3FC7EB', ['Ranged DPS']], ['Warlock', '#8788EE', ['Ranged DPS']], ['Druid', '#FF7C0A', ['Tank', 'Healer', 'Melee DPS', 'Ranged DPS']]];
   const COLOR = Object.fromEntries(CLASSES.map(c => [c[0], c[1]]));
+  // Specs and the raid role each fills (same list as the API).
+  const SPECS = {
+    Warrior: [['Arms', 'Melee DPS'], ['Fury', 'Melee DPS'], ['Protection', 'Tank']],
+    Paladin: [['Holy', 'Healer'], ['Protection', 'Tank'], ['Retribution', 'Melee DPS']],
+    Hunter: [['Beast Mastery', 'Ranged DPS'], ['Marksmanship', 'Ranged DPS'], ['Survival', 'Ranged DPS']],
+    Rogue: [['Assassination', 'Melee DPS'], ['Combat', 'Melee DPS'], ['Subtlety', 'Melee DPS']],
+    Priest: [['Discipline', 'Healer'], ['Holy', 'Healer'], ['Shadow', 'Ranged DPS']],
+    Shaman: [['Elemental', 'Ranged DPS'], ['Enhancement', 'Melee DPS'], ['Restoration', 'Healer']],
+    Mage: [['Arcane', 'Ranged DPS'], ['Fire', 'Ranged DPS'], ['Frost', 'Ranged DPS']],
+    Warlock: [['Affliction', 'Ranged DPS'], ['Demonology', 'Ranged DPS'], ['Destruction', 'Ranged DPS']],
+    Druid: [['Balance', 'Ranged DPS'], ['Feral (Cat)', 'Melee DPS'], ['Feral (Bear)', 'Tank'], ['Restoration', 'Healer']]
+  };
+  const roleOf = (cls, spec) => ((SPECS[cls] || []).find(x => x[0] === spec) || [])[1] || '';
   const ORDER = ['Tank', 'Healer', 'Melee DPS', 'Ranged DPS'];
   const ACC = '#A3BC6E';
   const KEY = 'md-guild-v2';
@@ -54,20 +67,34 @@ window.Guild = (() => {
       return `<button type="button" data-c="${n}" aria-pressed="${on}" style="min-height:62px;text-align:left;padding:10px 14px;border-radius:6px;cursor:pointer;color:#F1ECE6;font-family:Cinzel,Georgia,serif;font-weight:700;font-size:16px;letter-spacing:.02em;border:1px solid ${on ? c : '#362D2A'};border-top:3px solid ${c};background:${on ? `color-mix(in srgb, ${c} 14%, #1B1716)` : '#241E1C'}${on ? `;box-shadow:inset 0 0 0 1px ${c}` : ''}">${n}<span style="display:block;font-family:Barlow,sans-serif;font-weight:500;font-size:13px;letter-spacing:0;color:#AEA49A;margin-top:2px">${r.map(x => x.replace(' DPS', '')).join(' · ')}</span></button>`; }).join('');
   }
   function roleRows(el, cls, picks) {
-    const k = CLASSES.find(x => x[0] === cls);
-    el.innerHTML = !k ? '<p style="font-size:15px;color:#8F857C">Pick a class first.</p>' : k[2].map(role => { const v = picks[role] || 'no';
-      return `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:10px 14px;background:#241E1C;border-radius:6px"><span style="font-family:Cinzel,Georgia,serif;font-weight:700;font-size:17px">${role}</span><div role="group" aria-label="${role}" style="display:inline-flex;border:1px solid #362D2A;border-radius:4px;overflow:hidden;background:#121011">${[['main', 'MAIN', ACC], ['will', 'WILL PLAY', '#CDB07C'], ['no', 'NO', '#362D2A']].map(([val, lab, col], i) => `<button type="button" data-r="${role}" data-v="${val}" aria-pressed="${v === val}" style="min-height:44px;padding:0 14px;border:0;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;letter-spacing:.12em;${i ? 'border-left:1px solid #362D2A;' : ''}${v === val ? `background:${col};color:${val === 'no' ? '#F1ECE6' : '#121011'}` : 'background:transparent;color:#CFC7BE'}">${lab}</button>`).join('')}</div></div>`; }).join('');
+    const specs = SPECS[cls];
+    el.innerHTML = !specs ? '<p style="font-size:15px;color:#8F857C">Pick a class first.</p>' : specs.map(([spec, role]) => { const v = picks[spec] || 'no';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:10px 14px;background:#241E1C;border-radius:6px"><span style="font-family:Cinzel,Georgia,serif;font-weight:700;font-size:17px">${spec}<span style="display:block;font-family:Barlow,sans-serif;font-weight:500;font-size:13px;letter-spacing:0;color:#AEA49A">${role}</span></span><div role="group" aria-label="${spec}" style="display:inline-flex;border:1px solid #362D2A;border-radius:4px;overflow:hidden;background:#121011">${[['main', 'MAIN', ACC], ['will', 'WILL PLAY', '#CDB07C'], ['no', 'NO', '#362D2A']].map(([val, lab, col], i) => `<button type="button" data-r="${spec}" data-v="${val}" aria-pressed="${v === val}" style="min-height:44px;padding:0 14px;border:0;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:15px;letter-spacing:.12em;${i ? 'border-left:1px solid #362D2A;' : ''}${v === val ? `background:${col};color:${val === 'no' ? '#F1ECE6' : '#121011'}` : 'background:transparent;color:#CFC7BE'}">${lab}</button>`).join('')}</div></div>`; }).join('');
   }
   // Wires a class picker + role picker; state = { cls, picks }.
   function editor(tilesEl, rolesEl, state) {
     const draw = () => { if (tilesEl) classTiles(tilesEl, state.cls); roleRows(rolesEl, state.cls, state.picks); };
-    if (tilesEl) tilesEl.addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; state.cls = b.dataset.c; const k = CLASSES.find(x => x[0] === state.cls); state.picks = k[2].length === 1 ? { [k[2][0]]: 'main' } : {}; draw(); });
+    if (tilesEl) tilesEl.addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b) return; state.cls = b.dataset.c; state.picks = {}; draw(); });
     rolesEl.addEventListener('click', e => { const b = e.target.closest('[data-r]'); if (!b) return; if (b.dataset.v === 'main') for (const x in state.picks) if (state.picks[x] === 'main') state.picks[x] = 'will'; state.picks[b.dataset.r] = b.dataset.v; draw(); });
     return draw;
   }
-  const picksFrom = c => { const p = c.main_role ? { [c.main_role]: 'main' } : {}; (c.also_play || []).forEach(r => { p[r] = 'will'; }); const k = CLASSES.find(x => x[0] === c.cls); if (!c.main_role && k && k[2].length === 1) p[k[2][0]] = 'main'; return p; };
-  const picksOut = p => ({ main_role: Object.keys(p).find(x => p[x] === 'main') || '', also_play: ORDER.filter(x => p[x] === 'will') });
-  const summary = c => `Level ${c.level}${c.race ? ' ' + c.race : ''} ${c.cls}${c.main_role ? ' · ' + c.main_role : ''}${(c.also_play || []).length ? ' · also ' + c.also_play.join(', ') : ''}`;
+  // Saved specs to picks; older saves only have roles, so fill in a spec where the role leaves one choice.
+  const picksFrom = c => {
+    const specs = SPECS[c.cls] || [], p = {};
+    if (c.main_spec) { p[c.main_spec] = 'main'; (c.also_specs || []).forEach(x => { p[x] = 'will'; }); return p; }
+    const only = role => { const m = specs.filter(x => x[1] === role); return m.length === 1 ? m[0][0] : ''; };
+    const main = only(c.main_role); if (main) p[main] = 'main';
+    (c.also_play || []).forEach(r => { const x = only(r); if (x && !p[x]) p[x] = 'will'; });
+    return p;
+  };
+  const picksOut = (p, cls) => {
+    const main_spec = Object.keys(p).find(x => p[x] === 'main') || '';
+    const also_specs = (SPECS[cls] || []).map(x => x[0]).filter(x => p[x] === 'will');
+    const main_role = roleOf(cls, main_spec);
+    return { main_spec, also_specs, main_role, also_play: ORDER.filter(r => r !== main_role && also_specs.some(x => roleOf(cls, x) === r)) };
+  };
+  const specLine = c => c.main_spec ? `${c.main_spec} (${c.main_role})` : c.main_role;
+  const summary = c => `Level ${c.level}${c.race ? ' ' + c.race : ''} ${c.cls}${c.main_role ? ' · ' + specLine(c) : ''}${(c.also_specs || []).length ? ' · also ' + c.also_specs.join(', ') : (c.also_play || []).length ? ' · also ' + c.also_play.join(', ') : ''}`;
   const syncLine = () => syncedAt ? 'Levels and classes synced from the game ' + new Date(syncedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + '.' : '';
 
 
@@ -103,5 +130,5 @@ window.Guild = (() => {
     };
   }
 
-  return { renderInfo, CLASSES, COLOR, ORDER, ACC, $, esc, low, api, me: () => me, loadRoster, roster: () => roster, byKey, mine, mainChar, addClaim, dropClaim, setMain, setVerified, setDiscord, dot, chipStyle, editor, picksFrom, picksOut, summary, syncLine };
+  return { renderInfo, CLASSES, COLOR, ORDER, ACC, $, esc, low, api, me: () => me, loadRoster, roster: () => roster, byKey, mine, mainChar, addClaim, dropClaim, setMain, setVerified, setDiscord, dot, chipStyle, editor, picksFrom, picksOut, summary, SPECS, roleOf, specLine, syncLine };
 })();

@@ -11,6 +11,18 @@ const CLASSES = {
   Rogue: ['Melee DPS'], Priest: ['Healer', 'Ranged DPS'], Shaman: ['Healer', 'Melee DPS', 'Ranged DPS'],
   Mage: ['Ranged DPS'], Warlock: ['Ranged DPS'], Druid: ['Tank', 'Healer', 'Melee DPS', 'Ranged DPS']
 };
+// Specs people pick on the site, and the raid role each one fills.
+const SPECS = {
+  Warrior: [['Arms', 'Melee DPS'], ['Fury', 'Melee DPS'], ['Protection', 'Tank']],
+  Paladin: [['Holy', 'Healer'], ['Protection', 'Tank'], ['Retribution', 'Melee DPS']],
+  Hunter: [['Beast Mastery', 'Ranged DPS'], ['Marksmanship', 'Ranged DPS'], ['Survival', 'Ranged DPS']],
+  Rogue: [['Assassination', 'Melee DPS'], ['Combat', 'Melee DPS'], ['Subtlety', 'Melee DPS']],
+  Priest: [['Discipline', 'Healer'], ['Holy', 'Healer'], ['Shadow', 'Ranged DPS']],
+  Shaman: [['Elemental', 'Ranged DPS'], ['Enhancement', 'Melee DPS'], ['Restoration', 'Healer']],
+  Mage: [['Arcane', 'Ranged DPS'], ['Fire', 'Ranged DPS'], ['Frost', 'Ranged DPS']],
+  Warlock: [['Affliction', 'Ranged DPS'], ['Demonology', 'Ranged DPS'], ['Destruction', 'Ranged DPS']],
+  Druid: [['Balance', 'Ranged DPS'], ['Feral (Cat)', 'Melee DPS'], ['Feral (Bear)', 'Tank'], ['Restoration', 'Healer']]
+};
 const CLASS_IDS = { 1: 'Warrior', 2: 'Paladin', 3: 'Hunter', 4: 'Rogue', 5: 'Priest', 7: 'Shaman', 8: 'Mage', 9: 'Warlock', 11: 'Druid' };
 const DEC9 = ['Yes', 'Probably', 'Not sure yet', 'No'];
 const LATER = ['Yes', 'Probably', 'Not sure yet', 'Not planning to raid'];
@@ -43,15 +55,23 @@ async function log(s, action, name, device, details = {}) {
   await s.setJSON(`log/${at}-${Math.random().toString(36).slice(2, 8)}`, { at, action, character: name, device: String(device).slice(0, 12), ...details });
 }
 function roleFields(body, cls, prev = {}) {
+  const specs = SPECS[cls] || [], roleOf = n => (specs.find(x => x[0] === n) || [])[1];
+  if (typeof body.main_spec === 'string') {
+    // Specs picked: the roles follow from them.
+    const main = roleOf(body.main_spec) ? body.main_spec : '';
+    const also = [...new Set((Array.isArray(body.also_specs) ? body.also_specs : []).map(String).filter(x => roleOf(x) && x !== main))];
+    const mainRole = main ? roleOf(main) : '';
+    return { main_spec: main, also_specs: also, main_role: mainRole, also_play: [...new Set(also.map(roleOf))].filter(r => r !== mainRole) };
+  }
   const roles = CLASSES[cls] || [];
   const main = roles.includes(body.main_role) ? body.main_role : (roles.length === 1 ? roles[0] : (roles.includes(prev.main_role) ? prev.main_role : ''));
   const also = (Array.isArray(body.also_play) ? body.also_play : String(body.also_play || '').split(','))
     .map(x => String(x).trim()).filter(x => roles.includes(x) && x !== main);
-  return { main_role: main, also_play: [...new Set(also)] };
+  return { main_role: main, also_play: [...new Set(also)], main_spec: prev.main_spec && roleOf(prev.main_spec) === main ? prev.main_spec : '', also_specs: prev.also_specs || [] };
 }
 const publicChar = c => ({
   key: c.key, name: c.name, first: c.first || c.name, cls: c.cls, level: c.level, race: c.race || '', rank: c.rank ?? null,
-  main_role: c.main_role || '', also_play: c.also_play || [], synced: !!c.synced, in_guild: c.in_guild !== false,
+  main_role: c.main_role || '', also_play: c.also_play || [], main_spec: c.main_spec || '', also_specs: c.also_specs || [], synced: !!c.synced, in_guild: c.in_guild !== false,
   claimed: (c.claims || []).length > 0, updated_at: c.updated_at
 });
 async function moveSignup(s, fromKey, toKey) {
@@ -101,7 +121,7 @@ async function syncGuild(s, force) {
         doc = { key, claims: [], created_at: now };
         if (legacy) {
           doc.claims = legacy.claims || [];
-          if (legacy.cls === m.cls) { doc.main_role = legacy.main_role; doc.also_play = legacy.also_play; doc.cls = m.cls; }
+          if (legacy.cls === m.cls) { doc.main_role = legacy.main_role; doc.also_play = legacy.also_play; doc.main_spec = legacy.main_spec || ''; doc.also_specs = legacy.also_specs || []; doc.cls = m.cls; }
           if (slug(legacy.name).includes(' ')) doc.typed_name = legacy.name;
           await moveSignup(s, legacy.key || slug(legacy.name), key);
           await s.delete(`char/${legacy.key || slug(legacy.name)}`);
@@ -118,6 +138,8 @@ async function syncGuild(s, force) {
         bslug, name: doc.surname ? `${m.first} ${doc.surname}` : (bslug ? titleCase(bslug) : (doc.typed_name || m.first)),
         main_role: keepRoles ? doc.main_role || '' : (roles.length === 1 ? roles[0] : ''),
         also_play: keepRoles ? doc.also_play || [] : [],
+        main_spec: keepRoles ? doc.main_spec || '' : '',
+        also_specs: keepRoles ? doc.also_specs || [] : [],
         updated_at: !fresh && doc.level === Math.max(m.level, doc.profile_level || 0) && doc.cls === m.cls ? doc.updated_at : now
       };
       if (JSON.stringify(doc) !== JSON.stringify(next)) writes.push([`char/${key}`, next]);
@@ -137,7 +159,7 @@ async function syncGuild(s, force) {
       const key = 'b' + twin[0].id, target = byKey.get(key);
       if (!target) continue;
       target.claims = [...new Set([...(target.claims || []), ...(c.claims || [])])].slice(-10);
-      if (!target.main_role && c.cls === target.cls) { target.main_role = c.main_role || ''; target.also_play = c.also_play || []; }
+      if (!target.main_role && c.cls === target.cls) { target.main_role = c.main_role || ''; target.also_play = c.also_play || []; target.main_spec = c.main_spec || ''; target.also_specs = c.also_specs || []; }
       if (!target.typed_name && slug(c.name).includes(' ')) target.typed_name = c.name;
       await s.setJSON(`char/${key}`, target);
       await moveSignup(s, c.key, key);
@@ -575,7 +597,7 @@ export default async (req, context) => {
         if (!c) {
           if (!CLASSES[body.cls]) return json({ error: 'Pick a class' }, 400);
           const f = roleFields(body, body.cls);
-          if (!f.main_role) return json({ error: 'Pick a main role' }, 400);
+          if (!f.main_role) return json({ error: 'Pick a main spec' }, 400);
           const key = manualKey(name), now = new Date().toISOString();
           c = { key, name, cls: body.cls, level: Math.max(1, Math.min(60, parseInt(body.level, 10) || 1)), ...f, claims: [device], created_at: now, updated_at: now };
           await s.setJSON(`char/${key}`, c);
@@ -620,7 +642,7 @@ export default async (req, context) => {
       const level = c.synced ? c.level : Math.max(1, Math.min(60, parseInt(body.level, 10) || c.level || 1));
       const f = roleFields(body, cls, c);
       const next = { ...c, cls, level, ...f };
-      const changed = ['cls', 'level', 'main_role', 'also_play'].filter(k => JSON.stringify(next[k]) !== JSON.stringify(c[k]));
+      const changed = ['cls', 'level', 'main_role', 'also_play', 'main_spec', 'also_specs'].filter(k => JSON.stringify(next[k]) !== JSON.stringify(c[k]));
       if (changed.length) { next.updated_at = new Date().toISOString(); await s.setJSON(`char/${c.key}`, next); await log(s, 'update', c.name, device, { changed }); }
       return json({ ok: true, character: publicChar(next) });
     }

@@ -125,7 +125,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div id="facts" class="ch-facts"></div>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px">
 <button type="button" id="mainBtn" class="rs-btn">SET AS MAIN</button>
-<button type="button" id="editBtn" class="rs-btn">EDIT ROLES</button>
+<button type="button" id="editBtn" class="rs-btn">EDIT SPECS</button>
 <button type="button" id="dropBtn" class="rs-btn">REMOVE FROM THIS BROWSER</button>
 </div>
 <p id="msg" role="status" style="font-size: 14px; color: #AEA49A; min-height: 20px"></p>
@@ -134,7 +134,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <label style="display: flex; align-items: center; gap: 8px"><span class="md-lab">LEVEL</span><input class="md-in" type="number" id="eLevel" min="1" max="60" style="width: 90px"></label>
 <span class="md-lab">CLASS</span><div class="md-classes" id="eClasses"></div>
 </div>
-<span class="md-lab">ROLES</span>
+<span class="md-lab">SPECS</span>
 <div id="eRoles" style="display: flex; flex-direction: column; gap: 8px"></div>
 <div style="display: flex; gap: 10px; margin-top: 6px"><button type="button" id="eSave" class="rs-btn rs-btn-p">SAVE</button><button type="button" id="eCancel" class="rs-btn">CANCEL</button></div>
 </div>
@@ -172,8 +172,8 @@ function drawHead(){
  $('cName').textContent=c.name;
  $('cSum').textContent=G.summary(c);
  $('mainBtn').hidden=c.key===G.me().main;
- $('editBtn').textContent=c.synced?'EDIT ROLES':'EDIT CHARACTER';
- if(!c.main_role&&$('editBox').hidden){openEdit();$('msg').textContent='Pick the roles you play on this character.'}
+ $('editBtn').textContent=c.synced?'EDIT SPECS':'EDIT CHARACTER';
+ if(!c.main_spec&&$('editBox').hidden){openEdit();$('msg').textContent='Pick the specs you play on this character.'}
 }
 const ed={cls:'',picks:{}};
 const drawEd=G.editor($('eClasses'),$('eRoles'),ed);
@@ -181,8 +181,8 @@ function openEdit(){const c=G.byKey(sel);ed.cls=c.cls;ed.picks=G.picksFrom(c);$(
 $('editBtn').addEventListener('click',openEdit);
 $('eCancel').addEventListener('click',()=>{$('editBox').hidden=true});
 $('eSave').addEventListener('click',async()=>{
- const c=G.byKey(sel),p=G.picksOut(ed.picks);
- if(!p.main_role){$('msg').textContent='Mark one role as Main.';return}
+ const c=G.byKey(sel),p=G.picksOut(ed.picks,ed.cls);
+ if(!p.main_spec){$('msg').textContent='Mark one spec as Main.';return}
  try{await G.api('character',{key:c.key,cls:ed.cls,level:$('eLevel').value,...p});$('editBox').hidden=true;await G.loadRoster();drawHead();$('msg').textContent='Saved.'}
  catch(e){$('msg').textContent=e.message;if(/Claim this character/.test(e.message)){G.dropClaim(c.key);render()}}
 });
