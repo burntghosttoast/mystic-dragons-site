@@ -95,7 +95,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div style="max-width: 1160px; margin: 0 auto; padding: clamp(48px, 7vw, 72px) 24px clamp(40px, 5vw, 52px); display: flex; flex-direction: column; gap: 20px">
 <div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">WOW FOREVER</div>
 <h1 style="font-size: clamp(40px, 7vw, 64px); line-height: 1">Claim your character</h1>
-<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Find your character in the guild and tap it. This browser remembers you from then on, no password needed. Claiming alts works the same way.</p>
+<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Find your character in the guild and tap it. This browser remembers you from then on. Claiming alts works the same way, and you can lock any of them with a password if you like.</p>
 </div>
 </section>
 
@@ -150,6 +150,26 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div style="display: flex; flex-wrap: wrap; gap: 10px"><button type="button" id="cYes" class="rs-btn rs-btn-p">YEP, IT’S ME</button><button type="button" id="cNo" class="rs-btn">NOT ME</button></div>
 </dialog>
 
+<dialog id="pwDlg" style="max-width: 460px; background: #1B1716; color: #F1ECE6; border: 1px solid #362D2A; border-radius: 8px; padding: 24px">
+<form id="pwForm" method="dialog" novalidate style="display: flex; flex-direction: column; gap: 10px">
+<h3 style="font-size: 21px; line-height: 1.25"><span id="pwName"></span> is locked</h3>
+<p style="color: #CFC7BE">Its owner set a password. Enter it to claim this character on this browser.</p>
+<input class="md-in" type="password" id="pwIn" maxlength="100" autocomplete="current-password">
+<p role="alert" id="pwErr" style="font-size: 15px; color: #D96A5F; min-height: 22px"></p>
+<div style="display: flex; flex-wrap: wrap; gap: 10px"><button type="submit" class="rs-btn rs-btn-p">CLAIM</button><button type="button" id="pwNo" class="rs-btn">CANCEL</button></div>
+</form>
+</dialog>
+
+<dialog id="lockDlg" style="max-width: 480px; background: #1B1716; color: #F1ECE6; border: 1px solid #362D2A; border-radius: 8px; padding: 24px">
+<form id="lockForm" method="dialog" novalidate style="display: flex; flex-direction: column; gap: 10px">
+<h3 style="font-size: 21px; line-height: 1.25">Lock <span id="lkName"></span>? (optional)</h3>
+<p style="color: #CFC7BE">Set a password and nobody else can claim this character, or see its DKP, without it. You won’t need it on this browser. You can change or remove it later on My characters.</p>
+<input class="md-in" type="password" id="lkIn" maxlength="100" autocomplete="new-password" placeholder="Password (at least 4 characters)">
+<p role="alert" id="lkErr" style="font-size: 15px; color: #D96A5F; min-height: 22px"></p>
+<div style="display: flex; flex-wrap: wrap; gap: 10px"><button type="submit" class="rs-btn rs-btn-p">LOCK IT</button><button type="button" id="lkNo" class="rs-btn">NO THANKS</button></div>
+</form>
+</dialog>
+
 <script src="/guild.js"></script>
 <script>
 {
@@ -177,15 +197,30 @@ $('gate').addEventListener('submit',async e=>{
  try{await G.api('verify',{discord,password});G.setVerified(discord);$('gPass').value='';showGate(false);drawFind();$('find').focus()}
  catch(x){$('gErr').textContent=x.message}finally{$('gGo').disabled=false}
 });
-async function claim(key,confirm){
+// After a claim: first-time claims get the option to lock the character.
+function claimed(d){
+ G.addClaim(d.character.key);
+ if(!d.firstClaim){location.href=nextUrl;return}
+ $('lkName').textContent=d.character.name;$('lockDlg').dataset.key=d.character.key;$('lkErr').textContent='';$('lockDlg').showModal();
+}
+async function claim(key,confirm,charPassword){
  $('findErr').textContent='';
  try{
-  const d=await G.api('claim',{key,confirm:!!confirm});
+  const d=await G.api('claim',{key,confirm:!!confirm,charPassword});
   if(d.needsConfirm){$('cName').textContent=d.name;$('confirm').dataset.key=d.key;$('confirm').showModal();return}
-  G.addClaim(d.character.key);
-  location.href=nextUrl;
- }catch(e){if(/guild password first/.test(e.message)){G.setVerified('');showGate(true);return}$('findErr').textContent=e.message}
+  if(d.needsPassword){$('pwName').textContent=d.name;$('pwDlg').dataset.key=d.key;$('pwErr').textContent='';$('pwIn').value='';$('pwDlg').showModal();return}
+  if($('pwDlg').open)$('pwDlg').close();
+  claimed(d);
+ }catch(e){if(/guild password first/.test(e.message)){G.setVerified('');showGate(true);return}if($('pwDlg').open){$('pwErr').textContent=e.message;return}$('findErr').textContent=e.message}
 }
+$('pwForm').addEventListener('submit',e=>{e.preventDefault();claim($('pwDlg').dataset.key,false,$('pwIn').value)});
+$('pwNo').addEventListener('click',()=>$('pwDlg').close());
+$('lockForm').addEventListener('submit',async e=>{
+ e.preventDefault();const pw=$('lkIn').value;
+ if(pw.length<4){$('lkErr').textContent='Use at least 4 characters, or pick No thanks.';return}
+ try{await G.api('lock',{key:$('lockDlg').dataset.key,password:pw});location.href=nextUrl}catch(x){$('lkErr').textContent=x.message}
+});
+$('lkNo').addEventListener('click',()=>{location.href=nextUrl});
 $('find').addEventListener('input',drawFind);
 $('findList').addEventListener('click',e=>{const b=e.target.closest('[data-claim]');if(b)claim(b.dataset.claim)});
 $('cYes').addEventListener('click',()=>{$('confirm').close();claim($('confirm').dataset.key,true)});
@@ -198,7 +233,7 @@ $('addForm').addEventListener('submit',async e=>{
  const err=!name?'Add your character’s first and last name.':!(lvl>=1&&lvl<=60)?'Add your level (1–60).':!add.cls?'Pick your class.':!p.main_spec?'Mark one spec as Main.':'';
  $('aErr').textContent=err;if(err)return;
  $('aGo').disabled=true;
- try{const d=await G.api('claim',{name,level:lvl,cls:add.cls,...p});if(d.needsConfirm){$('cName').textContent=d.name;$('confirm').dataset.key=d.key;$('confirm').showModal();return}G.addClaim(d.character.key);location.href=nextUrl}
+ try{const d=await G.api('claim',{name,level:lvl,cls:add.cls,...p});if(d.needsConfirm){$('cName').textContent=d.name;$('confirm').dataset.key=d.key;$('confirm').showModal();return}if(d.needsPassword){$('pwName').textContent=d.name;$('pwDlg').dataset.key=d.key;$('pwErr').textContent='';$('pwIn').value='';$('pwDlg').showModal();return}claimed(d)}
  catch(x){if(/guild password first/.test(x.message)){G.setVerified('');showGate(true);return}$('aErr').textContent=x.message}finally{$('aGo').disabled=false}
 });
 (async()=>{

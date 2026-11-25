@@ -6,6 +6,7 @@ import { getStore } from '@netlify/blobs';
 import { postSummary, DEFAULT_CODES } from '../lib/summary.mjs';
 import { handleDiscord, refreshBoard, registerCommands } from '../lib/discordbot.mjs';
 import * as DKP from '../lib/dkp.mjs';
+import { makeLock, checkLock, tooMany, failed } from '../lib/lock.mjs';
 import { blizzToken, bget, iconFor, recipeDetail, RECIPE_V } from '../lib/gamedata.mjs';
 
 const CLASSES = {
@@ -74,7 +75,7 @@ function roleFields(body, cls, prev = {}) {
 const publicChar = c => ({
   key: c.key, name: c.name, first: c.first || c.name, cls: c.cls, level: c.level, race: c.race || '', rank: c.rank ?? null,
   main_role: c.main_role || '', also_play: c.also_play || [], main_spec: c.main_spec || '', also_specs: c.also_specs || [], synced: !!c.synced, in_guild: c.in_guild !== false,
-  claimed: (c.claims || []).length > 0, updated_at: c.updated_at
+  claimed: (c.claims || []).length > 0, locked: !!c.lock, updated_at: c.updated_at
 });
 async function moveSignup(s, fromKey, toKey) {
   const sign = await s.get(`signup/dec9/${fromKey}`, { type: 'json' });
@@ -398,6 +399,13 @@ async function officerRoute(s, route, body) {
     await refreshBoard(s).catch(() => {});
     return json({ ok: true });
   }
+  if (route === 'officer/clear-lock') {
+    if (!c) return json({ error: 'Character not found' }, 404);
+    const { lock, ...rest } = c;
+    await s.setJSON(`char/${c.key}`, rest);
+    await log(s, 'officer-clear-lock', c.name, 'officer', { by: who });
+    return json({ ok: true });
+  }
   if (route === 'officer/release') {
     if (!c) return json({ error: 'Character not found' }, 404);
     await s.setJSON(`char/${c.key}`, { ...c, claims: [] });
@@ -715,18 +723,23 @@ export default async (req, context) => {
           c = { key, name, cls: body.cls, level: Math.max(1, Math.min(60, parseInt(body.level, 10) || 1)), ...f, claims: [device], created_at: now, updated_at: now };
           await s.setJSON(`char/${key}`, c);
           await log(s, 'create', name, device, { discord: verified.discord });
-          return json({ ok: true, created: true, character: publicChar(c) });
+          return json({ ok: true, created: true, firstClaim: true, character: publicChar(c) });
         }
       }
       if (!c) return json({ error: 'That character isn’t on the roster' }, 404);
       const claims = c.claims || [];
-      if (claims.length && !claims.includes(device) && !body.confirm) return json({ needsConfirm: true, name: c.name, key: c.key });
+      if (c.lock && !claims.includes(device)) {
+        // Locked by its owner: the password replaces the pinky promise.
+        if (!body.charPassword) return json({ needsPassword: true, name: c.name, key: c.key });
+        if (await tooMany(s, device)) return json({ error: 'Too many wrong tries. Wait a few minutes.' }, 429);
+        if (!checkLock(c.lock, body.charPassword)) { await failed(s, device); return json({ error: `That’s not the password for ${c.name}.` }, 403); }
+      } else if (claims.length && !claims.includes(device) && !body.confirm) return json({ needsConfirm: true, name: c.name, key: c.key });
       if (!claims.includes(device)) {
         c.claims = [...claims, device].slice(-10);
         await s.setJSON(`char/${c.key}`, c);
         await log(s, claims.length ? 'claim-again' : 'claim', c.name, device, { discord: verified.discord });
       }
-      return json({ ok: true, character: publicChar(c) });
+      return json({ ok: true, firstClaim: !claims.length, character: publicChar(c) });
     }
 
     const c = await s.get(`char/${clean(body.key, 40)}`, { type: 'json' });
@@ -742,6 +755,18 @@ export default async (req, context) => {
       return json({ ok: true, character: publicChar(c), info });
     }
     if (!(c.claims || []).includes(device)) return json({ error: 'Claim this character first' }, 403);
+
+    if (route === 'lock') {
+      // Set, change or remove this character's password. Browsers that already claimed it keep access.
+      const pw = String(body.password || '');
+      if (pw && pw.length < 4) return json({ error: 'Use at least 4 characters.' }, 400);
+      if (pw.length > 100) return json({ error: 'That’s too long.' }, 400);
+      const next = { ...c };
+      if (pw) next.lock = makeLock(pw); else delete next.lock;
+      await s.setJSON(`char/${c.key}`, next);
+      await log(s, pw ? 'lock' : 'unlock', c.name, device);
+      return json({ ok: true, character: publicChar(next) });
+    }
 
     if (route === 'unclaim') {
       c.claims = (c.claims || []).filter(d => d !== device);

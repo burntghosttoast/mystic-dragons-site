@@ -141,6 +141,20 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 </div>
 </div>
 
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px">
+<div class="md-card" style="gap: 8px">
+<span class="md-lab">DKP</span>
+<p id="dkpLine" style="font-size: 17px; color: #CFC7BE">Loading…</p>
+<a href="/dkp" class="rs-btn" style="align-self: flex-start; text-decoration: none">SEE YOUR DKP →</a>
+</div>
+<form id="lockCard" class="md-card" novalidate style="gap: 8px">
+<span class="md-lab">CHARACTER PASSWORD (OPTIONAL)</span>
+<p id="lockLine" style="font-size: 15px; color: #CFC7BE"></p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><input class="md-in" type="password" id="lockPw" maxlength="100" autocomplete="new-password" placeholder="New password" style="flex: 1 1 180px"><button type="submit" class="rs-btn">SAVE</button><button type="button" id="lockOff" class="rs-btn" hidden>REMOVE</button></div>
+<p id="lockMsg" role="status" style="font-size: 14px; color: #AEA49A; min-height: 20px"></p>
+</form>
+</div>
+
 <form id="discordCard" class="md-card" novalidate style="flex-direction: row; flex-wrap: wrap; align-items: end; gap: 10px 14px">
 <label style="display: flex; flex-direction: column; gap: 6px; flex: 1 1 260px"><span class="md-lab">YOUR DISCORD NAME</span><input class="md-in" type="text" id="dName" maxlength="40" autocomplete="username" placeholder="So officers know who you are"></label>
 <button type="submit" id="dSave" class="rs-btn">SAVE</button>
@@ -173,8 +187,27 @@ function drawHead(){
  $('cSum').textContent=G.summary(c);
  $('mainBtn').hidden=c.key===G.me().main;
  $('editBtn').textContent=c.synced?'EDIT SPECS':'EDIT CHARACTER';
+ drawLock(c);loadDkp(c);
  if(!c.main_spec&&$('editBox').hidden){openEdit();$('msg').textContent='Pick the specs you play on this character.'}
 }
+
+function drawLock(c){
+ $('lockLine').textContent=c.locked?`${c.name} is locked. Anyone claiming it on another browser needs the password. You don’t, on this one.`:`Lock ${c.name} so nobody else can claim it, or see its DKP, without a password.`;
+ $('lockOff').hidden=!c.locked;$('lockPw').placeholder=c.locked?'Change password':'New password';$('lockMsg').textContent='';
+}
+let dkpReq=0;
+async function loadDkp(c){
+ const n=++dkpReq;$('dkpLine').textContent='Loading…';
+ try{const d=await G.api('dkp',{key:c.key});if(n!==dkpReq)return;$('dkpLine').innerHTML=`<strong style="font:700 28px Cinzel,serif;color:#CDB07C">${d.balance}</strong> DKP${d.main!==c.name?` <span style="color:#8F857C">(shared with ${esc(d.main)})</span>`:''}`}
+ catch(_){if(n===dkpReq)$('dkpLine').textContent='Couldn’t load DKP right now.'}
+}
+async function setLock(pw){
+ const c=G.byKey(sel);
+ try{const d=await G.api('lock',{key:c.key,password:pw});Object.assign(c,d.character);$('lockPw').value='';drawLock(c);$('lockMsg').textContent=pw?'Locked. Keep the password somewhere safe; an officer can remove it if you forget.':'Password removed.'}
+ catch(x){$('lockMsg').textContent=x.message}
+}
+$('lockCard').addEventListener('submit',e=>{e.preventDefault();const pw=$('lockPw').value;if(pw.length<4){$('lockMsg').textContent='Use at least 4 characters.';return}setLock(pw)});
+$('lockOff').addEventListener('click',()=>setLock(''));
 const ed={cls:'',picks:{}};
 const drawEd=G.editor($('eClasses'),$('eRoles'),ed);
 function openEdit(){const c=G.byKey(sel);ed.cls=c.cls;ed.picks=G.picksFrom(c);$('manualFields').hidden=!!c.synced;$('eLevel').value=c.level;drawEd();$('editBox').hidden=false}

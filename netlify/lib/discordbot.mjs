@@ -7,6 +7,7 @@
 import crypto from 'node:crypto';
 import { buildSummary, emojiCodes, specIcon } from './summary.mjs';
 import * as DKP from './dkp.mjs';
+import { checkLock, tooMany, failed } from './lock.mjs';
 
 const API = 'https://discord.com/api/v10';
 const EPHEMERAL = 64;
@@ -68,7 +69,11 @@ const respond = (i, content, components = []) => (i.message && (i.message.flags 
   ? json({ type: 7, data: { content, components, allowed_mentions: { parse: [] } } })
   : reply(content, components);
 const nameModal = () => json({ type: 9, data: { custom_id: 'su:who', title: 'Which character are you?', components: [
-  { type: 1, components: [{ type: 4, custom_id: 'name', label: 'Character name (first and last)', style: 1, min_length: 2, max_length: 40, required: true, placeholder: 'Drey Stormcall' }] }
+  { type: 1, components: [{ type: 4, custom_id: 'name', label: 'Character name (first and last)', style: 1, min_length: 2, max_length: 40, required: true, placeholder: 'Drey Stormcall' }] },
+  { type: 1, components: [{ type: 4, custom_id: 'pw', label: 'Character password (only if you set one)', style: 1, max_length: 100, required: false }] }
+] } });
+const pwModal = (key, name) => json({ type: 9, data: { custom_id: 'su:pw:' + key, title: `${name} is locked`.slice(0, 45), components: [
+  { type: 1, components: [{ type: 4, custom_id: 'pw', label: 'Character password', style: 1, max_length: 100, required: true }] }
 ] } });
 const select = (id, placeholder, options) => ({ type: 1, components: [{ type: 3, custom_id: id, placeholder, min_values: 1, max_values: 1, options: options.slice(0, 25) }] });
 const btn = (id, label, style = 2) => ({ type: 2, style, custom_id: id, label });
@@ -274,6 +279,7 @@ export async function handleDiscord(req, s, ctx, d) {
 
   if (id === 'su:who') {
     const typed = d.clean(i.data.components?.[0]?.components?.[0]?.value, 40);
+    const typedPw = String(i.data.components?.[1]?.components?.[0]?.value || '');
     const want = d.slug(typed);
     const chars = (await d.allChars(s)).filter(c => c.key && c.in_guild !== false);
     let hits = chars.filter(c => d.slug(c.name) === want);
@@ -282,13 +288,24 @@ export async function handleDiscord(req, s, ctx, d) {
     if (!hits.length) return respond(i, `I couldn’t find **${typed}** in the guild roster. Check the spelling. New guild members show up within about 20 minutes.`, [{ type: 1, components: [btn('su:switch', 'Try again', 1)] }]);
     if (hits.length > 1) return respond(i, `More than one match for **${typed}**. Which one are you?`,
       [select('su:pick', 'Pick your character', hits.slice(0, 25).map(c => ({ label: c.name, description: `Level ${c.level} ${c.cls}`, value: c.key })))]);
-    return pickChar(hits[0]);
+    return pickChar(hits[0], typedPw);
   }
-  async function pickChar(c) {
+  // A locked character needs its password, unless this Discord user is already linked to it.
+  async function pickChar(c, pw) {
+    const cur = await s.get(`dlink/${uid}`, { type: 'json' });
+    if (c.lock && cur?.key !== c.key) {
+      if (!pw) return i.type === 3 ? pwModal(c.key, c.name) : respond(i, `**${c.name}** is locked. Use Try again and enter its password in the second box.`, [{ type: 1, components: [btn('su:switch', 'Try again', 1)] }]);
+      if (await tooMany(s, 'discord:' + uid)) return respond(i, 'Too many wrong tries. Wait a few minutes.', []);
+      if (!checkLock(c.lock, pw)) { await failed(s, 'discord:' + uid); return respond(i, `That’s not the password for **${c.name}**.`, [{ type: 1, components: [btn('su:switch', 'Try again', 1)] }]); }
+    }
     await s.setJSON(`dlink/${uid}`, { key: c.key, at: new Date().toISOString(), discord: handle });
     await d.log(s, 'discord-link', c.name, 'discord:' + uid, { discord: handle });
     const [content, rows] = await panel(c, `Got it. Next time you click Sign up I’ll remember you’re ${c.first || c.name}.`);
     return respond(i, content, rows);
+  }
+  if (id.startsWith('su:pw:')) {
+    const c = await s.get(`char/${d.clean(id.slice(6), 40)}`, { type: 'json' });
+    return c ? pickChar(c, String(i.data.components?.[0]?.components?.[0]?.value || '')) : respond(i, 'That character isn’t on the roster anymore.', []);
   }
   if (id === 'su:pick') {
     const c = await s.get(`char/${d.clean(i.data.values?.[0], 40)}`, { type: 'json' });
