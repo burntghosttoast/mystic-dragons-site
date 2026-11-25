@@ -1,11 +1,12 @@
 // Mystic Dragons companion app.
 //
-// Runs on one officer's Windows PC while they play. Every couple of minutes it:
-//   1. gets the latest approved DKP sheet from the site and drops it into a small helper addon
+// Runs on one officer's Windows PC while they play. It:
+//   1. at start and every 15 minutes, gets the latest approved DKP sheet from the site and drops it into a small helper addon
 //      (MysticDragonsBids_Inbox) so the bidding addon loads it at the next login or /reload,
 //      and shares it with everyone online;
-//   2. looks at the bidding addon's saved results (written by the game at logout or /reload)
-//      and sends any new ones to the site as draft loot awards. The site skips ones it already has.
+//   2. every 30 seconds, looks at the bidding addon's saved results on disk (written by the game at logout
+//      or /reload; reading a local file costs nothing) and, only when they've changed, sends them to the site
+//      as draft loot awards. The site skips ones it already has.
 //
 // Settings live in %APPDATA%\MysticDragonsCompanion\config.json.
 // Build: GOOS=windows GOARCH=amd64 go build -o MysticDragonsCompanion.exe
@@ -316,8 +317,8 @@ func syncResults() error {
 	return nil
 }
 
-func round() {
-	for _, step := range []func() error{syncSheet, syncResults} {
+func round(steps ...func() error) {
+	for _, step := range steps {
 		if err := step(); err != nil {
 			var ae *apiError
 			if errors.As(err, &ae) && (ae.Login || ae.Status == 401) {
@@ -328,7 +329,7 @@ func round() {
 				}
 				return
 			}
-			say("Problem: %v. Trying again in a couple of minutes.", err)
+			say("Problem: %v. Trying again soon.", err)
 			return
 		}
 	}
@@ -344,12 +345,18 @@ func main() {
 		saveConfig()
 	}
 	setup()
-	round()
+	round(syncSheet, syncResults)
 	if *once {
 		return
 	}
-	say("Watching. Results go up a minute or two after you log out or /reload. Close this window to stop.")
-	for range time.Tick(2 * time.Minute) {
-		round()
+	say("Watching. Results go up within a minute of you logging out or /reload. Close this window to stop.")
+	sheetTick, fileTick := time.NewTicker(15*time.Minute), time.NewTicker(30*time.Second)
+	for {
+		select {
+		case <-sheetTick.C:
+			round(syncSheet)
+		case <-fileTick.C:
+			round(syncResults)
+		}
 	}
 }

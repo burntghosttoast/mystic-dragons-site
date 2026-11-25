@@ -2,10 +2,11 @@
 
 One officer runs this on their Windows PC while they play. It keeps the bidding addon and the site in sync:
 
-- **Sheet in:** every 2 minutes it gets the latest approved DKP sheet from the site and saves it into a small
+- **Sheet in:** when it starts and every 15 minutes, it gets the latest approved DKP sheet from the site and saves it into a small
   helper addon (`MysticDragonsBids_Inbox`). The bidding addon loads it at the next login or `/reload` and shares it
   with everyone online. No more `/mdkp import`.
-- **Results out:** when the game saves (logout or `/reload`), it sends the addon's loot results to the site as draft
+- **Results out:** it checks the addon's saved file every 30 seconds (on your PC, free) and only when the game
+  has saved new results (logout or `/reload`) does it send the addon's loot results to the site as draft
   awards. No more `/mdkp export` and paste. Results already on the site are skipped.
 
 ## Use
