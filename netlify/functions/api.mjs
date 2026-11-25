@@ -4,6 +4,7 @@
 // - Raid signups and a change log live in Netlify Blobs (store "guild").
 import { getStore } from '@netlify/blobs';
 import { postSummary } from '../lib/summary.mjs';
+import { blizzToken, bget, iconFor, recipeDetail, RECIPE_V } from '../lib/gamedata.mjs';
 
 const CLASSES = {
   Warrior: ['Tank', 'Melee DPS'], Paladin: ['Tank', 'Healer', 'Melee DPS'], Hunter: ['Ranged DPS', 'Melee DPS'],
@@ -17,8 +18,6 @@ const ETA = ['Sometime in December', 'After the holidays', 'No idea yet'];
 const ATTUNE = ['I’ve done it', 'I’ll try to do it', 'I’ll need help', 'What attunement?', 'Probably won’t have time'];
 
 const GUILD = 'mystic-dragons';
-const API = 'https://us.api.blizzard.com';
-const NS = 'profile-forever-us';
 const SYNC_EVERY_MS = 20 * 60 * 1000;
 const CATCHUP_EVERY_MS = 60 * 1000; // while names/races are still missing
 const PROFILE_EVERY_MS = 6 * 60 * 60 * 1000;
@@ -62,26 +61,6 @@ async function moveSignup(s, fromKey, toKey) {
 }
 
 /* ---------- Blizzard ---------- */
-async function blizzToken(s) {
-  const cached = await s.get('meta/blizz-token', { type: 'json' });
-  if (cached && cached.expires > Date.now() + 60000) return cached.token;
-  const id = process.env.BLIZZARD_CLIENT_ID, secret = process.env.BLIZZARD_CLIENT_SECRET;
-  if (!id || !secret) return null;
-  const r = await fetch('https://oauth.battle.net/token', {
-    method: 'POST',
-    headers: { Authorization: 'Basic ' + Buffer.from(id + ':' + secret).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'grant_type=client_credentials'
-  });
-  if (!r.ok) return null;
-  const d = await r.json();
-  await s.setJSON('meta/blizz-token', { token: d.access_token, expires: Date.now() + (d.expires_in || 3600) * 1000 });
-  return d.access_token;
-}
-async function bget(token, path, ns = NS) {
-  const r = await fetch(`${API}${path}${path.includes('?') ? '&' : '?'}namespace=${ns}&locale=en_US`, { headers: { Authorization: 'Bearer ' + token } });
-  if (!r.ok) return { status: r.status, body: null };
-  return { status: 200, body: await r.json() };
-}
 // The Forever character slug is "first-last"; take it from the roster's link when it has one.
 const slugFromHref = href => { const m = /\/profile\/wow\/character\/(?:[^/?]+\/)?([^/?]+)\?/.exec(String(href || '')); return m ? decodeURIComponent(m[1]) : ''; };
 const titleCase = sl => sl.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -212,19 +191,7 @@ async function syncGuild(s, force) {
 // Forever's own namespace first, then Classic and Retail (item ids are shared).
 async function addIcons(s, token, info) {
   const ids = [...new Set((info.equipment || []).map(it => it.id).filter(Boolean))];
-  const icons = await Promise.all(ids.map(async id => {
-    let url = await s.get(`icon/${id}`);
-    if (url && url.startsWith('none:') && Date.now() - Number(url.slice(5)) < 86400000) return [id, ''];
-    if (!url || url.startsWith('none:')) {
-      for (const ns of ['static-forever-us', 'static-classic1x-us', 'static-us']) {
-        const r = await bget(token, `/data/wow/media/item/${id}`, ns);
-        url = (r.body?.assets || []).find(a => a.key === 'icon')?.value || '';
-        if (url) break;
-      }
-      await s.set(`icon/${id}`, url || 'none:' + Date.now());
-    }
-    return [id, /^https:\/\//.test(url || '') ? url : ''];
-  }));
+  const icons = await Promise.all(ids.map(async id => [id, await iconFor(s, token, id)]));
   const map = Object.fromEntries(icons);
   (info.equipment || []).forEach(it => { it.icon = map[it.id] || ''; });
   info.icons_v = 2;
@@ -455,27 +422,6 @@ export default async (req, context) => {
   try {
     await migrateKeys(s);
 
-    if (req.method === 'GET' && route === 'probe-gamedata') {
-      // Temporary: checks which Blizzard endpoints Forever answers, for the crafting search work.
-      const token = await blizzToken(s);
-      const out = {};
-      const peek = (b) => JSON.stringify(b).slice(0, 1500);
-      const tryp = async (label, path, ns) => { const r = await bget(token, path, ns); out[label] = { status: r.status, body: r.body ? peek(r.body) : null }; return r.body; };
-      for (const q of ["Admiral's Hat", 'Mooncloth Robe', 'Enchant Weapon - Mighty Intellect', 'Runecloth Bag']) {
-        const r = await bget(token, `/data/wow/search/item?name.en_US=${encodeURIComponent(q)}&_pageSize=10`, 'static-forever-us');
-        const hits = (r.body?.results || []).map(x => ({ id: x.data.id, name: x.data.name?.en_US, cls: x.data.item_class?.name?.en_US }));
-        out['search ' + q] = hits;
-        const pat = hits.find(h => h.cls === 'Recipe');
-        if (pat) { const it = (await bget(token, `/data/wow/item/${pat.id}`, 'static-forever-us')).body; const pv = it?.preview_item || {}; out['item ' + pat.name] = { keys: Object.keys(pv), req: pv.requirements, spells: pv.spells, desc: pv.description, recipe: pv.recipe ? JSON.stringify(pv.recipe).slice(0, 600) : null }; }
-      }
-      for (const pid of []) {
-        const pr = (await bget(token, `/data/wow/profession/${pid}`, 'static-forever-us')).body;
-        out['tiers ' + pid] = [];
-        for (const t of pr?.skill_tiers || []) { const tb = (await bget(token, `/data/wow/profession/${pid}/skill-tier/${t.id}`, 'static-forever-us')).body; out['tiers ' + pid].push({ id: t.id, name: t.name, n: (tb?.categories || []).reduce((a, c) => a + (c.recipes || []).length, 0), cats: (tb?.categories || []).map(c => c.name) }); }
-      }
-      return json(out);
-    }
-
     if (req.method === 'GET' && route === 'roster') {
       await seedFromForms(s, context);
       const force = url.searchParams.get('sync') === '1';
@@ -498,36 +444,22 @@ export default async (req, context) => {
       const id = parseInt(url.searchParams.get('id'), 10);
       if (!id) return json({ error: 'Missing recipe id' }, 400);
       const cached = await s.get(`recipe/${id}`, { type: 'json' });
-      if (cached) return Response.json(cached, { headers: { 'Cache-Control': 'public, max-age=86400' } });
+      if (cached && cached.v === RECIPE_V) return Response.json(cached, { headers: { 'Cache-Control': 'public, max-age=86400' } });
       const token = await blizzToken(s);
       if (!token) return json({ error: 'Game data unavailable' }, 503);
-      const nm = o => o?.name ?? '';
-      const rec = (await bget(token, `/data/wow/recipe/${id}`, 'static-forever-us')).body;
-      if (!rec) return json({ error: 'Recipe not found' }, 404);
-      const itemRef = rec.crafted_item || rec.alliance_crafted_item || rec.horde_crafted_item;
-      const out = {
-        id, name: nm(rec), description: rec.description || '',
-        quantity: rec.crafted_quantity?.value ?? rec.crafted_quantity?.minimum ?? null,
-        reagents: (rec.reagents || []).map(r => ({ name: nm(r.reagent), qty: r.quantity })),
-        item: null
-      };
-      if (itemRef?.id) {
-        const it = (await bget(token, `/data/wow/item/${itemRef.id}`, 'static-forever-us')).body;
-        const pv = it?.preview_item || {};
-        const d = x => x?.display_string || x?.display?.display_string || '';
-        if (it) out.item = {
-          id: itemRef.id, name: nm(it), quality: it.quality?.type || pv.quality?.type || '',
-          binding: nm(pv.binding), slot: nm(pv.inventory_type), type: nm(pv.item_subclass) || nm(it.item_subclass),
-          armor: d(pv.armor), damage: d(pv.weapon?.damage), speed: d(pv.weapon?.attack_speed), dps: d(pv.weapon?.dps),
-          stats: (pv.stats || []).map(d).filter(Boolean),
-          spells: (pv.spells || []).map(sp => sp.description).filter(Boolean),
-          durability: d(pv.durability), level: d(pv.requirements?.level), skill: d(pv.requirements?.skill),
-          description: pv.description || '', icon: ''
-        };
-        if (out.item) { const tmp = { equipment: [{ id: itemRef.id }] }; await addIcons(s, token, tmp); out.item.icon = tmp.equipment[0].icon || ''; }
-      }
+      const out = await recipeDetail(s, token, id);
+      if (!out) return json({ error: 'Recipe not found' }, 404);
       await s.setJSON(`recipe/${id}`, out);
       return Response.json(out, { headers: { 'Cache-Control': 'public, max-age=86400' } });
+    }
+
+    if (req.method === 'GET' && route === 'recipe-index') {
+      // Every recipe in the game (by profession) plus the short details the search uses.
+      const [cat, idx] = await Promise.all([s.get('meta/recipe-catalog', { type: 'json' }), s.get('meta/recipe-index', { type: 'json' })]);
+      const entries = idx?.e || {};
+      const total = new Set(Object.values(cat?.profs || {}).flatMap(p => p.recipes.map(r => r[0]))).size;
+      return Response.json({ catalog: cat?.profs || {}, index: entries, done: Object.keys(entries).length, total },
+        { headers: { 'Cache-Control': 'public, max-age=300' } });
     }
 
     if (req.method === 'GET' && route === 'crafting') {
@@ -547,7 +479,14 @@ export default async (req, context) => {
         });
       }));
       const scanned = chars.filter(c => c.prof_at).length;
-      return json({ professions: out, scanned, total: chars.length });
+      // Standings with the factions that sell recipes, for everyone who crafts.
+      const idx = await s.get('meta/recipe-index', { type: 'json' });
+      const fids = new Set(Object.values(idx?.e || {}).map(e => e.rep?.fid).filter(Boolean).map(String));
+      const crafters = chars.filter((c, i) => (profs[i] || []).length);
+      const repDocs = await Promise.all(crafters.map(c => s.get(`rep/${c.key}`, { type: 'json' })));
+      const reps = {};
+      crafters.forEach((c, i) => { const r = repDocs[i]; if (!r) return; reps[c.key] = Object.fromEntries(Object.entries(r.f || {}).filter(([f]) => fids.has(f))); });
+      return json({ professions: out, scanned, total: chars.length, reps });
     }
 
     if (req.method !== 'POST') return json({ error: 'Not found' }, 404);
