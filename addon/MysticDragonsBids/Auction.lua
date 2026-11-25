@@ -226,12 +226,29 @@ local function give(it, winner)
     return ok
 end
 
+-- After someone wins, their bids on other items may now be more than they have left. Drop those and tell them.
+local function dropOverBids(winner)
+    local person = D.PersonOf(winner)
+    local left = (D.Spendable(winner))
+    for _, other in ipairs(A.session.items) do
+        local b = other.bids[person]
+        if b and (other.state == "open" or other.state == "tie") and b.amount > left then
+            other.bids[person] = nil
+            local why = "Your bid of " .. b.amount .. " was dropped: you have " .. left .. " left after your win."
+            if b.via == "addon" then M.Send("NO:" .. A.session.sid .. ":" .. other.idx .. ":" .. why, "WHISPER", b.name)
+            elseif b.via == "whisper" then reply(b.name, "Your bid of " .. b.amount .. " on " .. linkOf(other) .. " was dropped: you have " .. left .. " left after your win.")
+            elseif b.via == "self" and ns.B then ns.B.OnMessage(C.PlayerName(), "NO", "NO:" .. A.session.sid .. ":" .. other.idx .. ":" .. why) end
+        end
+    end
+end
+
 local function finish(it, winner, price, kind)
     it.state, it.winner, it.price = "done", winner, price
     if winner ~= "-" then
         give(it, winner)
         local r = D.AddResult({ itemId = it.itemId, itemName = it.name or linkOf(it), winner = winner, price = price, kind = kind, test = A.session.test })
         it.result = r
+        dropOverBids(winner)
     end
     M.Send("W:" .. A.session.sid .. ":" .. it.idx .. ":" .. winner .. ":" .. price, C.GroupChannel())
     if ns.B then ns.B.Won(it.idx, winner, price) end

@@ -86,7 +86,7 @@ function B.OnMessage(sender, kind, msg)
         local it = sid == cur.sid and cur.items[tonumber(idx)]
         if not it then return end
         if kind == "OK" then it.status = rest == "pass" and "Passed" or ("Your bid: " .. rest)
-        else it.mine = nil; it.status = "|cffD96A5F" .. rest .. "|r" end
+        else it.mine = nil; it.status = "|cffD96A5F" .. rest .. "|r"; it.err, it.errUntil = rest, C.Now() + 8 end
     elseif kind == "LC" then
         local sid, idx, sec = msg:match("^LC:([^:]+):(%d+):(%d+)$")
         local it = sid == cur.sid and cur.items[tonumber(idx)]

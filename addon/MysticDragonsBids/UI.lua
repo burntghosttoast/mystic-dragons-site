@@ -240,10 +240,17 @@ local function buildBW()
         r.name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight"); r.name:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 8, 0); r.name:SetWidth(230); r.name:SetJustifyH("LEFT")
         r.status = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"); r.status:SetPoint("TOPLEFT", r.name, "BOTTOMLEFT", 0, -2); r.status:SetWidth(230); r.status:SetJustifyH("LEFT")
         r.pass = button(r, "Pass", 54, function() B.Bid(r.idx, "pass") end); r.pass:SetPoint("RIGHT", 0, 0)
-        r.bid = button(r, "Bid", 54, function() local ok, why = B.Bid(r.idx, r.box:GetText()); if not ok then r.err = why; UI.Refresh() end end); r.bid:SetPoint("RIGHT", r.pass, "LEFT", -4, 0)
+        -- A refused bid shows in red under the item for 8 seconds.
+        local function try(text)
+            local ok, why = B.Bid(r.idx, text)
+            local it = B.cur and B.cur.items[r.idx]
+            if it then if ok then it.err = nil else it.err, it.errUntil = why, C.Now() + 8 end end
+            UI.Refresh()
+        end
+        r.bid = button(r, "Bid", 54, function() try(r.box:GetText()) end); r.bid:SetPoint("RIGHT", r.pass, "LEFT", -4, 0)
         r.box = CreateFrame("EditBox", nil, r, "InputBoxTemplate"); r.box:SetSize(50, 22); r.box:SetPoint("RIGHT", r.bid, "LEFT", -8, 0)
         r.box:SetAutoFocus(false); r.box:SetNumeric(true); r.box:SetMaxLetters(4)
-        r.box:SetScript("OnEnterPressed", function(self) self:ClearFocus(); local ok, why = B.Bid(r.idx, self:GetText()); if not ok then r.err = why; UI.Refresh() end end)
+        r.box:SetScript("OnEnterPressed", function(self) self:ClearFocus(); try(self:GetText()) end)
         r.clock = r:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); r.clock:SetPoint("RIGHT", r.box, "LEFT", -10, 0)
         r:Hide()
         bw.rows[i] = r
@@ -266,8 +273,8 @@ local function drawBW()
         local it = cur.items[i]
         if not it then r:Hide() else
             r:Show(); r.idx = i; fillItem(r, it)
-            r.status:SetText(r.err and (RED .. r.err .. "|r") or it.status or "")
-            r.err = nil
+            local err = it.err and C.Now() < (it.errUntil or 0) and it.err
+            r.status:SetText(err and (RED .. err .. "|r") or it.status or "")
             local open = not cur.closed and (it.state == "open" or it.state == "live" or (it.state == "tie" and it.canBid))
             r.box:SetShown(open); r.bid:SetShown(open); r.pass:SetShown(open and it.state == "open")
             r.clock:SetText(it.state ~= "done" and countdown(it) or "")
