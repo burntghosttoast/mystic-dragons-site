@@ -130,6 +130,7 @@ details>summary::-webkit-details-marker{display:none}
 <input class="md-in" type="search" id="q" placeholder="Search an item, recipe or stat, like “Runecloth Bag” or “attack power”" autocomplete="off" style="font-size: 18px; min-height: 54px">
 <div id="profs" style="display: flex; flex-wrap: wrap; gap: 8px"></div>
 <p id="scan" style="font-size: 14px; color: #8F857C"></p>
+<div id="views" role="group" aria-label="Which recipes to show" style="display: flex; flex-wrap: wrap; gap: 8px"></div>
 <div id="results" style="display: flex; flex-direction: column; gap: 12px"></div>
 </div>
 </div>
@@ -139,7 +140,7 @@ details>summary::-webkit-details-marker{display:none}
 <script>
 {
 const G=Guild,$=G.$,esc=G.esc,low=G.low;
-let data=null, prof='';
+let data=null, prof='', view='known';
 const rec=(name,ids)=>{const id=ids&&ids[name];return id?`<span class="rcp" tabindex="0" data-rid="${id}">${esc(name)}</span>`:esc(name)};
 /* ----- in-game style tooltip ----- */
 const QUAL={POOR:'#9d9d9d',COMMON:'#ffffff',UNCOMMON:'#1eff00',RARE:'#3d8ff5',EPIC:'#b45cf5',LEGENDARY:'#ff8000'};
@@ -223,29 +224,32 @@ function draw(){
  $('profs').innerHTML=['',...names].map(n=>`<button type="button" data-p="${esc(n)}" style='${G.chipStyle(prof===n)};text-transform:none;letter-spacing:.02em;font-size:15px;min-height:38px;padding:0 12px'>${n?esc(n)+` <span style="opacity:.7">${cnt(n)}</span>`:'All professions'}</button>`).join('');
  const q=low($('q').value).trim(),terms=q.split(/\s+/).filter(Boolean);
  const byKey={};Object.values(P).forEach(p=>p.crafters.forEach(c=>{byKey[c.key]=c}));
- if(q.length>=2){
-  // Search names and stats: recipes the guild knows, then ones nobody knows yet.
-  const known=[],unknown=[];
-  for(const n of names){
-   if(prof&&n!==prof)continue;
-   const p=P[n]||{recipes:{},ids:{}},seen=new Set();
-   const test=(r,id)=>{const e=entry(id),hay=low(r)+' '+(e?low(e.l)+' '+e.t:'');return terms.every(t=>hay.includes(t))};
-   for(const [r,keys] of Object.entries(p.recipes)){const id=p.ids&&p.ids[r];seen.add(r);if(test(r,id))known.push({r,n,keys,id})}
-   for(const [id,r] of (C[n]?.recipes||[]).map(x=>[x[0],x[1]])){if(seen.has(r))continue;seen.add(r);if(test(r,id))unknown.push({r,n,keys:[],id})}
-  }
-  known.sort((a,b)=>a.r.localeCompare(b.r));unknown.sort((a,b)=>a.r.localeCompare(b.r));
-  const more=(n,all)=>all>n?`<p style="color:#8F857C">Showing the first ${n} of ${all}. Try a more specific search.</p>`:'';
-  let h=known.slice(0,100).map(x=>card(x,byKey)).join('')+more(100,known.length);
-  if(unknown.length)h+=`<p class="md-lab" style="margin-top:${known.length?16:0}px">NOBODY IN THE GUILD KNOWS THESE YET · ${unknown.length}</p>`+unknown.slice(0,60).map(x=>card(x,byKey)).join('')+more(60,unknown.length);
-  $('results').innerHTML=h||`<p style="color:#8F857C">No recipes match “${esc($('q').value)}”.${idx&&idx.done<idx.total?' Stat searches are still filling in, so check back later too.':''}</p>`;
-  return;
+ // Recipes the guild knows, ones nobody knows yet, and the rep-gated ones among those.
+ const searching=q.length>=2,known=[],unknown=[];
+ for(const n of names){
+  if(prof&&n!==prof)continue;
+  const p=P[n]||{recipes:{},ids:{}},seen=new Set();
+  const test=(r,id)=>{if(!searching)return true;const e=entry(id),hay=low(r)+' '+(e?low(e.l)+' '+e.t:'');return terms.every(t=>hay.includes(t))};
+  for(const [r,keys] of Object.entries(p.recipes)){const id=p.ids&&p.ids[r];seen.add(r);if(test(r,id))known.push({r,n,keys,id})}
+  for(const [id,r] of (C[n]?.recipes||[]).map(x=>[x[0],x[1]])){if(seen.has(r))continue;seen.add(r);if(test(r,id))unknown.push({r,n,keys:[],id})}
  }
+ const repOnes=unknown.filter(x=>entry(x.id)?.rep);
+ const VIEWS=[['known','Guild can make',known.length],['unknown','Nobody knows yet',unknown.length],['rep','Needs rep',repOnes.length]];
+ if(!idx)view='known';
+ $('views').innerHTML=idx?VIEWS.map(([v,l,c])=>`<button type="button" data-v="${v}" aria-pressed="${view===v}" style='${G.chipStyle(view===v)};text-transform:none;letter-spacing:.02em;font-size:15px;min-height:38px;padding:0 14px'>${l} <span style="opacity:.7">${c}</span></button>`).join(''):'';
+ const more=(n,all)=>all>n?`<p style="color:#8F857C">Showing the first ${n} of ${all}. Try a more specific search.</p>`:'';
+ const list=(arr,empty)=>{arr.sort((a,b)=>a.r.localeCompare(b.r));$('results').innerHTML=arr.length?arr.slice(0,100).map(x=>card(x,byKey)).join('')+more(100,arr.length):`<p style="color:#8F857C">${empty}</p>`};
+ const filling=idx&&idx.done<idx.total?' Recipe details are still filling in, so check back later too.':'';
+ if(view==='unknown')return list(unknown,`Nothing here${searching?` matching “${esc($('q').value)}”`:''}.${filling}`);
+ if(view==='rep'){repOnes.sort((a,b)=>repText(entry(a.id).rep).localeCompare(repText(entry(b.id).rep))||a.r.localeCompare(b.r));$('results').innerHTML=repOnes.length?repOnes.slice(0,100).map(x=>card(x,byKey)).join('')+more(100,repOnes.length):`<p style="color:#8F857C">No rep recipes${searching?` matching “${esc($('q').value)}”`:''} that the guild is missing.${filling}</p>`;return}
+ if(searching)return list(known,`Nobody in the guild knows a recipe matching “${esc($('q').value)}”.${unknown.length?' Check “Nobody knows yet” for ones the guild could learn.':''}${filling}`);
  // Browse: crafters per profession, with their full recipe lists.
  const show=(prof?[prof]:names).filter(n=>P[n]);
  $('results').innerHTML=show.map(n=>{const p=P[n],all=C[n]?C[n].recipes.length:0,k=Object.keys(p.recipes).length;return `<div class="md-card" style="gap:10px"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;align-items:baseline"><h2 style="font-size:clamp(22px,3vw,27px)">${esc(n)}</h2><span style="color:#8F857C;font-size:14px">${p.crafters.length} ${p.crafters.length===1?'crafter':'crafters'} · ${all?`${k} of ${all}`:k} recipes known in the guild</span></div>${p.crafters.slice().sort((a,b)=>b.skill-a.skill||b.count-a.count).map(c=>`<details style="border-top:1px solid #2A2321;padding:8px 0"><summary style="cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:8px;list-style:none">${crafterChip(c)}<span style="color:#CFC7BE;font-size:14px">${c.max?`${c.skill} / ${c.max}`:c.skill} · ${c.count} recipes</span></summary><p style="color:#AEA49A;font-size:14px;margin-top:8px;line-height:1.7">${Object.entries(p.recipes).filter(([,k])=>k.includes(c.key)).map(([r])=>rec(r,p.ids)).join(' · ')||'No recipes listed.'}</p></details>`).join('')}</div>`}).join('')||(prof?`<p style="color:#8F857C">Nobody in the guild has ${esc(prof)} yet. Search to see its recipes.</p>`:'<p style="color:#8F857C">No professions found yet.</p>');
 }
 $('results').addEventListener('click',e=>{const b=e.target.closest('.rc-head');if(b&&b.dataset.id)expand(b)});
 $('q').addEventListener('input',draw);
+$('views').addEventListener('click',e=>{const b=e.target.closest('[data-v]');if(!b)return;view=b.dataset.v;draw()});
 $('profs').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;prof=b.dataset.p;draw()});
 (async()=>{
  try{
