@@ -41,24 +41,24 @@ export function apply(balances, txs, cap) {
 export async function addTx(s, t) {
   const at = t.at || stamp();
   const id = `${at.replace(/[:.]/g, '')}-${rid()}`;
-  const doc = { id, at, status: 'draft', ...t, at };
+  const doc = { id, status: 'draft', ...t, at };
   await s.setJSON(`dkp/tx/${id}`, doc);
   return doc;
 }
 
 // Attendance for one raid night. Each person counts once even if several of their
 // characters are listed. Bench gets both start and end points.
-export async function recordNight(s, { date, group, start = [], end = [], bench = [], by }, charsByKey) {
+export async function recordNight(s, { date, group, start = [], end = [], bench = [], by, at: when }, charsByKey) {
   const cfg = await settings(s), st = await state(s);
   const drafts = await allTx(s, 'draft');
   const startedDraft = new Set(drafts.filter(t => t.kind === 'start').map(t => t.person));
-  const night = { id: `${date}-${rid()}`, date, group: group || '', by, at: stamp() };
+  const night = { id: `${date}-${rid()}`, date, group: group || '', by, at: when || stamp() };
   await s.setJSON(`dkp/nights/${night.id}`, night);
   const people = new Map();
   const mark = (keys, field) => keys.forEach(k => { const c = charsByKey[k]; if (!c) return; const p = personOf(c); const e = people.get(p) || { char: c.key }; e[field] = true; people.set(p, e); });
   mark(start, 'start'); mark(end, 'end'); mark(bench, 'bench');
   // One timestamp for the whole night; ord keeps each person's lines in order.
-  const at = stamp();
+  const at = when || stamp();
   let n = 0;
   for (const [person, e] of people) {
     const o = n * 3; n++;
@@ -76,9 +76,9 @@ export async function draftSheet(s) {
   return { cfg, st, drafts, balances: apply(st.approved, drafts, cfg.cap) };
 }
 
-export async function approve(s, by) {
+export async function approve(s, by, when) {
   const { cfg, st, drafts, balances } = await draftSheet(s);
-  const at = stamp();
+  const at = when || stamp();
   for (const t of drafts) { if (t.kind === 'start') st.started[t.person] = true; await s.setJSON(`dkp/tx/${t.id}`, { ...t, status: 'approved', approvedAt: at }); }
   const next = { ...st, approved: balances, approvedAt: at, approvedBy: by };
   await s.setJSON('dkp/state', next);
@@ -87,13 +87,13 @@ export async function approve(s, by) {
 }
 
 // Weekly decay as draft lines, for everyone holding DKP. Runs early Tuesday.
-export async function addDecay(s, by = 'Weekly decay', force = false) {
+export async function addDecay(s, by = 'Weekly decay', force = false, when) {
   const { cfg, balances } = await draftSheet(s);
-  const week = stamp().slice(0, 10);
+  const week = (when || stamp()).slice(0, 10);
   const st = await state(s);
   if (st.lastDecay === week && !force) return 0;
   let n = 0;
-  for (const [person, bal] of Object.entries(balances)) if (bal > 0) { await addTx(s, { person, delta: -cfg.decay, kind: 'decay', note: 'Weekly decay', by }); n++; }
+  for (const [person, bal] of Object.entries(balances)) if (bal > 0) { await addTx(s, { at: when, person, delta: -cfg.decay, kind: 'decay', note: 'Weekly decay', by }); n++; }
   await s.setJSON('dkp/state', { ...st, lastDecay: week });
   return n;
 }
@@ -107,4 +107,49 @@ export async function resetAll(s) {
   }
   await s.delete('dkp/state');
   return n;
+}
+
+// Example data for trying the officer tools: six November raid nights (Mon/Wed),
+// the last one left as drafts to review. Uses the given characters as raiders.
+export async function seedDemo(s, raiders, charsByKey, by) {
+  await resetAll(s);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const pickN = (arr, n) => arr.slice().sort(() => rnd() - 0.5).slice(0, n);
+  const ITEMS = ['Band of Accuria', 'Onyxia Tooth Pendant', 'Cenarion Boots', 'Felheart Gloves', 'Giantstalker’s Belt', 'Lawbringer Bracers',
+    'Nightslayer Shoulder Pads', 'Earthshaker', 'Choker of Enlightenment', 'Helm of Wrath', 'Robe of Volatile Power', 'Ring of Spell Power',
+    'Medallion of Steadfast Might', 'Sorcerous Dagger', 'Fireproof Cloak', 'Gutgore Ripper', 'Arcanist Crown', 'Vis’kag the Bloodletter',
+    'Head of Onyxia', 'Eskhandar’s Right Claw', 'Mana Igniting Cord', 'Aged Core Leather Gloves', 'Wristguards of Stability', 'Heavy Dark Iron Ring'];
+  const nights = ['2026-11-02', '2026-11-04', '2026-11-09', '2026-11-11', '2026-11-16', '2026-11-18'];
+  const profile = new Map(raiders.map(c => { const r = rnd(); return [c.key, r < 0.5 ? 'regular' : r < 0.8 ? 'some' : 'two']; }));
+  const twoNights = new Map(raiders.map(c => [c.key, pickN([0, 1, 2, 3, 4, 5], 2)]));
+  const cfg = await settings(s);
+  const spend = {};
+  for (let n = 0; n < nights.length; n++) {
+    const date = nights[n], at = `${date}T23:30:00.000Z`;
+    const here = raiders.filter(c => { const p = profile.get(c.key); return p === 'regular' ? rnd() > 0.05 : p === 'some' ? rnd() < 0.65 : twoNights.get(c.key).includes(n); });
+    const missing = raiders.filter(c => !here.includes(c) && profile.get(c.key) === 'regular');
+    const bench = missing.length && rnd() < 0.5 ? [missing[0].key] : [];
+    const start = here.map(c => c.key), end = here.filter(() => rnd() > 0.15).map(c => c.key);
+    await recordNight(s, { date, start, end, bench, by, at }, charsByKey);
+    // Loot: 2–4 items to people who were there at the start, within what they can spend.
+    const { st } = await draftSheet(s);
+    const drafts = await allTx(s, 'draft');
+    const avail = apply(st.approved, drafts.filter(t => t.delta < 0 || t.kind === 'start'), cfg.cap);
+    const nItems = 2 + Math.floor(rnd() * 3);
+    for (const item of pickN(ITEMS, nItems)) {
+      const who = pickN(here, here.length).find(c => (avail[personOf(c)] || 0) >= 5);
+      if (!who) continue;
+      const p = personOf(who), max = Math.min(avail[p], 45);
+      const bid = 5 + Math.floor(rnd() * (max - 4));
+      avail[p] -= bid; spend[p] = (spend[p] || 0) + bid;
+      await addTx(s, { at: `${date}T23:45:00.000Z`, ord: Math.floor(rnd() * 100), person: p, char: who.key, delta: -bid, kind: 'award', item, by });
+    }
+    if (n === 2) { const c = here[0]; if (c) await addTx(s, { at: `${date}T23:50:00.000Z`, person: personOf(c), char: c.key, delta: 3, kind: 'adjust', note: 'Brought feasts for the raid', by }); }
+    if (n === 4) { const c = here[here.length - 1]; if (c) await addTx(s, { at: `${date}T23:50:00.000Z`, person: personOf(c), char: c.key, delta: -5, kind: 'adjust', note: 'Showed up after the first pull', by }); }
+    if (n === nights.length - 1) break; // last night stays as drafts to review
+    const d = new Date(date + 'T12:00:00Z'), mon = d.getUTCDay() === 1;
+    if (mon) await addDecay(s, 'Weekly decay', true, new Date(d.getTime() + 17 * 3600e3 + 5 * 60e3).toISOString());
+    await approve(s, by, new Date(d.getTime() + (mon ? 29 : 29) * 3600e3).toISOString());
+  }
+  return { nights: nights.length, raiders: raiders.length };
 }

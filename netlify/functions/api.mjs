@@ -75,7 +75,7 @@ function roleFields(body, cls, prev = {}) {
 const publicChar = c => ({
   key: c.key, name: c.name, first: c.first || c.name, cls: c.cls, level: c.level, race: c.race || '', rank: c.rank ?? null,
   main_role: c.main_role || '', also_play: c.also_play || [], main_spec: c.main_spec || '', also_specs: c.also_specs || [], synced: !!c.synced, in_guild: c.in_guild !== false,
-  claimed: (c.claims || []).length > 0, locked: !!c.lock, updated_at: c.updated_at
+  claimed: (c.claims || []).length > 0, locked: !!c.lock, alt_of: c.alt_of || '', updated_at: c.updated_at
 });
 async function moveSignup(s, fromKey, toKey) {
   const sign = await s.get(`signup/dec9/${fromKey}`, { type: 'json' });
@@ -358,7 +358,7 @@ function profList(body) {
 
 /* ---------- Officers ---------- */
 const rid = () => (globalThis.crypto?.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-async function officerRoute(s, route, body) {
+async function officerRoute(s, route, body, reqUrl = '') {
   if (route === 'officer/login') {
     const expected = process.env.OFFICER_PASSWORD;
     if (!expected) return json({ error: 'The officer password hasn’t been set up yet.' }, 503);
@@ -534,6 +534,16 @@ async function officerRoute(s, route, body) {
       await log(s, 'dkp-decay', `${n} people`, 'officer', { by: who });
       return json({ ok: true, people: n });
     }
+    if (route === 'officer/dkp-demo') {
+      // Example data, only on preview sites (never the live site).
+      if (!/^dev--|localhost/.test(new URL(reqUrl).hostname)) return json({ error: 'Example data only works on the preview site.' }, 403);
+      const signs = await Promise.all(chars.map(x => s.get(`signup/dec9/${x.key}`, { type: 'json' })));
+      const raiders = chars.filter((x, i) => signs[i] && signs[i].dec9 !== 'No');
+      if (raiders.length < 3) return json({ error: 'Need at least 3 people signed up for Dec 9 to build examples from.' }, 400);
+      const r = await DKP.seedDemo(s, raiders, byKey, who);
+      await log(s, 'dkp-demo', `${r.nights} example nights`, 'officer', { by: who });
+      return json({ ok: true, ...r });
+    }
     if (route === 'officer/dkp-reset') {
       if (body.confirm !== 'RESET') return json({ error: 'Type RESET to confirm.' }, 400);
       const n = await DKP.resetAll(s);
@@ -586,9 +596,10 @@ export default async (req, context) => {
       else if (syncDue(sync, force)) { const job = syncGuild(s, force); if (context?.waitUntil) context.waitUntil(job); else await job; }
       const chars = (await allChars(s)).filter(c => c.key && (c.in_guild !== false || (c.claims || []).length));
       const sign = await Promise.all(chars.map(c => s.get(`signup/dec9/${c.key}`, { type: 'json' })));
+      const lockedMain = new Set(chars.filter(c => c.lock).map(c => c.key));
       return json({
         characters: chars.map((c, i) => ({
-          ...publicChar(c),
+          ...publicChar(c), locked: !!c.lock || lockedMain.has(c.alt_of), lock_via: !c.lock && lockedMain.has(c.alt_of) ? c.alt_of : undefined,
           signup: sign[i] ? { dec9: sign[i].dec9, attune: sign[i].attune, later: sign[i].later, eta: sign[i].eta, discord: sign[i].discord || '' } : null
         })),
         synced_at: sync && sync.ok ? sync.at : null,
@@ -665,7 +676,7 @@ export default async (req, context) => {
 
     if (req.method !== 'POST') return json({ error: 'Not found' }, 404);
     const body = await req.json().catch(() => ({}));
-    if (route.startsWith('officer/')) return await officerRoute(s, route, body);
+    if (route.startsWith('officer/')) return await officerRoute(s, route, body, req.url);
     const device = clean(body.device, 64);
     if (device.length < 8) return json({ error: 'Missing device id' }, 400);
 
@@ -728,11 +739,14 @@ export default async (req, context) => {
       }
       if (!c) return json({ error: 'That character isn’t on the roster' }, 404);
       const claims = c.claims || [];
-      if (c.lock && !claims.includes(device)) {
+      // Alts linked to a main use the main's password.
+      const lockOwner = c.alt_of ? (await s.get(`char/${c.alt_of}`, { type: 'json' })) : null;
+      const lock = lockOwner?.lock || c.lock;
+      if (lock && !claims.includes(device)) {
         // Locked by its owner: the password replaces the pinky promise.
         if (!body.charPassword) return json({ needsPassword: true, name: c.name, key: c.key });
         if (await tooMany(s, device)) return json({ error: 'Too many wrong tries. Wait a few minutes.' }, 429);
-        if (!checkLock(c.lock, body.charPassword)) { await failed(s, device); return json({ error: `That’s not the password for ${c.name}.` }, 403); }
+        if (!checkLock(lock, body.charPassword)) { await failed(s, device); return json({ error: `That’s not the password for ${c.name}${lockOwner?.lock ? ` (it uses ${lockOwner.name}’s password)` : ''}.` }, 403); }
       } else if (claims.length && !claims.includes(device) && !body.confirm) return json({ needsConfirm: true, name: c.name, key: c.key });
       if (!claims.includes(device)) {
         c.claims = [...claims, device].slice(-10);
@@ -761,11 +775,14 @@ export default async (req, context) => {
       const pw = String(body.password || '');
       if (pw && pw.length < 4) return json({ error: 'Use at least 4 characters.' }, 400);
       if (pw.length > 100) return json({ error: 'That’s too long.' }, 400);
-      const next = { ...c };
+      // A linked alt shares its main's password, so set it on the main.
+      const owner = c.alt_of ? (await s.get(`char/${c.alt_of}`, { type: 'json' })) || c : c;
+      const next = { ...owner };
       if (pw) next.lock = makeLock(pw); else delete next.lock;
-      await s.setJSON(`char/${c.key}`, next);
-      await log(s, pw ? 'lock' : 'unlock', c.name, device);
-      return json({ ok: true, character: publicChar(next) });
+      await s.setJSON(`char/${owner.key}`, next);
+      if (owner.key !== c.key && c.lock) { const { lock: _l, ...rest } = c; await s.setJSON(`char/${c.key}`, rest); }
+      await log(s, pw ? 'lock' : 'unlock', owner.name, device, owner.key !== c.key ? { from: c.name } : undefined);
+      return json({ ok: true, via: owner.key !== c.key ? owner.name : '', character: { ...publicChar(c), locked: !!pw } });
     }
 
     if (route === 'unclaim') {

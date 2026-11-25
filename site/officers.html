@@ -199,6 +199,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <span class="md-lab" style="color: #D96A5F">START OVER</span>
 <p style="font-size: 15px; color: #CFC7BE">Deletes every raid night, award, adjustment, sheet and balance. Settings and alt links stay. Use it to clear test data before raids start.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 8px"><input class="md-in" id="dkResetTxt" placeholder="Type RESET" style="max-width: 200px"><button type="button" id="dkReset" class="rs-btn">DELETE ALL DKP DATA</button></div>
+<div id="dkDemoRow" hidden style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-top: 1px solid #362D2A; padding-top: 10px; margin-top: 4px"><button type="button" id="dkDemo" class="rs-btn">FILL WITH EXAMPLE DATA</button><span style="font-size: 14px; color: #8F857C">Preview site only. Replaces everything with six made-up November raid nights.</span></div>
 </div>
 </div>
 
@@ -301,6 +302,8 @@ $('dkLinks').addEventListener('click',e=>{const b=e.target.closest('[data-dk-unl
 $('dkSet').addEventListener('submit',e=>{e.preventDefault();const body={};document.querySelectorAll('[data-set]').forEach(i=>{body[i.dataset.set]=i.value});dkDo('dkp-settings',body,'Settings saved. They apply to changes added from now on.')});
 $('dkDrafts').addEventListener('click',e=>{const b=e.target.closest('[data-dk-rm]');if(b)confirmBtn(b,'Sure?',()=>dkDo('dkp-tx-delete',{id:b.dataset.dkRm},'Draft change removed.'))});
 $('dkReset').addEventListener('click',e=>confirmBtn(e.target,'REALLY DELETE EVERYTHING?',()=>dkDo('dkp-reset',{confirm:$('dkResetTxt').value.trim()},d=>`All DKP data deleted (${d.removed} records).`,()=>{$('dkResetTxt').value=''})));
+$('dkDemoRow').hidden=!/^dev--|localhost/.test(location.hostname);
+$('dkDemo').addEventListener('click',e=>confirmBtn(e.target,'REPLACE ALL DKP WITH EXAMPLES?',()=>dkDo('dkp-demo',{},d=>`Example data added: ${d.nights} raid nights for ${d.raiders} raiders. The last night is still a draft to review.`)));
 $('dkApprove').addEventListener('click',e=>confirmBtn(e.target,'APPROVE? THIS MAKES IT OFFICIAL',()=>dkDo('dkp-approve',{},d=>`Sheet approved: ${d.changes} changes, ${d.people} people.`)));
 
 function drawSignups(){

@@ -192,7 +192,8 @@ function drawHead(){
 }
 
 function drawLock(c){
- $('lockLine').textContent=c.locked?`${c.name} is locked. Anyone claiming it on another browser needs the password. You don’t, on this one.`:`Lock ${c.name} so nobody else can claim it, or see its DKP, without a password.`;
+ const via=c.lock_via&&G.byKey(c.lock_via);
+ $('lockLine').textContent=c.locked?`${c.name} is locked${via?` with ${via.name}’s password (alts share their main’s)`:''}. Anyone claiming it on another browser needs the password. You don’t, on this one.`:`Lock ${c.name} so nobody else can claim it, or see its DKP, without a password.${c.alt_of?'':' Alts linked to it share the same password.'}`;
  $('lockOff').hidden=!c.locked;$('lockPw').placeholder=c.locked?'Change password':'New password';$('lockMsg').textContent='';
 }
 let dkpReq=0;
@@ -203,7 +204,7 @@ async function loadDkp(c){
 }
 async function setLock(pw){
  const c=G.byKey(sel);
- try{const d=await G.api('lock',{key:c.key,password:pw});Object.assign(c,d.character);$('lockPw').value='';drawLock(c);$('lockMsg').textContent=pw?'Locked. Keep the password somewhere safe; an officer can remove it if you forget.':'Password removed.'}
+ try{const d=await G.api('lock',{key:c.key,password:pw});Object.assign(c,d.character);$('lockPw').value='';drawLock(c);$('lockMsg').textContent=(pw?'Locked. Keep the password somewhere safe; an officer can remove it if you forget.':'Password removed.')+(d.via?` This changed ${d.via}’s password, which its alts share.`:'')}
  catch(x){$('lockMsg').textContent=x.message}
 }
 $('lockCard').addEventListener('submit',e=>{e.preventDefault();const pw=$('lockPw').value;if(pw.length<4){$('lockMsg').textContent='Use at least 4 characters.';return}setLock(pw)});

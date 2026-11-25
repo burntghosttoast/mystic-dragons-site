@@ -293,10 +293,12 @@ export async function handleDiscord(req, s, ctx, d) {
   // A locked character needs its password, unless this Discord user is already linked to it.
   async function pickChar(c, pw) {
     const cur = await s.get(`dlink/${uid}`, { type: 'json' });
-    if (c.lock && cur?.key !== c.key) {
+    const owner = c.alt_of ? await s.get(`char/${c.alt_of}`, { type: 'json' }) : null;
+    const lock = owner?.lock || c.lock;
+    if (lock && cur?.key !== c.key) {
       if (!pw) return i.type === 3 ? pwModal(c.key, c.name) : respond(i, `**${c.name}** is locked. Use Try again and enter its password in the second box.`, [{ type: 1, components: [btn('su:switch', 'Try again', 1)] }]);
       if (await tooMany(s, 'discord:' + uid)) return respond(i, 'Too many wrong tries. Wait a few minutes.', []);
-      if (!checkLock(c.lock, pw)) { await failed(s, 'discord:' + uid); return respond(i, `That’s not the password for **${c.name}**.`, [{ type: 1, components: [btn('su:switch', 'Try again', 1)] }]); }
+      if (!checkLock(lock, pw)) { await failed(s, 'discord:' + uid); return respond(i, `That’s not the password for **${c.name}**.`, [{ type: 1, components: [btn('su:switch', 'Try again', 1)] }]); }
     }
     await s.setJSON(`dlink/${uid}`, { key: c.key, at: new Date().toISOString(), discord: handle });
     await d.log(s, 'discord-link', c.name, 'discord:' + uid, { discord: handle });
