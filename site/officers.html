@@ -145,7 +145,7 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 
 <form id="dkNight" class="md-card" novalidate style="gap: 10px">
 <span class="md-lab">RAID NIGHT ATTENDANCE</span>
-<p style="font-size: 14px; color: #8F857C">Tick who was there at the start and at the end. Bench gets both. Someone’s alts count toward the same person, once a night. First-timers also get their starting DKP.</p>
+<p style="font-size: 14px; color: #8F857C">For now this is how attendance gets in. Later the bidding tool fills it in, and this is for fixes like bench. Tick who was there at the start and at the end. Bench gets both. Someone’s alts count toward the same person, once a night. First-timers also get their starting DKP.</p>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
 <input class="md-in" type="date" id="dkDate" style="width: auto">
 <input class="md-in" type="text" id="dkGroup" maxlength="40" placeholder="Group (optional), like Group A" style="max-width: 260px">
@@ -159,7 +159,8 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px">
 <form id="dkAward" class="md-card" novalidate style="gap: 8px">
-<span class="md-lab">LOOT AWARD</span>
+<span class="md-lab">ADD A MISSED LOOT AWARD</span>
+<p style="font-size: 14px; color: #8F857C">Only for loot the bidding tool didn’t record.</p>
 <input class="md-in" list="dkChars" id="dkAChar" placeholder="Winner (character)">
 <input class="md-in" id="dkAItem" maxlength="80" placeholder="Item name">
 <input class="md-in" type="number" id="dkAAmt" min="0" placeholder="Winning bid">
