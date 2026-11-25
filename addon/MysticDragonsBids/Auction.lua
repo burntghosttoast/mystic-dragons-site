@@ -336,7 +336,7 @@ end
 -- Take back an award made by mistake (the DKP goes back; the item has to be traded back by hand).
 function A.Undo(idx)
     local it = item(idx); if not it or it.state ~= "done" then return end
-    if it.result then it.result.undone = true end
+    if it.result then it.result.undone = true; D.RefreshExport() end
     it.state, it.winner, it.price, it.result = "open", nil, nil, nil
     if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
 end
@@ -423,6 +423,7 @@ function A.End()
         local kept = {}
         for _, r in ipairs(D.db.results) do if not r.test then kept[#kept + 1] = r end end
         D.db.results = kept
+        D.RefreshExport()
     end
     if not A.session.solo then M.Send("X:" .. A.session.sid, C.GroupChannel()) end
     if ns.B then ns.B.Close(A.session.sid) end

@@ -19,6 +19,12 @@ function D.Init()
     local db = MDBidsDB
     for k, v in pairs(defaults()) do if db[k] == nil then db[k] = v end end
     D.db = db
+    -- The companion app drops the newest approved sheet into a small helper addon
+    -- (MysticDragonsBids_Inbox) as MDBidsInbox. Take it if it's newer than the one we have.
+    if type(MDBidsInbox) == "string" then
+        local sheet = D.ParseSheet(MDBidsInbox)
+        if sheet and D.SetSheet(sheet) then D.fromInbox = true end
+    end
 end
 
 local function check(body)
@@ -121,7 +127,14 @@ function D.AddResult(r)
     r.sheet = D.db.sheet and D.db.sheet.at or ""
     r.person = D.PersonOf(r.winner)
     table.insert(D.db.results, r)
+    D.RefreshExport()
     return r
+end
+
+-- The companion app reads this from the saved variables after a logout or /reload.
+function D.RefreshExport()
+    local text, n = D.ExportString()
+    D.db.export = n > 0 and text or nil
 end
 
 -- Results not yet confirmed as imported by the site (all of them, until /mdkp clear).
@@ -146,6 +159,7 @@ function D.ClearResults()
     for _, r in ipairs(D.db.results) do if after(r, D.db.sheet) and not r.test then kept[#kept + 1] = r end end
     local dropped = #D.db.results - #kept
     D.db.results = kept
+    D.RefreshExport()
     return dropped
 end
 

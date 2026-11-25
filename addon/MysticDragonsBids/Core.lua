@@ -120,6 +120,15 @@ f:SetScript("OnEvent", function(_, event, ...)
         elseif event == "PLAYER_LOGIN" then
             C.RequestGuildRoster()
             C.After(8, M.Hello)
+            if D.fromInbox then
+                -- A new sheet arrived from the companion app: say so, and (if I'm an officer) share it.
+                local s = D.db.sheet
+                C.After(15, function()
+                    ns.Print("Loaded the DKP sheet approved " .. ns.When(s.at) .. " from the companion app.")
+                    local rank = C.MyGuildRank()
+                    if rank and rank <= 1 then M.SendSheet() end
+                end)
+            end
         elseif event == "CHAT_MSG_ADDON" then
             M.OnMessage(...)
         elseif event == "CHAT_MSG_WHISPER" then

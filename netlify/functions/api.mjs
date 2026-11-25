@@ -527,6 +527,16 @@ async function officerRoute(s, route, body, reqUrl = '') {
     if (route === 'officer/dkp-addon-import') {
       // Results pasted from the in-game addon (/mdkp export). The page checks the paste; here each row
       // becomes a draft loot line, matched to its raid night by date. Rows already imported are skipped.
+      // Either rows the page already checked, or the raw export text (the companion app sends that).
+      if (typeof body.text === 'string') {
+        const m = body.text.replace(/\s*\n\s*/g, '').trim().match(/^MDKPR1:([^#]*)#(.*)#(\d+)$/);
+        if (!m) return json({ error: 'That isn’t an export from the addon.' }, 400);
+        let sum = 0; for (const b of Buffer.from(m[2], 'utf8')) sum = (sum * 31 + b) % 1000003;
+        if (String(sum) !== m[3]) return json({ error: 'The export got cut off or changed.' }, 400);
+        const head = Object.fromEntries(m[1].split(',').map(x => x.split('=')));
+        body.lm = head.lm;
+        body.rows = m[2] ? m[2].split(';').map(r => { const [seq, at, itemId, item, winner, price, kind] = r.split('='); return { seq, at, itemId, item, winner, price, kind }; }) : [];
+      }
       const lm = clean(body.lm, 40) || 'addon';
       const rows = (Array.isArray(body.rows) ? body.rows : []).slice(0, 200);
       const all = await DKP.allTx(s);
