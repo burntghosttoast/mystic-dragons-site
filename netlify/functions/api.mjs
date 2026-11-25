@@ -467,7 +467,7 @@ async function officerRoute(s, route, body, reqUrl = '') {
         approved: st.approved[p] || 0, draft: balances[p] || 0
       })).sort((a, b) => b.draft - a.draft || a.name.localeCompare(b.name));
       // Every change, approved and draft, in order, for the officer views.
-      const tx = (await DKP.allTx(s)).map(t => ({ id: t.id, at: t.at, person: t.person, delta: t.delta, kind: t.kind, status: t.status, night: t.night || '', item: t.item || '', note: t.note || '', by: t.by || '', char: t.char || '', charName: byKey[t.char]?.name || '' }));
+      const tx = (await DKP.allTx(s)).map(t => ({ id: t.id, at: t.at, person: t.person, delta: t.delta, kind: t.kind, status: t.status, night: t.night || '', item: t.item || '', note: t.note || '', undo: t.undo || '', by: t.by || '', char: t.char || '', charName: byKey[t.char]?.name || '' }));
       return json({ settings: cfg, approvedAt: st.approvedAt || null, approvedBy: st.approvedBy || '', people, nights, tx,
         drafts: drafts.map(t => ({ ...t, name: pname(t.person), charName: byKey[t.char]?.name || '' })),
         links: chars.filter(x => x.alt_of).map(x => ({ key: x.key, name: x.name, main: x.alt_of, mainName: pname(x.alt_of) })) });
@@ -477,10 +477,18 @@ async function officerRoute(s, route, body, reqUrl = '') {
       const list = k => (Array.isArray(body[k]) ? body[k] : []).map(x => clean(x, 40)).filter(x => byKey[x]);
       const r = await DKP.recordNight(s, { date, group: clean(body.group, 40), start: list('start'), end: list('end'), bench: list('bench'), by: who }, byKey);
       if (r.people) { const n = k => byKey[k]?.name || k; await DKP.audit(s, 'night', who, `Raid night ${date}${r.night.group ? ' (' + r.night.group + ')' : ''} entered for ${r.people} ${r.people === 1 ? 'person' : 'people'}`, { night: r.night.id, date, group: r.night.group, start: list('start').map(n), end: list('end').map(n), bench: list('bench').map(n) }); }
-      if (r.duplicate) return json({ error: `That night (${date}${r.duplicate.group ? ', ' + r.duplicate.group : ''}) is already entered. Fix it from Raid nights, or give this one a different group name.` }, 409);
+      if (r.duplicate) return json({ error: `That night (${date}${r.duplicate.group ? ', ' + r.duplicate.group : ''}) is already entered. To change who was there, open it under Raid nights and press Edit attendance. If it was a second raid that night, give it a group name.` }, 409);
       if (!r.people) return json({ error: 'Tick at least one person.' }, 400);
       await log(s, 'dkp-night', `${date}${r.night.group ? ' ' + r.night.group : ''}`, 'officer', { by: who, people: r.people });
       return json({ ok: true, people: r.people });
+    }
+    if (route === 'officer/dkp-night-edit') {
+      const list = k => (Array.isArray(body[k]) ? body[k] : []).map(x => clean(x, 40)).filter(x => byKey[x]);
+      const r = await DKP.editNight(s, clean(body.night, 60), { start: list('start'), end: list('end'), bench: list('bench'), by: who }, byKey);
+      if (r.error) return json({ error: r.error }, 404);
+      const L = { 'attend-start': 'start', 'attend-end': 'end', bench: 'bench' }, say = a => a.length ? a.map(k => L[k]).join(' + ') : 'not there';
+      if (r.changes.length) await DKP.audit(s, 'night-edit', who, `Edited raid night ${r.night.date}${r.night.group ? ' (' + r.night.group + ')' : ''}: ` + r.changes.map(c => `${byKey[c.person]?.name || c.person} ${say(c.before)} → ${say(c.after)}`).join('; '), { night: r.night.id, changes: r.changes });
+      return json({ ok: true, changes: r.changes.length });
     }
     if (route === 'officer/dkp-award' || route === 'officer/dkp-adjust') {
       const ch = byKey[clean(body.char, 40)];

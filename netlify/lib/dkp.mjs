@@ -94,6 +94,57 @@ export async function recordNight(s, { date, group, start = [], end = [], bench 
   return { night, people: people.size };
 }
 
+const ATT = ['attend-start', 'attend-end', 'bench'];
+const ATT_LABEL = { 'attend-start': 'raid start', 'attend-end': 'raid end', bench: 'bench' };
+// Change who was at a night after the fact. Draft lines for the night are rewritten;
+// approved lines stay (they're on a signed sheet) and get a draft correction instead.
+export async function editNight(s, nightId, { start = [], end = [], bench = [], by }, charsByKey) {
+  const night = await s.get(`dkp/nights/${nightId}`, { type: 'json' });
+  if (!night) return { error: 'That raid night isn’t there anymore.' };
+  const cfg = await settings(s), st = await state(s);
+  const all = await allTx(s);
+  const mine = all.filter(t => t.night === nightId);
+  const want = new Map();
+  const mark = (keys, field) => keys.forEach(k => { const c = charsByKey[k]; if (!c) return; const p = personOf(c); const e = want.get(p) || { char: c.key }; e[field] = true; want.set(p, e); });
+  mark(start, 'start'); mark(end, 'end'); mark(bench, 'bench');
+  const people = new Set([...want.keys(), ...mine.filter(t => ATT.includes(t.kind) || t.kind === 'attend-fix' || t.kind === 'start').map(t => t.person)]);
+  const amount = { 'attend-start': cfg.attendStart, 'attend-end': cfg.attendEnd, bench: cfg.attendStart + cfg.attendEnd };
+  const at = night.at; let ord = 1000 + mine.reduce((m, t) => Math.max(m, t.ord || 0), 0);
+  const changes = [];
+  for (const person of people) {
+    const w = want.get(person);
+    const desired = !w ? [] : w.bench ? ['bench'] : [w.start && 'attend-start', w.end && 'attend-end'].filter(Boolean);
+    const lines = mine.filter(t => t.person === person);
+    // Throw out this night's draft attendance lines; they get rebuilt below.
+    for (const t of lines.filter(t => t.status === 'draft' && (ATT.includes(t.kind) || t.kind === 'attend-fix'))) await s.delete(`dkp/tx/${t.id}`);
+    // What the approved sheet already gave this person for this night.
+    const have = {};
+    for (const t of lines.filter(t => t.status === 'approved')) {
+      if (ATT.includes(t.kind)) have[t.kind] = (have[t.kind] || 0) + 1;
+      if (t.kind === 'attend-fix') have[t.undo] = (have[t.undo] || 0) + (t.delta < 0 ? -1 : 1);
+    }
+    const char = w?.char || lines[0]?.char;
+    for (const k of ATT) {
+      const need = desired.includes(k) ? 1 : 0, got = have[k] || 0;
+      for (let i = got; i < need; i++) await addTx(s, { at, ord: ord++, person, delta: amount[k], kind: k, night: nightId, char, by, note: 'Attendance fix' });
+      for (let i = need; i < got; i++) {
+        const orig = lines.find(t => t.status === 'approved' && t.kind === k);
+        await addTx(s, { at, ord: ord++, person, delta: -(orig?.delta || amount[k]), kind: 'attend-fix', undo: k, night: nightId, char, by, note: `Took back ${ATT_LABEL[k]}` });
+      }
+    }
+    // Starting DKP follows whether they were there at all.
+    const draftStart = lines.find(t => t.kind === 'start' && t.status === 'draft');
+    const startedElsewhere = st.started[person] || all.some(t => t.kind === 'start' && t.person === person && t.night !== nightId);
+    if (desired.length && !draftStart && !startedElsewhere && !lines.some(t => t.kind === 'start')) await addTx(s, { at, ord: ord++, person, delta: cfg.start, kind: 'start', night: nightId, char, note: 'Starting DKP', by });
+    if (!desired.length && draftStart) await s.delete(`dkp/tx/${draftStart.id}`);
+    const eff = {};
+    for (const t of lines) { if (ATT.includes(t.kind)) eff[t.kind] = (eff[t.kind] || 0) + 1; if (t.kind === 'attend-fix') eff[t.undo] = (eff[t.undo] || 0) + (t.delta < 0 ? -1 : 1); }
+    const before = ATT.filter(k => (eff[k] || 0) > 0);
+    if (before.join() !== desired.join()) changes.push({ person, before, after: desired });
+  }
+  return { night, changes };
+}
+
 // The draft sheet: last approved balances plus every draft change.
 export async function draftSheet(s) {
   const cfg = await settings(s), st = await state(s), drafts = await allTx(s, 'draft');

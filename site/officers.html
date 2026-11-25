@@ -314,7 +314,7 @@ async function act(path,key,done){try{await oapi(path,{key});$('msg').textConten
 
 /* ---------- DKP ---------- */
 let dk=null;const tick={start:new Set(),end:new Set(),bench:new Set()};
-const KIND={start:'Starting DKP','attend-start':'Raid start','attend-end':'Raid end',bench:'Bench',award:'Loot',adjust:'Adjustment',decay:'Weekly decay'};
+const KIND={start:'Starting DKP','attend-start':'Raid start','attend-end':'Raid end',bench:'Bench',award:'Loot',adjust:'Adjustment',decay:'Weekly decay','attend-fix':'Attendance fix'};
 const SETL=[['cap','DKP cap'],['start','Starting DKP (first raid night)'],['attendStart','Points at raid start'],['attendEnd','Points at raid end'],['decay','Weekly decay']];
 const charKey=v=>{v=String(v||'').trim().toLowerCase();const c=data.characters.find(x=>x.name.toLowerCase()===v);return c?c.key:''};
 async function loadDkp(){
@@ -353,7 +353,7 @@ function dkCompute(){
  const nightOf=t=>{if(t.night)return t.night;if(t.kind==='decay')return '';const d=ymd(t.at);let best='';for(const n of nights){if(n.at<=t.at&&(new Date(t.at)-new Date(n.at))<30*3600e3)best=n.id;if(n.date===d&&!best)best=n.id}return best};
  const nkey={};nights.forEach(n=>{nkey[n.id]=n.date+'|'+(n.group||'')});const nk=id=>nkey[id]||id;
  const P={},cap=dk.settings.cap;
- dk.people.forEach(p=>{P[p.person]={...p,earned:0,spent:0,decay:0,items:[],adj:0,overCap:0,nids:new Set(),present:new Set(),full:new Set(),line:[],bal:0,first:''}});
+ dk.people.forEach(p=>{P[p.person]={...p,earned:0,spent:0,decay:0,items:[],nc:{},adj:0,overCap:0,nids:new Set(),present:new Set(),full:new Set(),line:[],bal:0,first:''}});
  for(const t of dk.tx){
   const p=P[t.person];if(!p)continue;
   t.n=nightOf(t);
@@ -361,9 +361,9 @@ function dkCompute(){
   const was=p.bal;p.bal=t.delta>=0?Math.min(cap,p.bal+t.delta):Math.max(0,p.bal+t.delta);const got=p.bal-was;p.line.push([t.at,p.bal,t.status]);
   if(t.delta>0&&got<t.delta)p.overCap+=t.delta-got;
   if(t.kind==='award'){p.spent-=got;p.items.push(t)}else if(t.kind==='decay')p.decay-=got;else if(t.kind==='adjust')p.adj+=got;else p.earned+=got;
-  if(['attend-start','bench'].includes(t.kind)&&t.n){p.present.add(nk(t.n));if(!p.first)p.first=nk(t.n);p.nids.add(t.n)}
-  if(['attend-end','bench'].includes(t.kind)&&t.n)p.full.add(nk(t.n));
+  if(t.n&&['attend-start','attend-end','bench','attend-fix'].includes(t.kind)){const c=(p.nc[t.n]=p.nc[t.n]||{}),k=t.kind==='attend-fix'?t.undo:t.kind;c[k]=(c[k]||0)+(t.kind==='attend-fix'?-1:1)}
  }
+ Object.values(P).forEach(p=>{for(const n of nights){const c=p.nc[n.id];if(!c)continue;if(c['attend-start']>0||c.bench>0){p.present.add(nk(n.id));p.nids.add(n.id);if(!p.first)p.first=nk(n.id)}if(c['attend-end']>0||c.bench>0)p.full.add(nk(n.id))}});
  const order=[...new Set(nights.map(n=>nk(n.id)))],idOrder=nights.map(n=>n.id);
  Object.values(P).forEach(p=>{const i=order.indexOf(p.first);p.held=i<0?0:order.length-i;p.att=p.held?Math.min(1,p.present.size/p.held):0;p.last=[...p.nids].sort((a,b)=>idOrder.indexOf(b)-idOrder.indexOf(a))[0]||''});
  S={P,nights,byNight:Object.fromEntries(nights.map(n=>[n.id,n]))};
@@ -430,17 +430,38 @@ function drawNights(){
  $('dkNList').innerHTML=ns.map(n=>`<button type="button" data-ng="${esc(n.id)}" style='${G.chipStyle(dkNightSel===n.id)};min-height:36px;text-transform:none;letter-spacing:.02em'>${esc(dayL(n.date))}${n.group?' · '+esc(n.group):''}</button>`).join('')||'<p style="color:#8F857C">No raid nights yet.</p>';
  const n=S.byNight[dkNightSel];if(!n){$('dkNight1').innerHTML='';return}
  const lines=dk.tx.filter(t=>t.n===n.id),who=new Map();
- lines.forEach(t=>{if(!['start','attend-start','attend-end','bench'].includes(t.kind))return;const e=who.get(t.person)||{s:0,e:0,b:0,pts:0};if(t.kind==='attend-start')e.s=1;if(t.kind==='attend-end')e.e=1;if(t.kind==='bench')e.b=1;e.pts+=t.delta;who.set(t.person,e)});
- const awards=lines.filter(t=>t.kind==='award'),other=lines.filter(t=>t.kind==='adjust');
+ lines.forEach(t=>{if(!['start','attend-start','attend-end','bench','attend-fix'].includes(t.kind))return;const e=who.get(t.person)||{s:0,e:0,b:0,pts:0,st:0};const k=t.kind==='attend-fix'?t.undo:t.kind,d=t.kind==='attend-fix'?-1:1;if(k==='attend-start')e.s+=d;if(k==='attend-end')e.e+=d;if(k==='bench')e.b+=d;if(t.kind==='start')e.st+=t.delta;else e.pts+=t.delta;who.set(t.person,e)});
+ for(const [k,e] of who)if(e.s<=0&&e.e<=0&&e.b<=0&&!e.st)who.delete(k);
+ if(dkNightEdit===n.id)return drawNightEdit(n,who);
+ const awards=lines.filter(t=>t.kind==='award'),other=lines.filter(t=>t.kind==='adjust'||(t.kind==='attend-fix')||(t.status==='draft'&&t.note==='Attendance fix'));
  const yes='<span style="color:#A3BC6E">Yes</span>',no='<span style="color:#8F857C">—</span>';
  $('dkNight1').innerHTML=`<div class="md-card" style="gap:12px"><h2 style="font-size:clamp(22px,3vw,28px)">${esc(dayL(n.date))}${n.group?' · '+esc(n.group):''}</h2>
-  <p style="color:#AEA49A">${who.size} people · ${[...who.values()].filter(e=>e.b).length} benched · ${awards.length} item${awards.length===1?"":"s"} for ${-awards.reduce((a,t)=>a+t.delta,0)} DKP · entered by ${esc(n.by||'')}</p>
+  <p style="color:#AEA49A">${who.size} ${who.size===1?'person':'people'} · ${[...who.values()].filter(e=>e.b>0).length} benched · ${awards.length} item${awards.length===1?"":"s"} for ${-awards.reduce((a,t)=>a+t.delta,0)} DKP · entered by ${esc(n.by||'')}</p>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px">
-  <div><span class="md-lab" style="display:block;margin-bottom:6px">ATTENDANCE</span><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Person</th><th>Start</th><th>End</th><th>Bench</th><th class="n">Points</th></tr></thead><tbody>${[...who].sort((a,b)=>(S.P[a[0]]?.name||'').localeCompare(S.P[b[0]]?.name||'')).map(([pp,e])=>`<tr><td data-l="Person"><button type="button" class="link-btn" data-person="${esc(pp)}" style="color:#F1ECE6">${esc(S.P[pp]?.name||pp)}</button></td><td data-l="Start">${e.s||e.b?yes:no}</td><td data-l="End">${e.e||e.b?yes:no}</td><td data-l="Bench">${e.b?yes:no}</td><td data-l="Points" class="n">+${e.pts}</td></tr>`).join('')}</tbody></table></div></div>
+  <div><span class="md-lab" style="display:block;margin-bottom:6px">ATTENDANCE</span><div class="rs-wrap"><table class="rs-table"><thead><tr><th>Person</th><th>Start</th><th>End</th><th>Bench</th><th class="n">Points</th></tr></thead><tbody>${[...who].sort((a,b)=>(S.P[a[0]]?.name||'').localeCompare(S.P[b[0]]?.name||'')).map(([pp,e])=>`<tr><td data-l="Person"><button type="button" class="link-btn" data-person="${esc(pp)}" style="color:#F1ECE6">${esc(S.P[pp]?.name||pp)}</button></td><td data-l="Start">${e.s>0?yes:no}</td><td data-l="End">${e.e>0?yes:no}</td><td data-l="Bench">${e.b>0?yes:no}</td><td data-l="Points" class="n">+${e.pts}${e.st?`<span style="display:block;color:#8F857C;font-size:12px">+${e.st} starting DKP</span>`:''}</td></tr>`).join('')}</tbody></table></div><div style="margin-top:8px"><button type="button" class="rs-btn" data-nedit="${esc(n.id)}">EDIT ATTENDANCE</button></div></div>
   <div><span class="md-lab" style="display:block;margin-bottom:6px">LOOT AND ADJUSTMENTS</span><div class="rs-wrap"><table class="rs-table tx-table"><colgroup><col><col style="width:80px"><col style="width:110px"><col style="width:90px"></colgroup><tbody>${[...awards,...other].map(t=>txRow(t,true)).join('')||'<tr><td style="color:#8F857C">Nothing awarded.</td></tr>'}</tbody></table></div></div>
   </div></div>`;
 }
-$('dkNList').addEventListener('click',e=>{const b=e.target.closest('[data-ng]');if(b){dkNightSel=b.dataset.ng;drawNights()}});
+$('dkNList').addEventListener('click',e=>{const b=e.target.closest('[data-ng]');if(b){dkNightSel=b.dataset.ng;dkNightEdit='';drawNights()}});
+let dkNightEdit='',dkNE=null;
+function drawNightEdit(n,who){
+ if(!dkNE||dkNE.id!==n.id){dkNE={id:n.id,rows:new Map([...who].map(([pp,e])=>[pp,{s:e.s>0,e:e.e>0,b:e.b>0}]))}}
+ const box=(pp,f,v)=>`<input type="checkbox" data-ne="${esc(pp)}" data-f="${f}" ${v?'checked':''} style="width:20px;height:20px;accent-color:#A3BC6E">`;
+ const rows=[...dkNE.rows].sort((a,b)=>(S.P[a[0]]?.name||'').localeCompare(S.P[b[0]]?.name||''));
+ $('dkNight1').innerHTML=`<div class="md-card" style="gap:12px;border-color:#CDB07C"><h2 style="font-size:clamp(22px,3vw,28px)">Editing ${esc(dayL(n.date))}${n.group?' · '+esc(n.group):''}</h2>
+  <p style="color:#AEA49A;font-size:15px">Tick what actually happened. Bench gives full points on its own, so tick it for anyone who was sat for any part of the night. Untick everything to take someone off the night. Changes go in as drafts; anything already on an approved sheet gets a correction line instead of being erased.</p>
+  <div class="rs-wrap"><table class="rs-table"><thead><tr><th>Person</th><th>Start</th><th>End</th><th>Bench</th></tr></thead><tbody>${rows.map(([pp,r])=>`<tr><td data-l="Person">${esc(S.P[pp]?.name||pp)}</td><td data-l="Start">${box(pp,'s',r.s)}</td><td data-l="End">${box(pp,'e',r.e)}</td><td data-l="Bench">${box(pp,'b',r.b)}</td></tr>`).join('')||'<tr><td colspan="4" style="color:#8F857C">Nobody on this night yet.</td></tr>'}</tbody></table></div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px"><input class="md-in" id="neAdd" list="dkChars" placeholder="Add someone who was there" style="max-width:300px"><button type="button" class="rs-btn" id="neAddGo">ADD</button></div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px"><button type="button" class="rs-btn rs-btn-p" id="neSave">SAVE CHANGES</button><button type="button" class="rs-btn" id="neCancel">CANCEL</button></div></div>`;
+}
+$('dkNight1').addEventListener('click',e=>{
+ const ed=e.target.closest('[data-nedit]');if(ed){dkNightEdit=ed.dataset.nedit;dkNE=null;drawNights();return}
+ if(e.target.id==='neCancel'){dkNightEdit='';dkNE=null;drawNights();return}
+ if(e.target.id==='neAddGo'){const k=charKey($('neAdd').value);const c=(data?.characters||[]).find(x=>x.key===k);if(!c){$('msg').textContent='Pick a character from the list.';return}const pp=c.alt_of||c.key;if(!dkNE.rows.has(pp))dkNE.rows.set(pp,{s:true,e:true,b:false});if(!S.P[pp])S.P[pp]={name:c.name};drawNights();return}
+ if(e.target.id==='neSave'){const body={night:dkNE.id,start:[],end:[],bench:[]};for(const [pp,r] of dkNE.rows){if(r.s)body.start.push(pp);if(r.e)body.end.push(pp);if(r.b)body.bench.push(pp)}
+  dkDo('dkp-night-edit',body,d=>d.changes?`Saved ${d.changes} change${d.changes===1?'':'s'} to that night as drafts.`:'Nothing changed.',()=>{dkNightEdit='';dkNE=null});return}
+});
+$('dkNight1').addEventListener('change',e=>{const b=e.target.closest('[data-ne]');if(!b)return;const r=dkNE.rows.get(b.dataset.ne);r[b.dataset.f]=b.checked});
 const LCOLS=[['at','Date'],['item','Item'],['name','Winner'],['price','Price'],['status','Status']];
 function drawLoot(){
  const q=low($('dkLQ').value).trim();
