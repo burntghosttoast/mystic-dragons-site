@@ -467,7 +467,7 @@ async function officerRoute(s, route, body, reqUrl = '') {
         approved: st.approved[p] || 0, draft: balances[p] || 0
       })).sort((a, b) => b.draft - a.draft || a.name.localeCompare(b.name));
       // Every change, approved and draft, in order, for the officer views.
-      const tx = (await DKP.allTx(s)).map(t => ({ id: t.id, at: t.at, person: t.person, delta: t.delta, kind: t.kind, status: t.status, night: t.night || '', item: t.item || '', note: t.note || '', undo: t.undo || '', by: t.by || '', char: t.char || '', charName: byKey[t.char]?.name || '' }));
+      const tx = (await DKP.allTx(s)).map(t => ({ id: t.id, at: t.at, person: t.person, delta: t.delta, kind: t.kind, status: t.status, night: t.night || '', item: t.item || '', note: t.note || '', undo: t.undo || '', source: t.source || 'manual', entered: t.entered || t.at, by: t.by || '', char: t.char || '', charName: byKey[t.char]?.name || '' }));
       return json({ settings: cfg, approvedAt: st.approvedAt || null, approvedBy: st.approvedBy || '', people, nights, tx,
         drafts: drafts.map(t => ({ ...t, name: pname(t.person), charName: byKey[t.char]?.name || '' })),
         links: chars.filter(x => x.alt_of).map(x => ({ key: x.key, name: x.name, main: x.alt_of, mainName: pname(x.alt_of) })) });

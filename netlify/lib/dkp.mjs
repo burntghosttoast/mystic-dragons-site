@@ -4,7 +4,8 @@
 //
 //   dkp/settings     { cap, start, attendStart, attendEnd, decay }
 //   dkp/state        { approved: {person: balance}, approvedAt, approvedBy, started: {person: true} }
-//   dkp/tx/<id>      { id, at, person, delta, kind, status: draft|approved, night?, char?, item?, note?, by }
+//   dkp/tx/<id>      { id, at, entered, source, person, delta, kind, status: draft|approved, night?, char?, item?, note?, by }
+//                    source: manual (officer form), edit (changed after the night was entered), example; later addon/bot
 //   dkp/nights/<id>  { id, date, group, by, at }
 //   dkp/sheets/<at>  snapshot of balances at each approval
 //   dkpaudit/<at>-<id>   append-only trail of every DKP action (never deleted, not even by Start over)
@@ -59,10 +60,12 @@ export function apply(balances, txs, cap) {
   return out;
 }
 
+let SRC = 'manual';
 export async function addTx(s, t) {
   const at = t.at || stamp();
   const id = `${at.replace(/[:.]/g, '')}-${rid()}`;
-  const doc = { id, status: 'draft', ...t, at };
+  // entered = when it was really typed in (at can be back-dated to the raid). source says how it got here.
+  const doc = { id, status: 'draft', source: SRC, ...t, at, entered: stamp() };
   await s.setJSON(`dkp/tx/${id}`, doc);
   return doc;
 }
@@ -126,16 +129,16 @@ export async function editNight(s, nightId, { start = [], end = [], bench = [], 
     const char = w?.char || lines[0]?.char;
     for (const k of ATT) {
       const need = desired.includes(k) ? 1 : 0, got = have[k] || 0;
-      for (let i = got; i < need; i++) await addTx(s, { at, ord: ord++, person, delta: amount[k], kind: k, night: nightId, char, by, note: 'Attendance fix' });
+      for (let i = got; i < need; i++) await addTx(s, { at, ord: ord++, person, delta: amount[k], kind: k, night: nightId, char, by, note: 'Attendance fix', source: 'edit' });
       for (let i = need; i < got; i++) {
         const orig = lines.find(t => t.status === 'approved' && t.kind === k);
-        await addTx(s, { at, ord: ord++, person, delta: -(orig?.delta || amount[k]), kind: 'attend-fix', undo: k, night: nightId, char, by, note: `Took back ${ATT_LABEL[k]}` });
+        await addTx(s, { at, ord: ord++, person, delta: -(orig?.delta || amount[k]), kind: 'attend-fix', undo: k, night: nightId, char, by, note: `Took back ${ATT_LABEL[k]}`, source: 'edit' });
       }
     }
     // Starting DKP follows whether they were there at all.
     const draftStart = lines.find(t => t.kind === 'start' && t.status === 'draft');
     const startedElsewhere = st.started[person] || all.some(t => t.kind === 'start' && t.person === person && t.night !== nightId);
-    if (desired.length && !draftStart && !startedElsewhere && !lines.some(t => t.kind === 'start')) await addTx(s, { at, ord: ord++, person, delta: cfg.start, kind: 'start', night: nightId, char, note: 'Starting DKP', by });
+    if (desired.length && !draftStart && !startedElsewhere && !lines.some(t => t.kind === 'start')) await addTx(s, { at, ord: ord++, person, delta: cfg.start, kind: 'start', night: nightId, char, note: 'Starting DKP', by, source: 'edit' });
     if (!desired.length && draftStart) await s.delete(`dkp/tx/${draftStart.id}`);
     const eff = {};
     for (const t of lines) { if (ATT.includes(t.kind)) eff[t.kind] = (eff[t.kind] || 0) + 1; if (t.kind === 'attend-fix') eff[t.undo] = (eff[t.undo] || 0) + (t.delta < 0 ? -1 : 1); }
@@ -168,7 +171,7 @@ export async function addDecay(s, by = 'Weekly decay', force = false, when) {
   const st = await state(s);
   if (st.lastDecay === week && !force) return 0;
   let n = 0;
-  for (const [person, bal] of Object.entries(balances)) if (bal > 0) { await addTx(s, { at: when, person, delta: -cfg.decay, kind: 'decay', note: 'Weekly decay', by }); n++; }
+  for (const [person, bal] of Object.entries(balances)) if (bal > 0) { await addTx(s, { at: when, person, delta: -cfg.decay, kind: 'decay', note: 'Weekly decay', by, source: 'auto' }); n++; }
   await s.setJSON('dkp/state', { ...st, lastDecay: week });
   if (n && !when) await audit(s, 'decay', by, `Weekly decay: -${cfg.decay} for ${n} ${n === 1 ? 'person' : 'people'}`, { people: n, amount: cfg.decay });
   return n;
@@ -194,6 +197,10 @@ export async function resetAll(s, by = '', why = 'Start over') {
 // the last one left as drafts to review. Uses the given characters as raiders.
 export async function seedDemo(s, raiders, charsByKey, by) {
   await resetAll(s, by, 'Fill with example data');
+  SRC = 'example';
+  try { return await seedDemoInner(s, raiders, charsByKey, by); } finally { SRC = 'manual'; }
+}
+async function seedDemoInner(s, raiders, charsByKey, by) {
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const pickN = (arr, n) => arr.slice().sort(() => rnd() - 0.5).slice(0, n);
   const ITEMS = ['Band of Accuria', 'Onyxia Tooth Pendant', 'Cenarion Boots', 'Felheart Gloves', 'Giantstalker’s Belt', 'Lawbringer Bracers',
