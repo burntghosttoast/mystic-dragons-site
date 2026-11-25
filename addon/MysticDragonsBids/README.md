@@ -13,7 +13,7 @@ Put the `MysticDragonsBids` folder in `World of Warcraft\_forever_\Interface\Add
 - `/mdkp export` (loot masters) copy tonight's results, then on the site: Paste results from the addon
 - `/mdkp show` reopen the windows
 - `/mdkp history` every award from every loot master with the addon (officers and loot masters; raiders see their own)
-- `/mdkp balances` what everyone can spend right now (officers and loot masters; raiders see their own)
+- `/mdkp balances` what everyone can spend right now (officers and the guild master; everyone else sees their own)
 - `/mdkp check` what works on this game patch
 - `/mdkp clear` forget results the site already has
 - `/mdkp keep 120` how many days of old results to keep on this PC (default 120, about a raid tier)

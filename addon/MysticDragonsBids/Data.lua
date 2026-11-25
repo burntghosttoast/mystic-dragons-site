@@ -141,6 +141,7 @@ end
 
 -- Awards other loot masters' addons shared with this one, keyed "loot master|seq".
 -- Officers and loot masters keep everyone's; raiders keep only their own (DKP is private to the person and officers).
+function D.IsOfficer() local rank = C.MyGuildRank(); return (rank and rank <= 1) or false end
 function D.CanSeeAll()
     local rank = C.MyGuildRank()
     return (rank and rank <= 1) or D.db.isLM or false

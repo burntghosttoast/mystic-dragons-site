@@ -4,6 +4,8 @@
 //   dlink/<discord user id>   which character a Discord user signs up as
 //   ddraft/<discord user id>  answers not finished yet (saved as a signup once complete)
 //   meta/discord-board        the live signup message { channel, message }
+//   meta/discord-guild        the server's id (looked up from the board's channel)
+//   meta/discord-events       raid events the bot made: [{ id, date, title }]
 import crypto from 'node:crypto';
 import { buildSummary, emojiCodes, specIcon } from './summary.mjs';
 import * as DKP from './dkp.mjs';
@@ -11,7 +13,9 @@ import { checkLock, tooMany, failed } from './lock.mjs';
 
 const API = 'https://discord.com/api/v10';
 const EPHEMERAL = 64;
-export const INVITE_PERMISSIONS = 1024 + 2048 + 16384 + 65536 + 262144; // view, send, embed links, read history, external emojis
+// view, send, embed links, read history, external emojis, connect (needed to put an event in a voice channel),
+// manage events + create events (raid nights as Discord events)
+export const INVITE_PERMISSIONS = 1024 + 2048 + 16384 + 65536 + 262144 + 1048576 + 8589934592 + 17592186044416;
 
 const COMMANDS = [
   { name: 'signup', description: 'Sign up or change your answer for the December 9 raid', type: 1, dm_permission: false },
@@ -52,8 +56,78 @@ const boardButtons = () => [{ type: 1, components: [
   { type: 2, style: 5, url: 'https://mysticdragons.org/signup', label: 'Sign up on the website' }
 ] }];
 
+/* ---------- raid nights as Discord events ---------- */
+// Which server the bot is in: read from the channel the signup board lives in.
+async function guildId(s) {
+  const g = await s.get('meta/discord-guild', { type: 'json' });
+  if (g?.id) return g.id;
+  const b = await s.get('meta/discord-board', { type: 'json' });
+  if (!b) return null;
+  const r = await dapi(`/channels/${b.channel}`);
+  if (!r.ok) return null;
+  const id = (await r.json()).guild_id;
+  if (id) await s.setJSON('meta/discord-guild', { id });
+  return id;
+}
+
+// "2026-12-09" + "21:00" US Eastern → ISO time in UTC (handles daylight saving).
+function easternIso(date, time) {
+  for (const off of ['-05:00', '-04:00']) {
+    const d = new Date(`${date}T${time}:00${off}`);
+    const hh = d.toLocaleString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false });
+    if (hh.replace(/^24/, '00') === time) return d.toISOString();
+  }
+  return new Date(`${date}T${time}:00-05:00`).toISOString();
+}
+
+async function signupLine(s) {
+  const d = (await buildSummary(s)).description || '';
+  const m = d.match(/\*\*(\d+)\*\* yes · \*\*(\d+)\*\* probably/);
+  return m ? `${m[1]} signed up, ${m[2]} probably.` : '';
+}
+const eventText = (note, line) => [note, 'Sign up or change your answer: https://mysticdragons.org/signup (or /signup here).', line].filter(Boolean).join('\n\n').slice(0, 1000);
+
+export async function voiceChannels(s) {
+  const id = await guildId(s);
+  if (!id) return { error: 'Post the signup board in Discord first (/signup-post), so I know which server to use.' };
+  const r = await dapi(`/guilds/${id}/channels`);
+  if (!r.ok) return { error: `Discord said ${r.status} when listing channels.` };
+  return { channels: (await r.json()).filter(c => c.type === 2 || c.type === 13).sort((a, b) => a.position - b.position).map(c => ({ id: c.id, name: c.name })) };
+}
+
+// Make a Discord event for a raid night. where: a voice channel id, or '' for "Somewhere else" (the signup page).
+export async function createEvent(s, { date, start = '21:00', end = '23:00', title, channel, note }) {
+  const id = await guildId(s);
+  if (!id) return { error: 'Post the signup board in Discord first (/signup-post), so I know which server to use.' };
+  const body = {
+    name: (title || 'Mystic Dragons raid night').slice(0, 100), privacy_level: 2,
+    scheduled_start_time: easternIso(date, start), scheduled_end_time: easternIso(date, end),
+    description: eventText(note, await signupLine(s)),
+    ...(channel ? { entity_type: 2, channel_id: channel } : { entity_type: 3, entity_metadata: { location: 'mysticdragons.org/signup' } })
+  };
+  const r = await dapi(`/guilds/${id}/scheduled-events`, 'POST', body);
+  if (r.status === 403 || r.status === 50013) return { error: 'The bot isn’t allowed to make events. In Discord: Server Settings → Roles → the bot’s role → turn on Create Events and Manage Events (and Connect, for a voice channel).' };
+  if (!r.ok) { const e = await r.json().catch(() => ({})); return { error: `Discord said ${r.status}${e.message ? ': ' + e.message : ''}.` }; }
+  const ev = await r.json();
+  const list = (await s.get('meta/discord-events', { type: 'json' })) || [];
+  list.push({ id: ev.id, guild: id, date, title: body.name, note: note || '' });
+  await s.setJSON('meta/discord-events', list.slice(-20));
+  return { ok: true, id: ev.id, url: `https://discord.com/events/${id}/${ev.id}` };
+}
+
+// Keep upcoming events' signup counts current (called alongside the board refresh).
+async function refreshEvents(s) {
+  const list = (await s.get('meta/discord-events', { type: 'json' })) || [];
+  const today = new Date(Date.now() - 5 * 3600e3).toISOString().slice(0, 10);
+  const up = list.filter(e => e.date >= today);
+  if (!up.length) return;
+  const line = await signupLine(s);
+  for (const e of up) await dapi(`/guilds/${e.guild}/scheduled-events/${e.id}`, 'PATCH', { description: eventText(e.note, line) });
+}
+
 // Keeps the live signup message current. Safe to call after any signup change.
 export async function refreshBoard(s) {
+  if (process.env.DISCORD_BOT_TOKEN) await refreshEvents(s).catch(() => {});
   const b = await s.get('meta/discord-board', { type: 'json' });
   if (!b || !process.env.DISCORD_BOT_TOKEN) return;
   const embed = await buildSummary(s);

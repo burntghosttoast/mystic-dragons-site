@@ -6,7 +6,7 @@
 --   /mdkp test group   practice with your group: everyone gets the bid window, nothing is real
 --   /mdkp show         reopen the windows
 --   /mdkp history      every award (officers and loot masters), or your own
---   /mdkp balances     what everyone can spend (officers and loot masters), or just you
+--   /mdkp balances     what everyone can spend (officers and the GM), or just you
 --   /mdkp check        what works on this patch (send this to whoever maintains the addon)
 --   /mdkp clear        forget results the site already has
 --   /mdkp keep <days>  how long to keep old results on this PC (default 120, about a raid tier)

@@ -433,7 +433,7 @@ local function drawBalances()
     if not (bal and bal:IsShown()) then return end
     local s = D.db.sheet
     if not s then bal.sub:SetText(RED .. "No sheet loaded yet.|r"); for _, r in ipairs(bal.rows) do r:Hide() end; bal.foot:SetText(""); return end
-    local all, mine = D.CanSeeAll(), D.PersonOf(C.PlayerName())
+    local all, mine = D.IsOfficer(), D.PersonOf(C.PlayerName())   -- everyone's balances: officers and the GM only
     local items = {}
     for person, n in pairs(s.bal) do
         if all or person == mine then
@@ -443,7 +443,7 @@ local function drawBalances()
                                   _search = ((s.display[person] or person) .. " " .. table.concat(alts, " ")):lower(), _tie = person }
         end
     end
-    bal.sub:SetText("Sheet approved " .. ns.When(s.at) .. (s.by ~= "" and (" by " .. s.by) or "") .. ". Can spend = the sheet minus awards since it was approved." .. (all and "" or " Officers and loot masters see everyone."))
+    bal.sub:SetText("Sheet approved " .. ns.When(s.at) .. (s.by ~= "" and (" by " .. s.by) or "") .. ". Can spend = the sheet minus awards since it was approved." .. (all and "" or " Officers see everyone's."))
     local shown = drawList(bal, items, function(row, it)
         row.cells[1]:SetText(it.name .. (#it.alts > 0 and (GREY .. "  " .. table.concat(it.alts, ", ") .. "|r") or ""))
         row.cells[2]:SetText(tostring(it.sheet))

@@ -4,7 +4,7 @@
 // - Raid signups and a change log live in Netlify Blobs (store "guild").
 import { getStore } from '@netlify/blobs';
 import { postSummary, DEFAULT_CODES } from '../lib/summary.mjs';
-import { handleDiscord, refreshBoard, registerCommands } from '../lib/discordbot.mjs';
+import { handleDiscord, refreshBoard, registerCommands, voiceChannels, createEvent } from '../lib/discordbot.mjs';
 import { backup as dkpBackup } from '../lib/dkpbackup.mjs';
 import * as DKP from '../lib/dkp.mjs';
 import { makeLock, checkLock, tooMany, failed } from '../lib/lock.mjs';
@@ -665,6 +665,16 @@ async function officerRoute(s, route, body, reqUrl = '') {
       return json({ ok: true, settings: next });
     }
     return json({ error: 'Not found' }, 404);
+  }
+  if (route === 'officer/discord-voice') return json(await voiceChannels(s));
+  if (route === 'officer/discord-event') {
+    const date = clean(body.date, 10), start = clean(body.start, 5) || '21:00', end = clean(body.end, 5) || '23:00';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) return json({ error: 'Pick a date and times.' }, 400);
+    if (end <= start) return json({ error: 'The end time has to be after the start.' }, 400);
+    const r = await createEvent(s, { date, start, end, title: clean(body.title, 100), channel: clean(body.channel, 30), note: clean(body.note, 600) });
+    if (r.error) return json({ error: r.error }, 400);
+    await log(s, 'discord-event', clean(body.title, 100) || 'Raid night', 'officer', { by: who, date });
+    return json(r);
   }
   if (route === 'officer/discord-setup') {
     // Adds the bot's /signup commands to Discord and hands back the invite link.

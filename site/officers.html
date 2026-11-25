@@ -124,6 +124,20 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <div class="rs-tally" id="tally"></div>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><div style="display: flex; flex-wrap: wrap; gap: 8px" id="sFilter"></div><button type="button" id="botSetup" class="rs-btn" style="margin-left: auto">SET UP DISCORD BOT</button><button type="button" id="postNow" class="rs-btn">POST SUMMARY TO DISCORD NOW</button></div>
 <p id="botOut" hidden style="font-size: 15px; color: #CFC7BE"></p>
+<details class="md-card" id="evCard" style="gap: 10px">
+<summary style="cursor: pointer; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; letter-spacing: .14em; color: #CDB07C">DISCORD EVENT FOR A RAID NIGHT</summary>
+<p style="font-size: 15px; color: #CFC7BE; margin-top: 8px">The bot makes a Discord event that links to the signup page. People click Interested to get a reminder, and the event's description keeps the signup count current on its own.</p>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px">
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Title<input class="md-in" id="evTitle" value="Raid night: December 9" maxlength="100"></label>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Date<input class="md-in" id="evDate" type="date" value="2026-12-09"></label>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Starts (ET)<input class="md-in" id="evStart" type="time" value="21:00"></label>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Ends (ET)<input class="md-in" id="evEnd" type="time" value="23:00"></label>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Where<select class="md-in" id="evWhere"><option value="">The signup page (not a voice channel)</option></select></label>
+</div>
+<label style="display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: #AEA49A">Note (optional)<textarea class="md-in" id="evNote" rows="2" maxlength="600" placeholder="Invites go out 15 minutes before. Bring flasks and fire resistance."></textarea></label>
+<div><button type="button" id="evGo" class="rs-btn rs-btn-p">CREATE DISCORD EVENT</button></div>
+<p id="evOut" hidden style="font-size: 15px; color: #CFC7BE"></p>
+</details>
 <div class="rs-wrap"><table class="rs-table"><thead><tr><th>Character</th><th>Discord</th><th>Class</th><th class="n">Lvl</th><th>Dec 9</th><th>Attunement / later</th><th>Notes</th><th>Saved</th><th></th></tr></thead><tbody id="sRows"></tbody></table></div>
 </div>
 
@@ -540,6 +554,17 @@ $('dkAddonText').addEventListener('input',()=>{
  $('dkAddonPrev').innerHTML=`<p style="font-size:14px;color:#CFC7BE">${addonRows.length} result${addonRows.length===1?'':'s'} from ${esc(addonLm)}’s addon (version ${esc(head.v||'?')}):</p><div class="rs-wrap"><table class="rs-table"><thead><tr><th>When</th><th>Item</th><th>Winner</th><th class="n">DKP</th></tr></thead><tbody>${addonRows.map(r=>`<tr><td data-l="When" style="color:#AEA49A">${esc(whenL(new Date(r.at*1000).toISOString()))}</td><td data-l="Item">${esc(r.item)}${r.kind&&r.kind!=='bid'?` <span style="color:#8F857C">(${r.kind==='live'?'live auction':r.kind==='roll'?'rolled off':esc(r.kind)})</span>`:''}</td><td data-l="Winner">${esc(r.winner)}${known.has(String(r.winner).toLowerCase())?'':' <span style="color:#D96A5F">not on the site</span>'}</td><td data-l="DKP" class="n">${esc(r.price)}</td></tr>`).join('')}</tbody></table></div>`;
  $('dkAddonGo').hidden=!addonRows.length});
 $('dkAddonGo').addEventListener('click',()=>{if(!addonRows)return;dkDo('dkp-addon-import',{lm:addonLm,rows:addonRows},d=>`Added ${d.added} award${d.added===1?'':'s'} as drafts${d.skipped?`, skipped ${d.skipped} already on the site`:''}.`+(d.problems.length?' '+d.problems.join(' '):''),()=>{$('dkAddonText').value='';$('dkAddonPrev').innerHTML='';$('dkAddonGo').hidden=true;addonRows=null})});
+
+// Discord event: load voice channels the first time the card opens.
+let evLoaded=false;
+$('evCard').addEventListener('toggle',async()=>{if(!$('evCard').open||evLoaded)return;evLoaded=true;
+ try{const d=await oapi('discord-voice');if(d.error){$('evOut').hidden=false;$('evOut').textContent=d.error;return}
+  (d.channels||[]).forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent='Voice: '+c.name;$('evWhere').appendChild(o)})}catch(e){$('evOut').hidden=false;$('evOut').textContent=e.message}});
+$('evGo').addEventListener('click',async()=>{
+ const b=$('evGo');b.disabled=true;$('evOut').hidden=false;$('evOut').textContent='Making the event…';
+ try{const d=await oapi('discord-event',{title:$('evTitle').value,date:$('evDate').value,start:$('evStart').value,end:$('evEnd').value,channel:$('evWhere').value,note:$('evNote').value});
+  $('evOut').innerHTML='Event made. <a href="'+esc(d.url)+'" target="_blank" rel="noopener" style="color:#A3BC6E">Open it in Discord</a> to share the link or add a cover image.'}
+ catch(e){$('evOut').textContent=e.message}finally{b.disabled=false}});
 let dkBusy=false;
 const dkDo=async(path,body,done,after)=>{if(dkBusy)return;dkBusy=true;$('msg').textContent='Working…';try{const d=await oapi(path,body);$('msg').textContent=typeof done==='function'?done(d):done;if(after)after();await loadDkp()}catch(e){$('msg').textContent=e.message}finally{dkBusy=false}};
 // Picking a date that's already entered loads that night into the boxes, and saving edits it.
