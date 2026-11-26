@@ -9,6 +9,7 @@
 --   /mdkp balances     what everyone can spend (officers and the GM), or just you
 --   /mdkp check        what works on this patch (send this to whoever maintains the addon)
 --   /mdkp clear        forget results the site already has
+--   /mdkp quality blue|purple  lowest item quality that opens bidding (blue is handy for dungeon tests)
 --   /mdkp keep <days>  how long to keep old results on this PC (default 120, about a raid tier)
 local addonName, ns = ...
 local C, D, M, A, B, UI = ns.C, ns.D, ns.M, ns.A, ns.B, ns.UI
@@ -114,7 +115,12 @@ SlashCmdList.MDBIDS = function(input)
             ns.Print("Keeping " .. D.db.opts.keepDays .. " days of results. Older ones drop off when the next sheet arrives.")
         elseif rest ~= "" then ns.Print("Pick a number of days between 14 and 730, like /mdkp keep 120.")
         else ns.Print("Keeping " .. (D.db.opts.keepDays or 120) .. " days of results (" .. #D.db.results .. " saved now). Change it with /mdkp keep <days>.") end
-    else ns.Print("Commands: /mdkp, /mdkp import, /mdkp export, /mdkp test, /mdkp test group, /mdkp history, /mdkp balances, /mdkp show, /mdkp check, /mdkp clear, /mdkp keep") end
+    elseif cmd == "quality" then
+        local q = ({ green = 2, blue = 3, rare = 3, purple = 4, epic = 4, orange = 5, legendary = 5 })[rest:lower()]
+        if q then D.db.opts.minQuality = q end
+        local names = { [2] = "green", [3] = "blue", [4] = "purple", [5] = "orange" }
+        ns.Print("Bidding opens for " .. names[D.db.opts.minQuality or 4] .. " items and better." .. ((D.db.opts.minQuality or 4) < 4 and " Set it back with /mdkp quality purple before raid." or ""))
+    else ns.Print("Commands: /mdkp, /mdkp import, /mdkp export, /mdkp test, /mdkp test group, /mdkp history, /mdkp balances, /mdkp show, /mdkp check, /mdkp clear, /mdkp keep, /mdkp quality") end
 end
 
 local f = CreateFrame("Frame")
