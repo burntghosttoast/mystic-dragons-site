@@ -36,15 +36,18 @@
       var bar = sub && sub.closest('header + div');
       if (!bar) return;
       var L = [['/signup', 'Events'], ['/roster', 'Roster'], ['/crafters', 'Crafters'], ['/dkp', 'Your DKP']];
+      // Guild pages sit in the same row as the Forever menu, after a divider, in gold: one bar instead of two.
+      var row = sub.parentNode;
       var g = document.createElement('div'); g.className = 'md-guildbar';
-      g.style.cssText = 'background:#1F1A14;border-bottom:1px solid #4A3F2C';
-      g.innerHTML = '<div style="max-width:1160px;margin:0 auto;padding:0 24px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 20px">'
-        + '<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:600;font-size:14px;letter-spacing:.2em;color:#CDB07C">GUILD</span>'
+      g.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin-left:auto;padding-left:16px;border-left:1px solid #4A3F2C';
+      g.innerHTML = '<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:600;font-size:14px;letter-spacing:.2em;color:#CDB07C">GUILD</span>'
         + '<nav aria-label="Guild pages" style="display:flex;flex-wrap:wrap;font-size:16px">'
         + L.map(function (l) { var on = path === l[0] || (l[0] === '/roster' && path === '/character');
-            return '<a href="' + l[0] + '"' + (on ? ' aria-current="page"' : '') + ' style="color:' + (on ? '#F1ECE6' : '#CFC7BE') + ';text-decoration:none;padding:12px 16px;border-bottom:2px solid ' + (on ? '#CDB07C' : 'transparent') + (on ? ';font-weight:600' : '') + '">' + l[1] + '</a>'; }).join('')
-        + '</nav><span style="margin-left:auto;font-size:13px;color:#8F857C">Members only</span></div>';
-      bar.after(g);
+            return '<a href="' + l[0] + '"' + (on ? ' aria-current="page"' : '') + ' style="color:' + (on ? '#F1ECE6' : '#D9C49A') + ';text-decoration:none;padding:8px 12px;border-bottom:2px solid ' + (on ? '#CDB07C' : 'transparent') + (on ? ';font-weight:600' : '') + '">' + l[1] + '</a>'; }).join('')
+        + '</nav>';
+      row.appendChild(g);
+      // On a guild page, the Forever menu shouldn't also look selected.
+      if (L.some(function (l) { return l[0] === path; }) || path === '/character') sub.querySelectorAll('a[aria-current="page"]').forEach(function (x) { x.removeAttribute('aria-current'); x.style.color = '#AEA49A'; x.style.borderBottomColor = 'transparent'; x.style.fontWeight = ''; });
     });
     return;
   }
