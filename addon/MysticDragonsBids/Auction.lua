@@ -281,6 +281,18 @@ function A.Award(idx)
     local tied = {}
     for _, r in ipairs(ranked) do if r.amount == top then tied[#tied + 1] = r end end
     if #tied > 1 then
+        -- Everyone tied bid all they have: nobody can go higher, so they roll for it right away.
+        local allMax = true
+        for _, r in ipairs(tied) do if (D.Spendable(r.name)) > top then allMax = false end end
+        if allMax then
+            local names = {}
+            for _, r in ipairs(tied) do names[#names + 1] = r.name end
+            it.tiedNames, it.bids = names, {}
+            announce("Tie on " .. linkOf(it) .. " at " .. top .. ", and that's everything " .. table.concat(names, " and ") .. " have. Roll for it!")
+            it.state = "roll"
+            if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+            return "roll"
+        end
         -- Forced rebid: everyone's bids are cleared, and only the tied people can bid again.
         it.state, it.tieAt, it.tied, it.lcEnd, it.bids, it.passes = "tie", top, {}, nil, {}, {}
         local names = {}

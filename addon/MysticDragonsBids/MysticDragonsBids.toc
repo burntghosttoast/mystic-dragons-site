@@ -2,7 +2,7 @@
 ## Title: |cffCDB07CMystic Dragons|r Bids
 ## Notes: DKP bidding for Mystic Dragons. /mdkp
 ## Author: Mystic Dragons
-## Version: 0.3.1
+## Version: 0.3.2
 ## SavedVariables: MDBidsDB
 ## OptionalDeps: MysticDragonsBids_Inbox
 ## X-Website: https://mysticdragons.org
