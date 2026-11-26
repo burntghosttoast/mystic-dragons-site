@@ -8,6 +8,23 @@
   try { var me = JSON.parse(localStorage.getItem('md-guild-v2') || 'null'); claimed = !!(me && me.keys && me.keys.length); } catch (_) {}
   var path = location.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
   var root = document.documentElement;
+  // Officers (logged in to Officer tools on this browser) get an OFFICERS link in the top menu.
+  var officer = false;
+  try { var o = JSON.parse(localStorage.getItem('md-officer') || 'null'); officer = !!(o && o.token); } catch (_) {}
+  if (officer) document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('header a[href="/characters"]').forEach(function (a) {
+      if (a.parentNode.querySelector('a[href="/officers"]')) return;
+      var b = a.cloneNode(true);
+      b.setAttribute('href', '/officers'); b.textContent = 'OFFICERS';
+      b.style.display = ''; b.removeAttribute('aria-current');
+      if (path === '/officers') {
+        b.setAttribute('aria-current', 'page'); b.style.color = '#F1ECE6'; b.style.borderBottom = '2px solid #CDB07C';
+        a.parentNode.querySelectorAll('a[aria-current="page"]').forEach(function (x) { if (x !== b) { x.removeAttribute('aria-current'); x.style.color = '#AEA49A'; x.style.borderBottom = '2px solid transparent'; } });
+      }
+      else { b.style.color = '#CDB07C'; }
+      a.after(b);
+    });
+  });
   root.classList.add(claimed ? 'md-guildie' : 'md-visitor');
   // The guild pages live in their own GUILD bar now, so they come out of the Forever menu for everyone.
   var base = GUILD.map(function (p) { return 'nav[aria-label="Forever pages"] a[href="' + p + '"]'; }).join(',') + '{display:none!important}'
@@ -18,7 +35,7 @@
       var sub = document.querySelector('nav[aria-label="Forever pages"]');
       var bar = sub && sub.closest('header + div');
       if (!bar) return;
-      var L = [['/signup', 'Sign Up'], ['/roster', 'Roster'], ['/crafters', 'Crafters'], ['/dkp', 'Your DKP']];
+      var L = [['/signup', 'Events'], ['/roster', 'Roster'], ['/crafters', 'Crafters'], ['/dkp', 'Your DKP']];
       var g = document.createElement('div'); g.className = 'md-guildbar';
       g.style.cssText = 'background:#1F1A14;border-bottom:1px solid #4A3F2C';
       g.innerHTML = '<div style="max-width:1160px;margin:0 auto;padding:0 24px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 20px">'

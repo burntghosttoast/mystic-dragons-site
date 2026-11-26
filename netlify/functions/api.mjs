@@ -397,7 +397,13 @@ async function officerRoute(s, route, body, reqUrl = '') {
       who,
       characters: chars.filter(c => c.key).map((c, i) => ({ ...publicChar(c), claims: (c.claims || []).length, signup: signs[i] ? { ...signs[i], answer: EV.answerOf(signs[i]), dec9: EV.answerOf(signs[i]) } : null })),
       event: ev ? evPublic(ev) : null,
-      events: (await EV.allEvents(s)).map(evPublic),
+      events: await Promise.all((await EV.allEvents(s)).map(async e => {
+        // Counts for upcoming events (the event cards show them).
+        if (e.date < EV.todayISO()) return evPublic(e);
+        const { blobs } = await s.list({ prefix: `signup/${e.id}/` });
+        const ans = (await Promise.all(blobs.map(b => s.get(b.key, { type: 'json' })))).map(EV.answerOf);
+        return { ...evPublic(e), counts: { yes: ans.filter(a => a === 'Yes').length, maybe: ans.filter(a => a === 'Probably').length, total: ans.length } };
+      })),
       log: logs
     });
   }
