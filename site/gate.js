@@ -54,7 +54,7 @@
 
   var locked = GUILD.indexOf(path) !== -1 && path !== '/dkp'; // /dkp has its own claim prompt
   if (locked) root.classList.add('md-lock');
-  var css = GUILD.map(function (p) { return '.md-visitor a[href="' + p + '"],.md-visitor a[href^="' + p + '?"]'; }).join(',') + '{display:none!important}'
+  var css = GUILD.map(function (p) { return '.md-visitor a[href="' + p + '"]:not([data-public]),.md-visitor a[href^="' + p + '?"]:not([data-public])'; }).join(',') + '{display:none!important}'
     + '.md-lock header + div ~ *:not(footer):not(.md-gate){display:none!important}';
   var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 

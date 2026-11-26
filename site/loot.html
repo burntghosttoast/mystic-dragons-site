@@ -68,7 +68,7 @@ p{margin:0}
 <div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #CDB07C">WOW FOREVER</div>
 <h1 style="font-size: clamp(30px, 4.6vw, 44px); line-height: 1">Loot</h1>
 <p style="font-size: 18px; color: #CFC7BE; max-width: 680px">We’re using an <strong style="color: #F1ECE6">attendance-based DKP system</strong> for raid loot. It sounds more complicated than it is. The basic idea is simple: show up, earn DKP, and spend it on the items that matter most to you.</p>
-<a href="/dkp" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; background: #A83A35; color: #F7F2EC; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.12em; padding: 14px 22px; border-radius: 4px">SEE CURRENT DKP →</a>
+<a href="/dkp" data-public style="align-self: flex-start; display: inline-flex; align-items: center; gap: 10px; background: #A83A35; color: #F7F2EC; text-decoration: none; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.12em; padding: 14px 22px; border-radius: 4px">SEE CURRENT DKP →</a>
 </div>
 <nav aria-label="On this page" style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; border-left: 1px solid #362D2A; padding-left: 24px; font-size: 16px">
 <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.2em; color: #8F857C; padding-bottom: 8px">ON THIS PAGE</span>
@@ -157,29 +157,26 @@ p{margin:0}
 </div>
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 24px">
-<div style="display: flex; flex-direction: column; gap: 14px; color: #CFC7BE">
-<h3 style="font-size: 18px; color: #F1ECE6">Decay and fines</h3>
-<p>Our general philosophy is that people who consistently show up should naturally build more purchasing power than someone who rarely attends or has only recently joined the team.</p>
-<p>There’s no automatic weekly decay. Missing a night costs you nothing but that night’s points. But if you quit the raid team or disappear on us partway through a tier, your DKP may be decayed, and DKP fines may be handed out too. Officers decide these case by case, and they show up in your DKP history with the reason.</p>
-</div>
 <div style="background: #1B1716; border: 1px solid #362D2A; border-radius: 8px; padding: 28px; display: flex; flex-direction: column; gap: 14px">
-<div style="display: flex; align-items: center; gap: 14px">
 <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: clamp(26px, 3.4vw, 32px); line-height: 1; color: #A3BC6E">NEW RAIDERS</span>
-
+<p style="color: #CFC7BE">Everyone starts with <strong style="color: #F1ECE6">20 DKP</strong> on their first raid night. Enough to get you in the game, not enough to leapfrog people who’ve been showing up for weeks.</p>
+<p style="color: #CFC7BE">You <strong style="color: #F1ECE6">can’t spend DKP on your first night</strong>, but you earn it like everyone else and can start bidding on night two.</p>
 </div>
-<p style="color: #CFC7BE">On your first raid night, you’ll start with <strong style="color: #F1ECE6">20 DKP</strong>. This gives new players some purchasing power without putting them on equal footing with people who have been consistently raiding for weeks or months.</p>
-<p style="color: #CFC7BE">New raiders <strong style="color: #F1ECE6">cannot spend DKP during their first raid night</strong>. You’ll still earn DKP normally that night and can begin bidding starting with your second raid.</p>
+<div style="display: flex; flex-direction: column; gap: 14px; color: #CFC7BE; padding-top: 4px">
+<h3 style="font-size: 18px; color: #F1ECE6">Missing a night</h3>
+<p>Life happens. Miss a night and you just don’t earn DKP for it. <strong style="color: #F1ECE6">No penalties, no hard feelings.</strong></p>
+<p>A quick heads-up on the Events page or in Discord helps us plan the roster, but it’s never held against you. Showing up is how you build DKP, so the people who are there week after week will naturally have the most to spend.</p>
 </div>
 </div>
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 24px">
 <div style="border-left: 2px solid #D96A5F; padding: 4px 0 4px 20px; display: flex; flex-direction: column; gap: 8px">
-<h3 style="font-size: 17px">No-shows</h3>
-<p style="font-size: 16px; color: #AEA49A">Missing a raid without notice simply means you won’t earn DKP for that night. If someone repeatedly no-shows without communicating, <strong style="color: #F1ECE6">leadership may apply additional DKP penalties at their discretion</strong>. This should be pretty easy to avoid: just let us know what’s going on.</p>
+<h3 style="font-size: 17px">Decay and fines</h3>
+<p style="font-size: 16px; color: #AEA49A">There’s no weekly decay. But if you quit the raid team or vanish on us partway through a tier, <strong style="color: #F1ECE6">officers may decay your DKP</strong>, and fines are possible too. Every case is decided by officers and shows up in your DKP history with the reason.</p>
 </div>
 <div style="border-left: 2px solid #CDB07C; padding: 4px 0 4px 20px; display: flex; flex-direction: column; gap: 8px">
 <h3 style="font-size: 17px">Check your balance</h3>
-<p style="font-size: 16px; color: #AEA49A">All DKP totals are tracked on the <a href="#">public DKP sheet [LINK]</a>. Most of it should be automated, but it’s ultimately your responsibility to occasionally check your balance. If something looks off, let us know and we’ll take a look.</p>
+<p style="font-size: 16px; color: #AEA49A">Your balance and history are on the <a href="/dkp" data-public>DKP page</a> once you’ve claimed your character. It updates on its own after each raid night is approved, but give it a look now and then. If something seems off, tell an officer and we’ll sort it out.</p>
 </div>
 </div>
 </div>
