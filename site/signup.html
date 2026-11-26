@@ -8,6 +8,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&amp;family=Barlow:wght@400;500;600&amp;family=Barlow+Condensed:wght@500;600&amp;display=swap">
 <style>
+.ev-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:28px;align-items:start}
+.ev-side{display:flex;flex-direction:column;gap:14px;position:sticky;top:16px}
+.ev-side .rs-tally{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ev-side .rs-tally .md-card{padding:10px 14px;gap:2px}.ev-side .rs-tally strong{font-size:28px!important}.ev-side .md-card{padding:14px 16px}
+.ev-side .rs-two{grid-template-columns:minmax(0,1fr)!important;gap:12px}
+.ev-chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 16px;border-radius:6px;border:1px solid #362D2A;background:#181415;color:#F1ECE6;cursor:pointer;min-width:170px}
+.ev-chip[aria-pressed="true"]{background:#A3BC6E;border-color:#A3BC6E;color:#121011}
+.ev-chip b{font-size:16px}.ev-chip span{font-size:13px;opacity:.8}
+@media (max-width:980px){.ev-grid{grid-template-columns:minmax(0,1fr)}.ev-side{position:static}}
 body{margin:0;background:#121011}
 a{color:#A3BC6E}a:hover{color:#C2D69A}
 h1,h2,h3{font-family:'Cinzel',Georgia,serif;font-weight:700;margin:0;letter-spacing:0.02em}
@@ -97,25 +106,26 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 
 <!-- PAGE HEAD -->
 <section style="border-bottom: 1px solid #362D2A">
-<div style="max-width: 1160px; margin: 0 auto; padding: clamp(48px, 7vw, 72px) 24px clamp(40px, 5vw, 52px); display: flex; flex-direction: column; gap: 20px">
-<div style="font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.24em; color: #A3BC6E">WOW FOREVER</div>
-<h1 style="font-size: clamp(40px, 7vw, 64px); line-height: 1">Events</h1>
-<p style="font-size: 18px; color: #CFC7BE; max-width: 680px">Let us know if you’re in so we can plan. Pick the event below.</p>
-<div id="evBar" style="display: flex; flex-wrap: wrap; gap: 8px"></div>
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(24px, 4vw, 36px) 24px clamp(20px, 3vw, 28px); display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px"><h1 style="font-size: clamp(32px, 5vw, 44px); line-height: 1">Events</h1>
+<p style="font-size: 16px; color: #AEA49A">Let us know if you’re in so we can plan.</p></div>
+<div id="evBar" style="display: flex; flex-wrap: wrap; gap: 10px"></div>
 </div>
 </section>
 
 <section style="border-bottom: 1px solid #362D2A">
-<div style="max-width: 1160px; margin: 0 auto; padding: clamp(40px, 6vw, 64px) 24px; display: flex; flex-direction: column; gap: 24px">
+<div style="max-width: 1160px; margin: 0 auto; padding: clamp(24px, 4vw, 36px) 24px; display: flex; flex-direction: column; gap: 20px">
 <p id="loading" style="color: #AEA49A">Loading…</p>
+<div class="ev-grid">
+<div style="display: flex; flex-direction: column; gap: 24px; min-width: 0">
 
-<div id="needClaim" hidden class="md-card" style="max-width: 760px; border-color: #A3BC6E">
+<div id="needClaim" hidden class="md-card" style="border-color: #A3BC6E">
 <h3 style="font-size: 21px; line-height: 1.25">First, claim your character</h3>
 <p style="color: #CFC7BE; margin-bottom: 10px">Find yourself in the guild list and tap your name. It takes a few seconds and this browser remembers you, so signing up is just a couple of taps after that.</p>
 <a class="rs-btn rs-btn-p" href="/claim?next=signup" style="align-self: flex-start; display: inline-flex; align-items: center; text-decoration: none">CLAIM MY CHARACTER →</a>
 </div>
 
-<form id="signForm" hidden class="md-card" novalidate style="max-width: 760px; gap: 14px">
+<form id="signForm" hidden class="md-card" novalidate style="gap: 14px">
 <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px">
 <div><span class="md-lab" style="color: #A3BC6E">SIGNING UP AS</span>
 <h2 id="asName" style="font-size: clamp(24px, 3vw, 30px)"></h2>
@@ -143,20 +153,22 @@ dialog::backdrop{background:rgba(0,0,0,.6)}
 <button type="button" id="wBtn" hidden class="link-btn" style="align-self: flex-start; font-size: 14px; color: #AEA49A">Remove this character’s signup</button>
 </form>
 
-<!-- ROSTER -->
-<div id="rosterView" hidden style="display: flex; flex-direction: column; gap: 24px; margin-top: 16px">
-<div><h2 id="rTitle" style="font-size: clamp(30px, 4vw, 40px)">Who’s in</h2><p id="syncedAt" style="font-size: 14px; color: #8F857C; margin-top: 4px"></p></div>
+<div id="lists" style="display: flex; flex-direction: column; gap: 24px"></div>
+</div>
+<!-- ROSTER: who's in, on the right -->
+<aside id="rosterView" hidden class="ev-side">
+<div><h2 id="rTitle" style="font-size: clamp(24px, 3vw, 28px)">Who’s in</h2><p id="syncedAt" style="font-size: 13px; color: #8F857C; margin-top: 4px"></p></div>
 <div class="rs-tally" id="tally"></div>
 <div class="rs-two">
 <div class="md-card"><span class="md-lab">ROLES · YES + PROBABLY</span><div id="cover" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div>
 <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #AEA49A; margin-top: 12px"><span><i class="rs-key" style="background: #E9E2D9"></i>Main role</span><span><i class="rs-key" style="background: #6E625C"></i>Willing to play</span></div></div>
 <div class="md-card"><span class="md-lab">CLASSES · YES + PROBABLY</span><div id="classBars" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px"></div></div>
 </div>
-<div id="lists" style="display: flex; flex-direction: column; gap: 24px"></div>
 <div class="md-card" id="attTrack" style="gap: 14px">
 <div style="display: flex; flex-direction: column; gap: 4px"><span class="md-lab">40-MAN ATTUNEMENT · YES + PROBABLY</span><h2 style="font-size: clamp(24px, 3vw, 27px)">Attunement tracker</h2><p style="font-size: 15px; color: #AEA49A">Need a hand? Find someone in the first group, or ask in Discord.</p></div>
 <div id="attRows" style="display: flex; flex-direction: column; gap: 14px"></div>
 </div>
+</aside>
 </div>
 </div>
 </section>
@@ -180,8 +192,8 @@ const ev=()=>G.event()||{id:'',title:'',type:'raid',when:'',extras:false};
 const lab=v=>(EVL[ev().type]||EVL.raid)[v]||v;
 function drawEvent(){
  const e=ev(),list=G.events();
- $('evBar').innerHTML=list.map(x=>`<button type="button" data-ev="${esc(x.id)}" aria-pressed="${x.id===e.id}" style='${G.chipStyle(x.id===e.id)};text-transform:none;letter-spacing:.02em;font-size:15px'>${esc(x.title)} · ${esc(x.when.split(',')[0])}${x.type==='raid'?'':' · not a raid'}</button>`).join('');
- $('evBar').hidden=list.length<2;
+ $('evBar').innerHTML=list.map(x=>`<button type="button" class="ev-chip" data-ev="${esc(x.id)}" aria-pressed="${x.id===e.id}"><b>${esc(x.title)}</b><span>${esc(x.when.replace(/ ET$/,''))}${x.type==='raid'?' · raid':' · not a raid'}</span></button>`).join('');
+ $('evBar').hidden=!list.length;
  $('qTitle').textContent=e.type==='raid'?`Raiding: ${e.title}?`:`Coming to ${e.title}?`;
  $('qSub').textContent=`${e.when}.${e.type==='raid'?'':' Not a raid night, so no DKP.'} ${e.note?e.note.replace(/[^.!?]$/,'$&.')+' ':''}Change your answer any time.`;
  $('rTitle').textContent=`Who’s in: ${e.title}`;
